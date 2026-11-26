@@ -152,20 +152,24 @@
 > **前置**：用户签收 M2 为 `DONE`，**新建 Codex Session**。
 
 ```text
-请先完整阅读 AGENTS.md、docs/PROGRESS.md、docs/01-shelter-engineering-spec.md（第 3、5 节）、docs/02-visual-and-ux-spec.md（第 1.2 节）与 docs/05-camera-and-walkthrough-spec.md（第 4 节）。
+请先完整阅读 AGENTS.md、docs/PROGRESS.md、docs/01-shelter-engineering-spec.md（第 3、5 节）、docs/02-visual-and-ux-spec.md（第 1.2 节）与 docs/05-camera-and-walkthrough-spec.md（第 4 节），并检查 M2 已完成的 src/scene/CoreTraces.tsx、src/scene/FloorSliceGroup.tsx、src/scene/rooms/RoomInteriors.tsx、src/scene/materials/pbrLibrary.ts 与 src/scene/atmosphere/warmPrograms.ts。
 
 本轮任务仅完成里程碑 M3（6 大工程管网、GB 7231 标识与漫游 X 光透镜）：
-1. 在 src/data/mepNetwork.ts 中生成完整合规的 6 套管网拓扑，严格遵循 v2.0 扩容核心筒（湿井 gx=4 与电气井 gx=9 相距 8m）、顶部 0.9m 夹层与东北绝对干区零过水管铁律，每条关键管段与阀门配置规范位号（如 V-B3-012）。
-2. 在 src/scene/mep/ 中实现双尺度管网表达：
-   - 宏观/X 光/图纸视图：使用 docs/02 规范的系统色 + 制图线型（实线/短虚线/长虚线/双线/点划线/斜线填充）与柔和流向微光（useFrame 更新，禁止 setState）；
-   - 近距/漫游视图：实体管道表面贴 GB 7231 识别色环、介质名、流向箭头与阀门位号牌。
-3. 实现三项招牌管网交互：
-   - 漫游时按住 Alt 激活以光标为中心的圆形【X 光透视透镜】，实时看穿墙后与吊顶后管线；
-   - 走廊仰视超过 30° 自动半透明化吊顶饰板，显露 0.9m 夹层；
-   - 【顺着水走】点击任意水管沿上游水源 → 用水点 → 净水站全链路高亮追踪；悬停任意阀门自动描红下游受影响房间。
-4. 联动左下角线型图例面板（含夹层 M 勾选）与 X 光夜景出片效果。
+1. 在 src/data/mepNetwork.ts 中生成完整合规的 6 套管网拓扑（强电 power、弱电/智控 data、给排水 water 含给水/排水双子路、三防新风与热力 air 含独立送排风及 B4 储能独立热失控排烟道/CHP 排烟接口、重载物流吊轨 freight、结构与防护/逃生边界 structure）：
+   - 严格遵循 v2.0 扩容核心筒（湿井 gx=4 与电气井 gx=9 相距 8.0 m，电气井实体隔板分西强东弱）、地下 0.9 m 顶部夹层（严格绕开 B2 餐厅/图书馆 3.6 m 抬高区与 B2↔B3 4×6 m 挑空中庭净口）、强弱电夹层桥架物理间距 >= 0.4 m，以及东北绝对干区（b2_command、b4_switchgear 上方）零给排水管穿越铁律；
+   - 接入外围与双平硐真实接点（上游山泉进水至 B3 净水站、B4 深层排水经重力暗管外排东侧冲沟、双进风口/排风口至 B4 三防新风站）；
+   - 为关键管段与阀门配置规范位号（如 V-B3-012）及完整的上下游有向拓扑（支撑水流全链路追踪与阀门下游受影响房间求解），并补充 Vitest 回归测试校验干湿零穿越、强弱电间距 >= 0.4 m、夹层/中庭净空不冲突与上下游拓扑连通性。
+2. 在 src/scene/mep/ 中实现双尺度管网表达（完整替换 M1.5b/M2 的占位 CoreTraces.tsx）：
+   - 宏观 / X 光 / 剖面 / 平面 / 楼层俯瞰视图：使用 docs/02 规范的系统色 + 制图线型（强电实线、弱电短虚线、给水实线配法兰节点、排水长虚线标坡度、三防新风双线、物流点划线、结构防护斜线填充）与柔和流向微光（仅在 useFrame 中改 uniform，严禁每帧 setState）；
+   - 近距 / 漫游 / 夹层裸露视图：实体管道表面贴 GB 7231 基本识别色环、介质名、流向箭头与阀门位号牌（合批 InstancedMesh / 合并几何 + 共享纹理图集，不生成零散节点）。
+3. 实现三项招牌管网交互（全部保持零切换顿挫、交互期新增 linkProgram = 0）：
+   - 漫游时按住 Alt 激活以鼠标光标（指针锁定时为屏幕中心）为圆心的圆形【X 光透视透镜】，实时看穿墙后与吊顶后管线与桥架（建议直接通过 pbrMaterial 共享 uniform 裁切 + HUD 1px 圆形透镜准环实现，零新增渲染 Pass 与着色器重编译，失焦/松键必复位）；
+   - 地下主走廊漫游仰视超过 30° 自动平滑半透明化走廊吊顶饰板，显露 0.9 m 顶部夹层内强弱电桥架、风管与吊轨（不影响普通状态不透明材质与阴影）；
+   - 【顺着水走】点击任意给水/排水管段沿上游水源/水箱 → 用水点 → 净水站/重力外排全链路高亮追踪；悬停（或漫游准星对准）任意阀门自动描红下游受影响房间，并在右侧 1px 数据表/读数区显示阀号、介质、状态与受影响房间清单。
+4. 联动左下角 6 大系统线型图例面板（含夹层 M 勾选）：勾选不仅作用于 X 光视图，也联动剖面/平面/楼层俯瞰/剖切盒/漫游中的管网显隐（不强行踢回 X 光），并升级 shot-04（X 光夜景）出片效果。
+5. 严格守住性能与绘制预算（M2 峰值绘制调用已达 381 / 400）：所有新增 MEP 几何与标识必须高度合批，非 X 光的 site 室外视图自动剔除地下管网避免抬高站房推近绘制数，全部新材质/透镜/透明变体纳入 precompileSurvey 预热；同步更新 scripts/capture-shots.mjs 默认里程碑为 m3，并在 scripts/measure-perf.mjs 中增加 M3 专项回归段（图例开关、Alt X 光透镜、走廊抬头看夹层、点水管链路追踪与阀门悬停），确保全段主线程 <= 50 ms、交互后新增 linkProgram = 0、峰值绘制调用 <= 400、控制台零错误警告。
 
-完成前执行 npm run verify、npm run shots（输出至 docs/shots/m3/）与 npm run perf，将 docs/PROGRESS.md 中 M3 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots -- m3（输出至 docs/shots/m3/）与 npm run perf 全部达标，将 docs/PROGRESS.md 中 M3 标为 REVIEW，同步 README 与 docs/ 变更后自动 commit（feat(m3): ...）并 git push origin main。
 ```
 
 ---
