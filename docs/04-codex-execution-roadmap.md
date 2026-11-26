@@ -139,10 +139,10 @@
    - B3：分层农场（明确区分 5 层叶菜架与 2 层高光强块茎主食床，全光谱偏品红白补光）、鱼菜共生水池（带水面焦散感）与菌菇/螺旋藻舱、战略冷库、双 25,000L 不锈钢净水罐；
    - B4：双模块屏蔽微核堆与独立进排烟 CHP、带独立热失控排烟道的储能阵与双母线配电柜、三防快拆滤箱与电解制氧机、地热集分水器、深层排水与固废压实间；
    - 走廊尽端设大尺寸人工天空窗，每层加 3–5 处克制生活痕迹（擦痕、保温杯、白板排班、半局棋）与 ISO 7010 标志/荷载标牌/灭火与急救柜。
-2. 为全部 26 个房间写入真实工程参数（powerKw、thermalEfficiency、heatRejectionKw、o2RateKgPerDay、moduleSizeM、weightKg、tagCode 等）与 1–3 个精选机位锚点（cameraAnchors），点击任意房间或设备在右侧弹出 1px 细线工程数据表，支持一键“掀顶落地 / 竖井下潜”进入该房漫游。
-3. 扩充 Vitest 测试验证全部设备参数完整性与房间机位锚点合法性。
+2. 为全部 26 个房间写入真实工程参数（powerKw、thermalEfficiency、heatRejectionKw、o2RateKgPerDay、moduleSizeM、weightKg、tagCode 等）与 1–3 个精选机位锚点（cameraAnchors），点击任意房间或设备在右侧弹出 1px 细线工程数据表，支持一键“掀顶落地 / 竖井下潜”进入该房漫游；替换掉 M1.5b 临时样段 StudyFixtures.tsx，并确保新增室内材质/合批模型全部纳入首屏 warmPrograms 预热与漫游缓存 BVH（不得破坏零切换顿挫与 <= 400 绘制调用预算；顺手在 capture-shots.mjs 切机位时重置光标读数消除上个机位坐标残留）。
+3. 扩充 Vitest 测试验证全部设备参数完整性与房间机位锚点合法性（校验设备不越出房间边界、不堵死走廊与门洞通行）。
 
-完成前执行 npm run verify 与 npm run shots（输出至 docs/shots/m2/），将 docs/PROGRESS.md 中 M2 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots（输出至 docs/shots/m2/）与 npm run perf（确保切视图主线程 <= 50 ms、交互后新增 linkProgram = 0、绘制调用 <= 400），将 docs/PROGRESS.md 中 M2 标为 REVIEW，自动 commit 与 push。
 ```
 
 ---
@@ -165,7 +165,7 @@
    - 【顺着水走】点击任意水管沿上游水源 → 用水点 → 净水站全链路高亮追踪；悬停任意阀门自动描红下游受影响房间。
 4. 联动左下角线型图例面板（含夹层 M 勾选）与 X 光夜景出片效果。
 
-完成前执行 npm run verify 与 npm run shots（输出至 docs/shots/m3/），将 docs/PROGRESS.md 中 M3 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots（输出至 docs/shots/m3/）与 npm run perf，将 docs/PROGRESS.md 中 M3 标为 REVIEW，自动 commit 与 push。
 ```
 
 ---
@@ -186,7 +186,7 @@
 3. 接入右侧按需【工程体检】与【模拟隔离检修】数据表：点击报警项自动平滑飞镜高亮目标房间/管段；隔离检修态在 3D 清晰呈现隔离红段、接管备用回路与 B1 搬运路径。
 4. 实现 4 种情景切换（日常 / 极寒 -60℃ / 生化孢子 / 核尘埃封锁）与入住人数（5–10 人）调节：落地 4 套克制 3D LUT、暴雪/孢子/沉降粒子，以及 docs/06 第 4 节完整的【30 秒封锁编排动画】（地柱→廊道闸门→装甲门→外立面百叶→温室盖板与光伏折叠→雷达维持缓转→B1 压差拉升→图签变“封锁 · 第 1 天”）。
 
-完成前执行 npm run verify 与 npm run shots（输出至 docs/shots/m4/），将 docs/PROGRESS.md 中 M4 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots（输出至 docs/shots/m4/）与 npm run perf，将 docs/PROGRESS.md 中 M4 标为 REVIEW，自动 commit 与 push。
 ```
 
 ---
@@ -204,7 +204,7 @@
 3. 在 src/scene/ambiance/ 中实现可开关的轻动态与 WebAudio 程序化声景：10 位比例尺极简巡检小人（1.75m）、B1 AGV 穿梭、风轮与雷达缓转；漫游时按所在楼层淡入对应底噪（L2 高山风、B3 水流与风机、B4 100Hz 变压器低频嗡声）及气闸泄压声。
 4. 实现【照片模式】：一键隐藏 HUD（快捷键 H）、可选景深与移轴竖线校正、16:9 / 4:5 / 2.39:1 画幅裁切与高清 PNG 导出。
 
-完成前执行 npm run verify 与 npm run shots（输出至 docs/shots/m5/），将 docs/PROGRESS.md 中 M5 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots（输出至 docs/shots/m5/）与 npm run perf，将 docs/PROGRESS.md 中 M5 标为 REVIEW，自动 commit 与 push。
 ```
 
 ---
@@ -222,5 +222,5 @@
 3. 实现蓝图管理：JSON 导出/导入、localStorage 自动持久化与一键重置为 v2.0 标杆预设。
 4. 全面终审打磨：检查全 6 层无穿模与阴影瑕疵、窄屏响应式标高尺横置体验、核对运行时预算（<= 400 draw calls / 60 FPS），补齐模块替换与违规联动的 Vitest 回归测试。
 
-完成前执行 npm run verify 与 npm run shots（输出至 docs/shots/m6/），将 docs/PROGRESS.md 中 M6 标为 REVIEW，自动 commit 与 push。
+完成前执行 npm run verify、npm run shots（输出至 docs/shots/m6/）与 npm run perf，将 docs/PROGRESS.md 中 M6 标为 REVIEW，自动 commit 与 push。
 ```
