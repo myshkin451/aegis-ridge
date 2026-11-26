@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import { Box3, CanvasTexture, Frustum, Group, Matrix4, SRGBColorSpace, Vector3 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { roomsOn } from '../data/defaultBlueprint'
-import { CORRIDOR, FLOORS } from '../data/floors'
+import { CORRIDOR, FLOORS, UNDERGROUND } from '../data/floors'
 import { footprint, shaftPlans } from '../geometry/coords'
 import { randomSource } from '../geometry/random'
 import type { UndergroundId } from '../types/shelter'
@@ -86,13 +86,22 @@ function farmStudy() {
           for (let k = 0; k < 5; k++) {
             const a = rand() * 6.28,
               t = rand(),
-              r = 0.08 + t * 0.035
+              r = 0.08 + t * 0.035,
+              width = 0.16 + t * 0.1,
+              length = 0.34 + t * 0.09,
+              rx = Math.abs(Math.cos(a)) * width * 0.44 + (Math.abs(Math.sin(a)) * length) / 2,
+              rz = Math.abs(Math.sin(a)) * width * 0.44 + (Math.abs(Math.cos(a)) * length) / 2,
+              cx = Math.max(x - 0.65 + rx, Math.min(x + 0.65 - rx, px + Math.sin(a) * r)),
+              cz = Math.max(
+                z - depth / 2 + 0.07 + rz,
+                Math.min(z + depth / 2 - 0.07 - rz, pz + Math.cos(a) * r),
+              )
             m.part(
               'leaf',
               'foliage',
               t > 0.76 ? '#9eaf68' : t > 0.34 ? '#6b904e' : '#487044',
-              [px + Math.sin(a) * r, y + 0.17 + t * 0.04, pz + Math.cos(a) * r],
-              [0.16 + t * 0.1, 0.16 + t * 0.06, 0.34 + t * 0.09],
+              [cx, y + 0.17 + t * 0.04, cz],
+              [width, 0.16 + t * 0.06, length],
               [0, a, 0],
             )
           }
@@ -160,22 +169,35 @@ export function StudyFixtures({ id }: { id: UndergroundId }) {
   return (
     <>
       <Model build={build} />
-      {view === 'section' && (
-        <pointLight position={[0, 2.4, -8]} color={floorLight[id]} intensity={18} distance={16} decay={2} />
-      )}
       {id === 'B3' && <FarmBay />}
-      {(view === 'walkthrough' || mode === 'xray') && (
+      <group visible={view === 'walkthrough' || mode === 'xray'}>
         <Inscription text={id} position={[freight.x, 1.62, freight.z0 + 0.13]} width={2.1} height={1.2} />
-      )}
-      {view === 'walkthrough' && id === 'B3' && (
-        <>
+      </group>
+      {id === 'B3' && (
+        <group visible={view === 'walkthrough'}>
           <Inscription text="B3　分层水培" width={2.35} height={0.34} position={[-7, 2.69, -0.013]} reverse />
           <Inscription text="B3　农业试验区" width={3.6} height={0.48} position={[-7, 1.75, 11.76]} reverse />
-          <pointLight position={[-7, 2.45, 4]} color="#ffe1f1" intensity={16} distance={16} decay={2} />
-        </>
+        </group>
       )}
     </>
   )
+}
+// Keep the light count independent of floor visibility so a peeled floor needs no new program.
+export function StudyLights() {
+  const view = useShelterStore((s) => s.cameraState)
+  return UNDERGROUND.map((id) => {
+    const farm = view === 'walkthrough' && id === 'B3'
+    return (
+      <pointLight
+        key={id}
+        position={[farm ? -7 : 0, FLOORS[id].elevation + 2.45, farm ? 4 : -8]}
+        color={farm ? '#ffe1f1' : floorLight[id]}
+        intensity={farm ? 16 : view === 'section' ? 18 : 0}
+        distance={16}
+        decay={2}
+      />
+    )
+  })
 }
 export function WalkCeiling({ id }: { id: UndergroundId }) {
   const build = useMemo(

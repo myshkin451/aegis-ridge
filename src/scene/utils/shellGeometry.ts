@@ -53,7 +53,10 @@ export function shaftFrames(m: ModelBuilder, bottom: number, top: number, arriva
     for (const x of [s.x0 + 0.08, s.x1 - 0.08])
       for (const z of [s.z0 + 0.08, s.z1 - 0.08]) m.box(finish, [x, cy, z], [0.14, h, 0.14], 'steel')
     for (const y of [bottom + 0.09, top - 0.09]) {
-      for (const z of [s.z0 + 0.08, s.z1 - 0.08]) m.box(trim, [s.x, y, z], [s.w - 0.12, 0.16, 0.1], 'steel')
+      for (const z of [s.z0 + 0.08, s.z1 - 0.08]) {
+        if ((s.id === 'personnel' || s.id === 'escape') && z > s.z && y < cy) continue
+        m.box(trim, [s.x, y, z], [s.w - 0.12, 0.16, 0.1], 'steel')
+      }
       for (const x of [s.x0 + 0.08, s.x1 - 0.08]) m.box(trim, [x, y, s.z], [0.1, 0.16, s.d - 0.12], 'steel')
     }
     if (s.id === 'electrical' || s.id === 'wet') {
@@ -124,7 +127,11 @@ function partition(
     }
   }
   box(centre, (h + head) / 2, door, h - head, 0.15, stone)
-  for (const at of [centre - door / 2, centre + door / 2]) box(at, head / 2, 0.1, head, 0.21, steel, 'steel')
+  // The head occupies the last 60 mm. Stop the jambs on the corridor finish, clear of both faces.
+  const sill = axis === 'x' ? 0.024 : 0,
+    jambHeight = head - 0.06 - sill
+  for (const at of [centre - door / 2, centre + door / 2])
+    box(at, sill + jambHeight / 2, 0.1, jambHeight, 0.21, steel, 'steel')
   box(centre, head, door + 0.1, 0.12, 0.21, steel, 'steel')
 }
 

@@ -13,16 +13,34 @@ const granite = new Color('#787b76'),
   snow = new Color('#e4e9e8')
 const clamp = (v: number) => Math.min(1, Math.max(0, v))
 const station = footprint(FLOORS.L1.bounds)
+// Continuous value noise avoids sampling repeating bands at the coarser 5 m and 40 m survey steps.
+function landGrain(x: number, z: number) {
+  const ix = Math.floor(x),
+    iz = Math.floor(z)
+  function corner(a: number, b: number) {
+    let h = Math.imul(a, 1597334677) ^ Math.imul(b, 3812015801)
+    h = Math.imul(h ^ (h >>> 16), 2246822519)
+    return ((h ^ (h >>> 13)) >>> 0) / 4294967295
+  }
+  const fx = x - ix,
+    fz = z - iz,
+    u = fx * fx * (3 - 2 * fx),
+    v = fz * fz * (3 - 2 * fz)
+  return (
+    (corner(ix, iz) * (1 - u) + corner(ix + 1, iz) * u) * (1 - v) +
+    (corner(ix, iz + 1) * (1 - u) + corner(ix + 1, iz + 1) * u) * v
+  )
+}
 export function terrainColor(s: GroundSample, x: number, z: number, out: Color) {
   const north = (1 - Math.cos(s.aspect)) / 2
-  const grain = 0.5 + 0.5 * Math.sin(x * 0.139 + Math.sin(z * 0.21)) * Math.cos(z * 0.17 + x * 0.037)
+  const grain = 0.65 * landGrain(x * 0.014, z * 0.014) + 0.35 * landGrain(x * 0.046, z * 0.046)
   out
     .copy(meadow)
     .lerp(woodland, clamp(0.24 + s.flow * 0.78 - s.curvature * 0.22 + s.height * 0.00018))
     .lerp(talus, clamp((s.slope - 25) / 12 + 0.2 * s.curvature))
     .lerp(granite, clamp((s.slope - 35) / 13))
     .lerp(snow, clamp((s.height - 320) / 205 + north * 0.4 + s.flow * 0.15 - s.slope * 0.006 + grain * 0.12))
-    .multiplyScalar(0.91 + 0.11 * grain + 0.06 * Math.sin(x * 0.041 + z * 0.017))
+    .multiplyScalar(0.88 + 0.2 * grain)
   return out
 }
 function axis(tile: TerrainTile, extras: number[]) {

@@ -15,6 +15,7 @@ const faces: [BoxFace, number][] = [
   ['south', 2],
 ]
 export function SectionBoxTool({ rt }: { rt: SurveyRuntime }) {
+  const active = useShelterStore((s) => s.cameraState === 'sectionBox')
   const box = useShelterStore((s) => s.box),
     get = useThree((s) => s.get)
   const cleanup = useRef<(() => void) | null>(null)
@@ -29,6 +30,7 @@ export function SectionBoxTool({ rt }: { rt: SurveyRuntime }) {
     return new Float32Array(pts)
   }, [west, east, bottom, top, north, south])
   function drag(e: ThreeEvent<PointerEvent>, face: BoxFace, axis: number, position: Vector3) {
+    if (!active) return
     e.stopPropagation()
     cleanup.current?.()
     rt.controls?.stop()
@@ -60,7 +62,7 @@ export function SectionBoxTool({ rt }: { rt: SurveyRuntime }) {
     window.addEventListener('pointercancel', end)
   }
   return (
-    <group>
+    <group visible={active}>
       <lineSegments>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[edges, 3]} />

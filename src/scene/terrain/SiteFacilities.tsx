@@ -104,13 +104,20 @@ function avalanche(atlas: TerrainAtlas, m: ModelBuilder) {
     if (i === 0) m.box(steel, p(0, 4.17, 0), [7.2, 0.54, 0.33], 'steel', [0, yaw, 0])
   }
 }
-function portal(m: ModelBuilder, adit: Adit, walk: boolean) {
+function portal(m: ModelBuilder, adit: Adit, doorsOnly: boolean) {
   const b = adit.points.at(-1)!,
     a = adit.points.at(-2)!
   const yaw = Math.atan2(b[0] - a[0], b[2] - a[2]),
     p = frame(...b, yaw)
   const w = adit.width,
     h = adit.height
+  if (doorsOnly) {
+    m.box(rust, p(0, h * 0.48, -0.32), [w - 0.08, h * 0.96, 0.14], 'corten', [0, yaw, 0])
+    if (adit.id === 'east')
+      for (let u = -1; u <= 1; u += 0.22)
+        m.box(steel, p(u, h / 2, -0.1), [0.045, h - 0.12, 0.06], 'steel', [0, yaw, 0])
+    return
+  }
   for (const side of [-1, 1]) {
     m.box(cement, p(side * (w / 2 + 0.29), h / 2, 0), [0.58, h, 0.95], 'stone', [0, yaw, 0])
     m.box(cement, p(side * (w / 2 + 2.35), 1.32, -0.21), [4.1, 2.64, 0.76], 'stone', [0, yaw, 0])
@@ -118,11 +125,7 @@ function portal(m: ModelBuilder, adit: Adit, walk: boolean) {
       m.box(steel, p(side * (w / 2 + 0.91 + j * 0.87), 0.38, 0.19), [0.12, 0.12, 0.07], 'steel', [0, yaw, 0])
   }
   m.box(cement, p(0, h + 0.19, 0), [w + 1.24, 0.38, 1.15], 'stone', [0, yaw, 0])
-  if (!walk) m.box(rust, p(0, h * 0.48, -0.32), [w - 0.08, h * 0.96, 0.14], 'corten', [0, yaw, 0])
   if (adit.id === 'east') {
-    if (!walk)
-      for (let u = -1; u <= 1; u += 0.22)
-        m.box(steel, p(u, h / 2, -0.1), [0.045, h - 0.12, 0.06], 'steel', [0, yaw, 0])
     m.part('round', 'steel', '#c3c8be', p(2.8, 0.85, 1), [0.2, 1.7, 0.2])
   }
 }
@@ -194,7 +197,7 @@ function eastBore() {
 }
 const westBore = () => bore(new ModelBuilder('shotcrete'), adits.west)
 
-function landscape(atlas: TerrainAtlas, walk: boolean) {
+function landscape(atlas: TerrainAtlas) {
   const m = new ModelBuilder()
   for (const f of siteFacilities) {
     const [x, y, z] = facilityAnchor(f, atlas),
@@ -216,10 +219,10 @@ function landscape(atlas: TerrainAtlas, walk: boolean) {
         avalanche(atlas, m)
         break
       case 'westPortal':
-        portal(m, adits.west, walk)
+        portal(m, adits.west, false)
         break
       case 'eastPortal':
-        portal(m, adits.east, walk)
+        portal(m, adits.east, false)
         break
       case 'gate': {
         const g = frame(x + 5, y, z)
@@ -337,12 +340,17 @@ function landscape(atlas: TerrainAtlas, walk: boolean) {
   }
   return m
 }
+function portalDoors() {
+  const m = new ModelBuilder()
+  for (const adit of Object.values(adits)) portal(m, adit, true)
+  return m
+}
 export function SiteFacilities({ atlas }: { atlas: TerrainAtlas }) {
   const mode = useShelterStore((s) => s.mode),
     floor = useShelterStore((s) => s.floor)
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough'),
     mount = useRef<Group>(null)
-  const build = useMemo(() => () => landscape(atlas, walk), [atlas, walk])
+  const build = useMemo(() => () => landscape(atlas), [atlas])
   useFrame(({ camera }) => {
     if (mount.current)
       mount.current.visible =
@@ -350,6 +358,9 @@ export function SiteFacilities({ atlas }: { atlas: TerrainAtlas }) {
   })
   return (
     <group ref={mount}>
+      <group visible={!walk && mode === 'exterior' && floor === 'ALL'}>
+        <Model build={portalDoors} />
+      </group>
       <Model
         build={build}
         opacity={walk ? 1 : floor === 'ALL' ? (mode === 'exterior' ? 1 : mode === 'xray' ? 0.12 : 0) : 0}
@@ -378,7 +389,9 @@ export function TunnelModels() {
   const floor = useShelterStore((s) => s.floor)
   return (
     <group name="检修与疏散平硐">
-      {walk && <Model build={tunnelSoffits} />}
+      <group visible={walk}>
+        <Model build={tunnelSoffits} />
+      </group>
       <Model build={westBore} opacity={Number(floor === 'B1' || floor === 'ALL')} />
       <Model build={eastBore} opacity={Number(floor === 'B2' || floor === 'ALL')} />
     </group>

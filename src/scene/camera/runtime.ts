@@ -1,4 +1,5 @@
 import { Vector3 } from 'three'
+import type { WalkCollision } from './walkCollision'
 import type CameraControls from 'camera-controls'
 import type { FloorId } from '../../types/shelter'
 
@@ -6,6 +7,8 @@ export function surveyRuntime() {
   return {
     controls: null as CameraControls | null,
     moving: false,
+    garageTransfer: false,
+    dropping: false,
     finish: null as (() => void) | null,
     target: new Vector3(),
     feet: new Vector3(),
@@ -13,6 +16,7 @@ export function surveyRuntime() {
     pitch: 0,
     floor: 'B2' as FloorId,
     walkRevision: -1,
+    collision: null as WalkCollision | null,
     readout: new Vector3(),
     hit: false,
     stick: { x: 0, y: 0 },

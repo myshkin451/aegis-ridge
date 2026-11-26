@@ -1,3 +1,4 @@
+import type { SurveyRuntime } from './camera/runtime'
 import { slabPlan } from '../geometry/planGeometry'
 import { FLOORS, SLAB, UNDERGROUND } from '../data/floors'
 import { buffer, floorSection, undergroundPlan } from '../geometry/coords'
@@ -38,7 +39,7 @@ function pitFloor() {
   m.box('#7b807c', [p.x, -SLAB - 0.12, p.z], [p.w, 0.24, p.d])
   return m
 }
-export function UndergroundShell() {
+export function UndergroundShell({ rt }: { rt: SurveyRuntime }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode)
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough')
@@ -46,7 +47,7 @@ export function UndergroundShell() {
   return (
     <>
       {UNDERGROUND.map((id) => (
-        <FloorSliceGroup key={id} id={id} />
+        <FloorSliceGroup key={id} id={id} rt={rt} />
       ))}
       <group position-y={FLOORS.B4.elevation}>
         <Model build={pitFloor} />

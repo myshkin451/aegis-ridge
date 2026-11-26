@@ -33,8 +33,8 @@ const normals = [
   [0, 0, 1],
   [0, 0, -1],
 ] as const
-function makeCut(indices: number[]) {
-  const planes = indices.map((i) => new Plane(new Vector3(...normals[i])))
+function makeCut() {
+  const planes = normals.map((n) => new Plane(new Vector3(...n), 25000))
   return { planes, models: new Map<BuiltModel, CutMaterial>(), group: new Group() }
 }
 type Cut = ReturnType<typeof makeCut>
@@ -44,7 +44,8 @@ export function attachCut(model: BuiltModel, cut: Cut, kind: CutMaterial) {
   cut.models.set(model, kind)
   for (const { material } of model.materials) {
     material.clippingPlanes = cut.planes
-    material.clipShadows = true
+    // CSM only illuminates the intact exterior. Cutaway lighting never samples shadow maps.
+    material.clipShadows = false
     material.needsUpdate = true
   }
   return () => {
@@ -94,6 +95,7 @@ function makeCaps(cut: Cut) {
           stencilZPass: op,
         })
         const mesh = new Mesh(geometry, material)
+        mesh.userData.face = i
         mesh.renderOrder = order + j
         cut.group.add(mesh)
         releases.push(() => material.dispose())
@@ -108,6 +110,7 @@ function makeCaps(cut: Cut) {
       const cap = new Mesh(square, material)
       cap.frustumCulled = false
       cap.userData.plane = plane
+      cap.userData.face = i
       cap.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), plane.normal.clone().negate())
       cap.renderOrder = order + 2
       cap.onAfterRender = (renderer) => renderer.clearStencil()
@@ -137,22 +140,25 @@ export function BuildingSection({ children }: { children: ReactNode }) {
         : view === 'floorOrbit' && orbitCut
           ? 'plan'
           : null
-  const cut = useMemo(
-    () => kind && makeCut(kind === 'sectionBox' ? [0, 1, 2, 3, 4, 5] : kind === 'plan' ? [3] : [5]),
-    [kind],
-  )
+  const cut = useMemo(makeCut, [])
   const gl = useThree((s) => s.gl)
-  useLayoutEffect(() => (cut ? makeCaps(cut) : undefined), [cut, floor])
+  useLayoutEffect(() => makeCaps(cut), [cut])
   useLayoutEffect(() => {
-    if (!cut) return
-    const constants =
-      kind === 'sectionBox'
-        ? [-box.west, box.east, -box.bottom, box.top, -box.north, box.south]
-        : [kind === 'plan' ? FLOORS[floor].elevation + h : z]
-    cut.planes.forEach((p, i) => {
-      p.constant = constants[i]
+    const limits = [-box.west, box.east, -box.bottom, box.top, -box.north, box.south]
+    const enabled = (i: number) =>
+      kind === 'sectionBox' || (kind === 'plan' && i === 3) || (kind === 'section' && i === 5)
+    cut.planes.forEach((plane, i) => {
+      plane.constant = !enabled(i)
+        ? 25000
+        : kind === 'plan'
+          ? FLOORS[floor].elevation + h
+          : kind === 'section'
+            ? z
+            : limits[i]
     })
+    cut.group.visible = !!kind
     for (const child of cut.group.children) {
+      child.visible = enabled(child.userData.face)
       const p = child.userData.plane as Plane | undefined
       if (p) child.position.copy(p.normal).multiplyScalar(-p.constant)
     }

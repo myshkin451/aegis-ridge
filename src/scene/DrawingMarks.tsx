@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo } from 'react'
 import { BufferGeometry, Float32BufferAttribute } from 'three'
-import { FLOORS, GRID, UNDERGROUND } from '../data/floors'
+import { FLOORS, FLOOR_ORDER, GRID, UNDERGROUND } from '../data/floors'
 import { roomsOn } from '../data/defaultBlueprint'
 import { footprint, gridToWorld, undergroundPlan } from '../geometry/coords'
 import { useShelterStore } from '../store/useShelterStore'
@@ -47,13 +47,10 @@ const compactRoom: Record<string, string> = {
   b4_reactor: '主能源机房',
   b4_cbrn_hvac: '三防新风',
 }
-export function DrawingMarks() {
-  const view = useShelterStore((s) => s.cameraState),
-    floor = useShelterStore((s) => s.lastFloor),
-    h = useShelterStore((s) => s.cutHeight),
+function Marks({ floor, plan }: { floor: keyof typeof FLOORS; plan: boolean }) {
+  const h = useShelterStore((s) => s.cutHeight),
     z = useShelterStore((s) => s.sectionZ)
-  const plan = view === 'plan',
-    y = FLOORS[floor].elevation + h + 0.04
+  const y = FLOORS[floor].elevation + h + 0.04
   const pts = useMemo(() => {
     const v: number[] = []
     if (plan) {
@@ -73,7 +70,6 @@ export function DrawingMarks() {
       }
     return v
   }, [plan, floor, y, z])
-  if (!plan && view !== 'section') return null
   return (
     <>
       <Rules points={pts} color="#484e4c" />
@@ -104,6 +100,23 @@ export function DrawingMarks() {
               background="#d9dbd1"
             />
           ))}
+    </>
+  )
+}
+
+export function DrawingMarks() {
+  const view = useShelterStore((s) => s.cameraState),
+    level = useShelterStore((s) => s.lastFloor)
+  return (
+    <>
+      <group visible={view === 'section'}>
+        <Marks floor="B2" plan={false} />
+      </group>
+      {FLOOR_ORDER.map((floor) => (
+        <group key={floor} visible={view === 'plan' && level === floor}>
+          <Marks floor={floor} plan />
+        </group>
+      ))}
     </>
   )
 }

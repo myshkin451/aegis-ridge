@@ -14,7 +14,8 @@
     "build": "vite build",
     "verify": "npm run typecheck && npm run test && npm run build",
     "preview": "vite preview",
-    "shots": "node scripts/capture-shots.mjs"
+    "shots": "node scripts/capture-shots.mjs",
+    "perf": "node scripts/measure-perf.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",

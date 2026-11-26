@@ -605,6 +605,9 @@ input[type='checkbox']:checked::after {
   background-size: 10% 15%;
   transform-origin: 50% 50%;
 }
+.viewport:not(.ready) .drawing-intro {
+  animation: none;
+}
 .drawing-transition {
   animation: section-plot 0.6s both;
   background-color: transparent;

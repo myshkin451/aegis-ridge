@@ -47,6 +47,16 @@ export function needleMaterial() {
   })
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shadowUniforms)
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        float seed=fract(dot(instanceMatrix[3].xz,vec2(.137,.319)));
+        float h=position.y+.5;
+        transformed.xz*=mix(.68,1.25,smoothstep(.05,.85,h)*seed+(.9-h)*(1.-seed));
+        transformed.x+=(seed-.5)*h*h*.28;
+      #endif`,
+    )
   }
   return { map, material }
 }

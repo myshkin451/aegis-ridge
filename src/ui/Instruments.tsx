@@ -86,7 +86,7 @@ function Sheet({ close }: { close: () => void }) {
         ))}
       </dl>
       <button onClick={() => s.setView('walkthrough', [p.x, f.elevation, p.z])}>
-        进入漫游 <kbd>W</kbd>
+        进入漫游 <kbd>5</kbd>
       </button>
     </section>
   )
@@ -208,11 +208,17 @@ export function Instruments() {
         !['h', '?'].includes(k)
       )
         return
-      if (/^[1-6]$/.test(k)) v.selectFloor(FLOOR_ORDER[Number(k) - 1])
+      if (k === '[' || k === ']') {
+        const index = FLOOR_ORDER.indexOf(v.lastFloor) + (k === '[' ? -1 : 1)
+        v.selectFloor(FLOOR_ORDER[Math.max(0, Math.min(FLOOR_ORDER.length - 1, index))])
+      } else if (k === '1') v.setView('site')
+      else if (k === '2') v.setView('section')
+      else if (k === '3') v.setView('plan')
+      else if (k === '4') v.setMode('xray')
       else if (k === 'v') v.setView(views[(views.indexOf(v.cameraState) + 1) % views.length])
       else if (k === 'm') v.togglePlenum()
       else if (k === 'x') v.setMode(v.mode === 'xray' ? 'exterior' : 'xray')
-      else if (k === 'w' && v.cameraState !== 'walkthrough') {
+      else if (k === '5') {
         const room = defaultBlueprint.rooms.find((r) => r.id === v.roomId),
           p = room && footprint(room.bounds)
         v.setView('walkthrough', p && room ? [p.x, FLOORS[room.floorId].elevation, p.z] : undefined)
@@ -265,7 +271,7 @@ export function Instruments() {
               }}
             >
               {id === 'xray' ? 'X 光' : names[id]}
-              <sup>{['V', 'Ⅱ', 'Ⅲ', 'X', 'W'][i]}</sup>
+              <sup>{i + 1}</sup>
             </button>
           ))}
         </nav>
@@ -347,11 +353,13 @@ export function Instruments() {
             <b>键盘与漫游</b>
             <dl>
               {[
-                ['1–6', '从 L2 至 B4 切层'],
+                ['1–5', '现场 / 剖面 / 平面 / X 光 / 漫游'],
+                ['[ / ]', '上一层 / 下一层'],
                 ['V / X', '循环视图 / X 光'],
                 ['M / F / H', '夹层 / 聚焦 / 隐藏图签'],
-                ['W / Esc', '进入漫游 / 拉出'],
-                ['WASD / ⇧', '步行 / 快走'],
+                ['Esc', '打断过渡 / 拉出'],
+                ['WASD / ⇧', '水平飞行或步行 / 加速'],
+                ['Q / E', '透视视角下降 / 上升'],
                 ['点地 / 拖动', '移动 / 转头，双击锁定鼠标'],
                 ['长按 E', '气闸平压开门'],
               ].map(([k, t]) => (

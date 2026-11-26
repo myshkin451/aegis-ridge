@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import CameraControls from 'camera-controls'
 import {
@@ -26,6 +26,9 @@ import { useShelterStore } from '../../store/useShelterStore'
 import { reduceMotion } from '../utils/Model'
 import type { SurveyRuntime } from './runtime'
 import { morphProjection } from './projection'
+import { constrainSite, obstacleTop, flightSpeed, siteGround } from './siteNavigation'
+import { roomAt } from '../../geometry/viewGeometry'
+import { roomDoor } from '../../geometry/doors'
 import { WALK } from './walkCollision'
 
 CameraControls.install({
@@ -124,13 +127,51 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
   const revision = useShelterStore((s) => s.cameraRevision)
   const cams = useMemo(
     () => ({
-      persp: new PerspectiveCamera(23, 1, 0.07, 16000),
-      ortho: new OrthographicCamera(-1, 1, 1, -1, 0.07, 16000),
+      persp: new PerspectiveCamera(23, 1, 0.5, 15000),
+      ortho: new OrthographicCamera(-1, 1, 1, -1, 0.5, 15000),
     }),
     [],
   )
   const active = useRef<Camera | null>(null),
     previous = useRef<CameraStateId | null>(null)
+  const flight = useMemo(
+    () => ({
+      keys: new Set<string>(),
+      forward: new Vector3(),
+      delta: new Vector3(),
+      previous: new Vector3(),
+      safe: new Vector3(),
+    }),
+    [],
+  )
+  const resume = useRef<{ revision: number; eye: Vector3; look: Vector3 } | null>(null)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        (e.target as HTMLElement)?.matches('input,select,textarea,[role=slider],[contenteditable=true]')
+      )
+        return
+      const key = e.key.toLowerCase()
+      if (!['w', 'a', 's', 'd', 'q', 'e', 'shift'].includes(key)) return
+      flight.keys.add(key)
+      if (rt.controls?.enabled && get().camera instanceof PerspectiveCamera) e.preventDefault()
+    }
+    const up = (e: KeyboardEvent) => flight.keys.delete(e.key.toLowerCase())
+    const clear = () => flight.keys.clear()
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', clear)
+    document.addEventListener('visibilitychange', clear)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', clear)
+      document.removeEventListener('visibilitychange', clear)
+    }
+  }, [flight, get, rt])
   const lastRevision = useRef(-1)
   const advance = useRef<((now: number) => void) | null>(null)
   useLayoutEffect(() => {
@@ -140,6 +181,14 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     const view = state.cameraState,
       old = active.current,
       oldView = previous.current
+    const restored = resume.current?.revision === revision ? resume.current : null
+    resume.current = null
+    if (restored) {
+      goal.eye.copy(restored.eye)
+      goal.look.copy(restored.look)
+    }
+    const exterior = view === 'site' && state.mode === 'exterior'
+    if (exterior) constrainSite(atlas, goal.eye, goal.eye, goal.eye)
     const sameView = lastRevision.current === revision && oldView === view
     lastRevision.current = revision
     if (sameView && view === 'walkthrough' && old) {
@@ -164,6 +213,8 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     const cam = goal.perspective ? cams.persp : cams.ortho
     active.current = cam
     previous.current = view
+    cam.near = view === 'walkthrough' ? 0.12 : exterior ? 0.5 : 0.18
+    cam.far = view === 'walkthrough' ? 350 : 15000
     cam.zoom = 1
     if (cam instanceof PerspectiveCamera) {
       cam.fov = goal.fov
@@ -200,6 +251,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       advance.current = null
       rt.finish = null
       rt.moving = false
+      rt.garageTransfer = rt.dropping = false
       rt.target.copy(goal.look)
       controls.setLookAt(...goal.eye.toArray(), ...goal.look.toArray(), false)
       controls.update(0)
@@ -220,31 +272,61 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       canvas.dataset.ready = 'settled'
       canvas.dataset.revision = String(revision)
     }
-    const dive = oldView === 'site' && view === 'walkthrough' && state.lastFloor.startsWith('B')
+    const dive =
+      view === 'walkthrough' &&
+      state.lastFloor.startsWith('B') &&
+      oldView !== 'walkthrough' &&
+      oldView !== 'floorOrbit'
+    const rise = oldView === 'walkthrough' && start.eye.y < -0.5 && view !== 'walkthrough'
     const drop = oldView === 'floorOrbit' && view === 'walkthrough'
-    const duration = dive ? 3650 : drop ? 1200 : oldView === 'walkthrough' ? 1050 : 950
+    const duration = dive && oldView === 'site' ? 3200 : rise ? 1500 : drop ? 1200 : 950
     const started = performance.now(),
       eye = new Vector3(),
       look = new Vector3()
-    if (!old || reduceMotion() || sameView) end()
+    const path = [start.eye]
+    // Approach the open garage bay below L2, then use the actual freight cut through the slabs.
+    const garage = footprint(defaultBlueprint.rooms.find((r) => r.id === 'l1_garage')!.bounds)
+    const shaftPath = (landing: Vector3) => {
+      const lane = garage.x0 + garage.w * 0.75
+      const room = roomAt(state.lastFloor, landing.x, landing.z),
+        door = room && roomDoor(room)
+      return [
+        v(lane, 3, garage.z1 + 6),
+        v(lane, 2.1, garage.z1 - 1),
+        v(lane, 2.1, freight.z + 0.65),
+        v(freight.x, 2.1, freight.z + 0.65),
+        v(freight.x, landing.y, freight.z + 0.65),
+        v(freight.x, landing.y, -1),
+        ...(door ? [v(door.base[0], landing.y, -1), v(door.base[0], landing.y, door.base[2])] : []),
+      ]
+    }
+    if (dive) path.push(...shaftPath(goal.eye))
+    if (rise) path.push(...shaftPath(start.eye).reverse())
+    if (drop) path.push(v(goal.eye.x, Math.max(start.eye.y, goal.eye.y + 4), goal.eye.z))
+    path.push(goal.eye)
+    const legs = path.slice(1).map((b, i) => {
+      const a = path[i],
+        surfaceLeg = dive ? i === 0 : rise ? i === path.length - 2 : drop ? false : true
+      let lift = surfaceLeg ? Math.min(18, a.distanceTo(b) * 0.14) : 0
+      if (surfaceLeg)
+        for (let j = 1; j < 64; j++) {
+          const t = j / 64,
+            p = new Vector3().lerpVectors(a, b, t)
+          const top = obstacleTop(atlas, p.x, p.z)
+          // Interior inspection endpoints may legitimately be inside a peeled building.
+          if (top > p.y && (exterior || dive || rise || (start.eye.y > 0 && goal.eye.y > 0)))
+            lift = Math.max(lift, (top - p.y + 0.25) / Math.sin(Math.PI * t))
+        }
+      return { a, b, lift, weight: Math.sqrt(Math.max(0.1, a.distanceTo(b))) }
+    })
+    const weight = legs.reduce((sum, l) => sum + l.weight, 0)
+    if (!old || reduceMotion() || sameView || restored) end()
     else {
       rt.moving = true
+      rt.garageTransfer = dive || rise
+      rt.dropping = drop
       rt.finish = end
       controls.enabled = false
-      const path = [
-        start.eye,
-        v(freight.x, 7, freight.z + 0.4),
-        v(freight.x, 2.5, freight.z),
-        v(freight.x, goal.eye.y, freight.z),
-        goal.eye,
-      ]
-      const looks = [
-        start.look,
-        v(freight.x, 0.7, freight.z - 0.4),
-        v(freight.x, 1.6, freight.z0 + 0.1),
-        v(freight.x, goal.eye.y - 0.2, freight.z0),
-        goal.look,
-      ]
       advance.current = (now) => {
         const t = Math.min(1, (now - started) / duration),
           ease = smooth(t)
@@ -252,16 +334,21 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
           end()
           return
         }
-        if (dive) {
-          const times = [0, 0.24, 0.34, 0.82, 1],
-            i = times.findIndex((u, j) => j > 0 && t <= u) - 1,
-            blend = smooth((t - times[i]) / (times[i + 1] - times[i]))
-          eye.lerpVectors(path[i], path[i + 1], blend)
-          look.lerpVectors(looks[i], looks[i + 1], blend)
-        } else {
-          eye.lerpVectors(start.eye, goal.eye, ease)
-          look.lerpVectors(start.look, goal.look, ease)
-          if (drop) eye.y += Math.sin(t * Math.PI) * 2.1
+        let remaining = ease * weight
+        const leg =
+          legs.find((l) => {
+            if (remaining <= l.weight) return true
+            remaining -= l.weight
+            return false
+          }) ?? legs[legs.length - 1]
+        const u = smooth(Math.min(1, remaining / leg.weight))
+        eye.lerpVectors(leg.a, leg.b, u)
+        eye.y += Math.sin(Math.PI * u) * leg.lift
+        look.lerpVectors(start.look, goal.look, ease)
+        if ((dive || rise) && leg.lift === 0) {
+          const direction = leg.b.clone().sub(leg.a).normalize()
+          const guide = eye.clone().add(direction)
+          look.lerp(guide, Math.min(1, Math.sin(Math.PI * t) * 5))
         }
         cam.position.copy(eye)
         cam.lookAt(look)
@@ -277,17 +364,48 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       }
     }
     const skip = (e: Event) => {
-      if (rt.finish && dive) {
+      if (!advance.current) return
+      if (e instanceof PointerEvent && e.type === 'pointermove' && !e.buttons) return
+      if (e instanceof KeyboardEvent && e.key === 'Escape') {
         e.preventDefault()
         e.stopImmediatePropagation()
-        rt.finish()
+      }
+      advance.current = null
+      rt.moving = false
+      rt.garageTransfer = rt.dropping = false
+      rt.finish = null
+      const here = cam.position.clone(),
+        focus = rt.target.clone()
+      if (view === 'walkthrough') {
+        // An interrupted shaft flight can be between slabs. Keep its pose in a free inspection camera.
+        resume.current = { revision: useShelterStore.getState().cameraRevision + 1, eye: here, look: focus }
+        const outside = here.y >= obstacleTop(atlas, here.x, here.z)
+        useShelterStore.getState().setView(outside ? 'site' : 'floorOrbit')
+      } else {
+        if (exterior) constrainSite(atlas, here, here, here)
+        const distance = Math.max(0.25, here.distanceTo(focus)),
+          projection = cam.projectionMatrix.elements
+        const frameHeight = (2 * (projection[15] - distance * projection[11])) / projection[5]
+        goal.eye.copy(here)
+        goal.look.copy(focus)
+        end()
+        const naturalHeight =
+          cam instanceof OrthographicCamera
+            ? cam.top - cam.bottom
+            : 2 * distance * Math.tan(rad(cam.fov * 0.5))
+        controls.zoomTo(
+          MathUtils.clamp(naturalHeight / Math.max(0.05, frameHeight), controls.minZoom, controls.maxZoom),
+          false,
+        )
+        controls.update(0)
       }
     }
-    canvas.addEventListener('pointerdown', skip, true)
-    window.addEventListener('keydown', skip, true)
+    for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
+      window.addEventListener(event, skip, true)
     return () => {
-      canvas.removeEventListener('pointerdown', skip, true)
-      window.removeEventListener('keydown', skip, true)
+      for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
+        window.removeEventListener(event, skip, true)
+      rt.garageTransfer = rt.dropping = false
       controls.dispose()
       rt.controls = null
       rt.finish = null
@@ -297,8 +415,49 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
   useFrame((_, dt) => {
     if (advance.current) advance.current(performance.now())
     else if (rt.controls?.enabled) {
+      const cam = get().camera,
+        state = useShelterStore.getState()
+      const { keys, previous, forward, delta, safe } = flight
+      previous.copy(cam.position)
       rt.controls.update(Math.min(dt, 0.1))
       rt.controls.getTarget(rt.target, false)
+      delta.set(0, 0, 0)
+      if (cam instanceof PerspectiveCamera && keys.size) {
+        cam.getWorldDirection(forward)
+        forward.y = 0
+        forward.normalize()
+        const f = Number(keys.has('w')) - Number(keys.has('s')),
+          side = Number(keys.has('d')) - Number(keys.has('a'))
+        delta.set(
+          forward.x * f - forward.z * side,
+          Number(keys.has('e')) - Number(keys.has('q')),
+          forward.z * f + forward.x * side,
+        )
+        const ground =
+          state.mode === 'exterior'
+            ? siteGround(atlas, cam.position.x, cam.position.z)
+            : FLOORS[state.lastFloor].elevation
+        delta
+          .normalize()
+          .multiplyScalar(
+            flightSpeed(cam.position.y - ground) * (keys.has('shift') ? 2 : 1) * Math.min(dt, 0.08),
+          )
+      }
+      const moved = delta.lengthSq() > 0
+      cam.position.add(delta)
+      rt.target.add(delta)
+      if (state.mode === 'exterior' && state.cameraState === 'site' && !previous.equals(cam.position)) {
+        constrainSite(atlas, previous, cam.position, safe)
+        // Keep the optical axis when the eye slides along the wall.
+        delta.subVectors(safe, cam.position)
+        rt.target.add(delta)
+        cam.position.copy(safe)
+      } else delta.set(0, 0, 0)
+      if (moved || delta.lengthSq() > 1e-14) {
+        rt.controls.setLookAt(...cam.position.toArray(), ...rt.target.toArray(), false)
+        rt.controls.update(0)
+        cam.updateMatrixWorld()
+      }
     }
     if (rt.moving) {
       const e = document.getElementById('flight-level')

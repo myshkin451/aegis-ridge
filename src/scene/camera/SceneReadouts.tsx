@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useThree, useFrame } from '@react-three/fiber'
-import { Mesh, OrthographicCamera, PerspectiveCamera, Plane, Raycaster, Vector2, Vector3 } from 'three'
+import {
+  DoubleSide,
+  Mesh,
+  OrthographicCamera,
+  PerspectiveCamera,
+  Plane,
+  Raycaster,
+  Vector2,
+  Vector3,
+} from 'three'
 import { acceleratedRaycast, MeshBVH } from 'three-mesh-bvh'
 import { FLOORS, GRID } from '../../data/floors'
 import { altitude, worldToGrid } from '../../geometry/coords'
@@ -114,6 +123,10 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       } else if (s.cameraState === 'plan') {
         kit.plane.setComponents(0, 1, 0, -(FLOORS[s.lastFloor].elevation + s.cutHeight))
         rt.hit = !!kit.ray.ray.intersectPlane(kit.plane, rt.readout)
+      } else if (walking && rt.collision && camera.position.y < 0) {
+        const hit = rt.collision.tree.raycastFirst(kit.ray.ray, DoubleSide, 0.12, 350)
+        rt.hit = !!hit
+        if (hit) rt.readout.copy(hit.point)
       } else {
         const meshes: Mesh[] = []
         scene.traverseVisible((o) => {

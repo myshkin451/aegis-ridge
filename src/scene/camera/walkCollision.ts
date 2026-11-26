@@ -108,7 +108,7 @@ export class WalkCollision {
           c = Math.cos(door.yaw),
           s = Math.sin(door.yaw)
         const u = Math.abs(x * c - z * s),
-          v = Math.abs(x * s + z * c),
+          v = Math.abs(x * s + z * c - (door.trackOffset ?? 0)),
           gap = (opening.get(door.id) ?? 0) * door.width * 0.52
         if (v < WALK.radius + 0.055 && u < door.width * 0.5 + WALK.radius && u + WALK.radius > gap) {
           blocked = true

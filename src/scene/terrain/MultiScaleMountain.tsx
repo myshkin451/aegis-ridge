@@ -77,11 +77,14 @@ export function MultiScaleMountain({ atlas }: { atlas: TerrainAtlas }) {
     const alpha = amount.current
     group.position.z = (1 - alpha) * 40
     const intact = solid && alpha === 1 && mode === 'exterior'
-    if (full.current)
-      full.current.visible =
-        intact ||
-        (cameraState === 'walkthrough' &&
-          nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z))
+    if (full.current) {
+      const opening =
+        cameraState === 'walkthrough' &&
+        nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z)
+      full.current.visible = (solid && mode === 'exterior') || opening
+      // Distant tiles never intersect the architectural section. Only split the 80 m cut block.
+      full.current.children[3].visible = intact || opening
+    }
     if (back.current) back.current.visible = solid && !intact
     group.visible = solid && alpha > 0 && !intact
     assembly.frontPlane.constant = -z - group.position.z
@@ -105,28 +108,20 @@ export function MultiScaleMountain({ atlas }: { atlas: TerrainAtlas }) {
       </group>
       <group ref={back} visible={solid}>
         {assembly.geoms.map((g, i) => (
-          <mesh
-            key={i}
-            visible={mode === 'exterior' || i === 3}
-            geometry={g}
-            material={assembly.back}
-            receiveShadow
-          />
+          <mesh key={i} visible={i === 3} geometry={g} material={assembly.back} receiveShadow />
         ))}
       </group>
       <group ref={front} name="南侧移出山体">
         {assembly.geoms.map((g, i) => (
-          <mesh key={i} geometry={g} material={assembly.front} receiveShadow />
+          <mesh key={i} visible={i === 3} geometry={g} material={assembly.front} receiveShadow />
         ))}
       </group>
-      {solid && mode === 'cutaway' && <mesh geometry={face} material={assembly.face} />}
-      {site &&
-        mode === 'xray' &&
-        assembly.lines.map((g, i) => (
-          <lineSegments key={i} geometry={g}>
-            <lineBasicMaterial color="#a1b3b0" opacity={0.22} transparent depthWrite={false} />
-          </lineSegments>
-        ))}
+      <mesh visible={solid && mode === 'cutaway'} geometry={face} material={assembly.face} />
+      {assembly.lines.map((g, i) => (
+        <lineSegments key={i} geometry={g} visible={site && mode === 'xray'}>
+          <lineBasicMaterial color="#a1b3b0" opacity={0.22} transparent depthWrite={false} />
+        </lineSegments>
+      ))}
       <Vegetation atlas={atlas} visible={site && mode === 'exterior'} />
     </group>
   )

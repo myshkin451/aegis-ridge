@@ -2,6 +2,7 @@ import { Canvas, useLoader } from '@react-three/fiber'
 import { Component, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { AgXToneMapping, PCFSoftShadowMap } from 'three'
+import { StudyLights } from './StudyFixtures'
 import { SurfaceStation } from './SurfaceStation'
 import { UndergroundShell } from './UndergroundShell'
 import { MultiScaleMountain } from './terrain/MultiScaleMountain'
@@ -22,8 +23,7 @@ import { CoreTraces } from './CoreTraces'
 function SurveyScene() {
   const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
   const rt = useMemo(surveyRuntime, [])
-  const view = useShelterStore((s) => s.cameraState),
-    xray = useShelterStore((s) => s.mode === 'xray')
+  const xray = useShelterStore((s) => s.mode === 'xray')
   const structure = useShelterStore((s) => s.layers.structure)
   return (
     <QualityControl>
@@ -31,19 +31,25 @@ function SurveyScene() {
       <MultiScaleMountain atlas={atlas} />
       <group visible={!xray || structure}>
         <BuildingSection>
-          <UndergroundShell />
-          <SurfaceStation />
+          <UndergroundShell rt={rt} />
+          <SurfaceStation atlas={atlas} rt={rt} />
           <TunnelModels />
         </BuildingSection>
       </group>
       <SiteFacilities atlas={atlas} />
-      {xray ? <CoreTraces /> : <DrawingMarks />}
+      <group visible={xray}>
+        <CoreTraces />
+      </group>
+      <group visible={!xray}>
+        <DrawingMarks />
+      </group>
+      <StudyLights />
       <CameraStateMachine atlas={atlas} rt={rt} />
-      {view === 'walkthrough' && <WalkthroughRig rt={rt} />}
-      {view === 'sectionBox' && <SectionBoxTool rt={rt} />}
+      <WalkthroughRig rt={rt} />
+      <SectionBoxTool rt={rt} />
       <SceneReadouts rt={rt} />
-      <SunShadows />
-      <RenderPipeline />
+      <SunShadows rt={rt} />
+      <RenderPipeline rt={rt} />
     </QualityControl>
   )
 }
@@ -68,9 +74,9 @@ export function ShelterCanvas() {
   return (
     <GraphicsBoundary>
       <Canvas
-        dpr={[1, 1.5]}
+        dpr={Math.min(devicePixelRatio, 1.25)}
         shadows={{ type: PCFSoftShadowMap }}
-        camera={{ position: [-88, 19, -41], near: 0.07, far: 16000, fov: 23 }}
+        camera={{ position: [-88, 19, -41], near: 0.5, far: 15000, fov: 23 }}
         onCreated={({ gl }) => {
           gl.localClippingEnabled = true
           gl.shadowMap.autoUpdate = false

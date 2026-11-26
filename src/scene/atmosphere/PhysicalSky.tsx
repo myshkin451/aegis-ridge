@@ -13,7 +13,9 @@ import {
   Scene,
   ShaderMaterial,
   Vector3,
+  type WebGLRenderTarget,
 } from 'three'
+import { photographs } from '../../data/photographs'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
 import { nearSurfaceOpening } from '../../geometry/doors'
@@ -81,19 +83,20 @@ function cloudSea() {
       side: DoubleSide,
       uniforms: {
         phase: { value: i * 17 },
+        drift: { value: [0.0017, 0.0031, 0.0044][i] },
         time: { value: 0 },
         sun: { value: new Vector3() },
         shade: { value: new Color() },
       },
-      vertexShader: `uniform float phase,time; varying vec3 vP;${noise}
-        void main(){vec3 p=position; p.y+=49.*fb(p.xz*.0024+phase+time*.0008)+13.*fb(p.xz*.012+phase); vec4 w=modelMatrix*vec4(p,1.);vP=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
-      fragmentShader: `varying vec3 vP; uniform float phase,time; uniform vec3 sun,shade;${noise}
-        void main(){vec2 p=vP.xz*vec2(.0068,.008)+phase+vec2(time*.0012,0);
+      vertexShader: `uniform float phase,time,drift; varying vec3 vP;${noise}
+        void main(){vec3 p=position; p.y+=49.*fb(p.xz*.0024+phase+vec2(time*drift,-time*drift*.24))+13.*fb(p.xz*.012+phase); vec4 w=modelMatrix*vec4(p,1.);vP=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+      fragmentShader: `varying vec3 vP; uniform float phase,time,drift; uniform vec3 sun,shade;${noise}
+        void main(){vec2 p=vP.xz*vec2(.0068,.008)+phase+vec2(time*drift,time*drift*.34);
         float f=fb(p+fb(p*.41)*1.8),lit=clamp(.51+3.1*(f-fb(p+.22*sun.xz)),0.,1.);
         float edge=1.-smoothstep(3400.,4700.,length(vP.xz));
-        float a=smoothstep(.23,.64,f)*edge;
+        float a=smoothstep(.22,.70,f)*edge;
         vec3 col=mix(shade,vec3(.99,.89,.80),lit)*(.84+.25*f);
-        gl_FragColor=vec4(col,a*.91); #include <colorspace_fragment>
+        gl_FragColor=vec4(col,a*(.68-phase*.005)); #include <colorspace_fragment>
         }`.replace('; #include', ';\n#include'),
     })
     const sheet = new Mesh(geo, m)
@@ -167,38 +170,57 @@ export function PhysicalSky() {
     clock = useRef(0)
   const twilight = sun.y < 0.01,
     skyStudy = exterior || section
+  const environments = useMemo(() => new Map<string, WebGLRenderTarget>(), [])
+  useLayoutEffect(() => {
+    sky.scale.setScalar(13000)
+    const env = new Scene(),
+      dome = new Sky(),
+      pmrem = new PMREMGenerator(gl)
+    dome.scale.copy(sky.scale)
+    env.add(dome)
+    const conditions = [{ time: '07:40', cold: false }, ...Object.values(photographs)]
+    for (const condition of conditions) {
+      const icy = 'cold' in condition && condition.cold
+      const u = dome.material.uniforms
+      u.sunPosition.value.copy(sunAt(condition.time)).multiplyScalar(450000)
+      u.turbidity.value = icy ? 9 : 2.6
+      u.rayleigh.value = icy ? 0.68 : 1.2
+      u.mieCoefficient.value = icy ? 0.018 : 0.004
+      environments.set(condition.time, pmrem.fromScene(env, 0.04, 0.1, 15000, { size: 64 }))
+    }
+    pmrem.dispose()
+    dome.geometry.dispose()
+    dome.material.dispose()
+    scene.fog = new FogExp2(0xffffff, 0)
+    scene.background = new Color()
+    return () => {
+      scene.environment = null
+      scene.fog = null
+      scene.background = null
+      for (const target of environments.values()) target.dispose()
+      environments.clear()
+    }
+  }, [environments, gl, scene, sky])
   useLayoutEffect(() => {
     weatherUniform.value = Number(cold)
-    sky.scale.setScalar(13000)
     const u = sky.material.uniforms
     u.sunPosition.value.copy(sun).multiplyScalar(450000)
     u.turbidity.value = cold ? 9 : 2.6
     u.rayleigh.value = cold ? 0.68 : 1.2
     u.mieCoefficient.value = cold ? 0.018 : 0.004
     const haze = cold ? '#b5c8d2' : twilight ? '#667f9d' : sun.y < 0.16 ? '#8dabc1' : '#bdcbd0'
-    scene.fog = exterior ? new FogExp2(haze, cold ? 0.009 : 0.00019) : null
-    scene.background = new Color(
-      xray ? '#161c20' : walk ? '#373a3c' : section && twilight ? '#515f76' : '#dce2df',
-    )
+    const fog = scene.fog as FogExp2
+    fog.color.set(haze)
+    fog.density = exterior ? (cold ? 0.009 : 0.00019) : 0
+    const paper = scene.background as Color
+    paper.set(xray ? '#161c20' : walk ? '#373a3c' : section && twilight ? '#515f76' : '#dce2df')
     for (const m of clouds.mats) {
       m.uniforms.sun.value.copy(sun)
       m.uniforms.shade.value.set(twilight ? '#62778e' : sun.y < 0.16 ? '#657d9a' : '#7389a4')
     }
-    // Reflect the same physical sky in the glazing, including when the site is sectioned.
-    const env = new Scene(),
-      dome = sky.clone()
-    env.add(dome)
-    const pmrem = new PMREMGenerator(gl),
-      target = pmrem.fromScene(env, 0.04, 0.1, 15000)
-    pmrem.dispose()
-    scene.environment = target.texture
+    scene.environment = environments.get(time)!.texture
     scene.environmentIntensity = walk ? 0.3 : 0.5
-    return () => {
-      scene.environment = null
-      scene.fog = null
-      target.dispose()
-    }
-  }, [gl, scene, sky, clouds, sun, cold, exterior, twilight, xray, walk, section])
+  }, [environments, scene, sky, clouds, sun, cold, exterior, twilight, xray, walk, section, time])
   useLayoutEffect(
     () => () => {
       sky.geometry.dispose()
@@ -219,16 +241,16 @@ export function PhysicalSky() {
   })
   return (
     <>
-      {(exterior || walk) && (
-        <group ref={outer}>
-          <primitive object={sky} />
-          <mesh geometry={ridges}>
-            <meshBasicMaterial vertexColors side={DoubleSide} />
-          </mesh>
-          <primitive object={clouds.group} />
-        </group>
-      )}
-      {exterior && cold && <Spindrift />}
+      <group ref={outer}>
+        <primitive object={sky} />
+        <mesh geometry={ridges}>
+          <meshBasicMaterial vertexColors side={DoubleSide} />
+        </mesh>
+        <primitive object={clouds.group} />
+      </group>
+      <group visible={exterior && cold}>
+        <Spindrift />
+      </group>
       <hemisphereLight
         args={[
           xray

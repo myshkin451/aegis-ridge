@@ -100,7 +100,7 @@ const glsl = {
     diffuseColor.rgb=mix(diffuseColor.rgb, mix(vec3(.39,.36,.13),vec3(.49,.20,.044),grain.r),colony*.72);
     relief+=grain.b*.003;`,
   terrain: `float slope=acos(clamp(axis.y,0.,1.))*57.296;
-    float ridge=sin(vMetric.y*.78+vMetric.x*.24+mottle*2.);
+    float ridge=texture2D(grains,vMetric.xz*.0037+vec2(mottle*.23,vMetric.y*.0009)).b-.5;
     diffuseColor.rgb*=1.+(mottle-.5)*.30+smooRock*(.18*ridge+.12*(grain.b-.5))*(1.-smoothstep(.25,2.,aa));
     float colony=smoothstep(.61,.81,mottle+.09*grain.b)*smooRock;
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.29,.28,.12),colony*.32);
@@ -134,6 +134,11 @@ const glsl = {
     float bar=1.-smoothstep(.075,.12+aa*5.,min(rib.x,rib.y));
     diffuseColor.rgb*=mix(.25,1.18,bar); relief+=.004*bar;`,
 }
+const finishOrder = Object.keys(glsl)
+const solidPatterns = Object.entries(glsl)
+  .filter(([name]) => name !== 'terrain' && name !== 'glass')
+  .map(([name, code]) => `if (finishIndex == ${finishOrder.indexOf(name)}) { ${code} }`)
+  .join(' else ')
 export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
   const map = (atlas ??= mineralMap())
   users++
@@ -152,16 +157,22 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
       : new MeshStandardMaterial({ roughness: 0.89, ...parameters[kind], vertexColors })
   if (kind === 'shotcrete' || kind === 'foliage') mat.side = DoubleSide
   mat.name = kind
-  mat.customProgramCacheKey = () => 'ars-' + kind + (box ? '-edge' : '')
+  const family = kind === 'terrain' || kind === 'glass' ? kind : 'solid'
+  mat.customProgramCacheKey = () => 'ars-' + family
+  mat.forceSinglePass = true
   mat.addEventListener('dispose', () => {
     if (--users === 0) {
       map.dispose()
       atlas = undefined
     }
   })
-  const pattern = kind in glsl ? glsl[kind as keyof typeof glsl] : ''
+  const pattern = family === 'solid' ? solidPatterns : glsl[family]
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shadowUniforms)
+    shader.uniforms.finishIndex = { value: finishOrder.indexOf(kind) }
+    shader.uniforms.boxEdges = { value: box }
+    shader.uniforms.frosted = { value: ['terrain', 'stone', 'solar', 'wood', 'steel'].includes(kind) }
+    shader.uniforms.isLamp = { value: kind === 'lamp' }
     shader.uniforms.grains = { value: map }
     shader.uniforms.snowCover = weatherUniform
     const vary = 'varying vec3 vMetric; varying vec3 vBoxLocal; varying vec3 vExtent;'
@@ -180,7 +191,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform float snowCover;\n' + vary,
+        '#include <common>\nuniform sampler2D grains; uniform float snowCover; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+          vary,
       )
       .replace(
         '#include <color_fragment>',
@@ -192,22 +204,14 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         float mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
         float smooRock=1.-smoothstep(.66,.83,axis.y);
         float rough=0., relief=.00055*(grain.g-.5)*detail, edgeDistance=1.;
-        ${
-          box
-            ? `vec3 e=(.5-abs(vBoxLocal))*vExtent;
+        if(boxEdges){vec3 e=(.5-abs(vBoxLocal))*vExtent;
         edgeDistance=max(min(e.x,e.y),min(max(e.x,e.y),e.z));
         float radius=clamp(min(vExtent.x,min(vExtent.y,vExtent.z))*.12,.005,.020);
         float edge=1.-clamp(edgeDistance/radius,0.,1.);
-        relief-=radius*edge*edge*.48; diffuseColor.rgb*=1.+.09*edge;`
-            : ''
-        }
+        relief-=radius*edge*edge*.48; diffuseColor.rgb*=1.+.09*edge;}
         ${pattern}
-        ${
-          kind === 'terrain' || kind === 'stone' || kind === 'solar' || kind === 'wood' || kind === 'steel'
-            ? `float frost=snowCover*smoothstep(.25,.89,surfaceNormal.y+.18*mottle)*smoothstep(-.15,.1,vMetric.y);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.003*grain.b;`
-            : ''
-        }`,
+        if(frosted){float frost=snowCover*smoothstep(.25,.89,surfaceNormal.y+.18*mottle)*smoothstep(-.15,.1,vMetric.y);
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.003*grain.b;}`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
@@ -223,7 +227,9 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
       .replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-        ${kind === 'lamp' ? '#ifdef USE_INSTANCING_COLOR\ntotalEmissiveRadiance*=vColor.rgb;\n#endif' : ''}
+        #ifdef USE_INSTANCING_COLOR
+          if(isLamp) totalEmissiveRadiance*=vColor.rgb;
+        #endif
         if(vMetric.y<${FLOORS.B1.elevation + FLOORS.B1.pitch} && abs(vMetric.x)<16.1 && abs(vMetric.z)<12.1) {
           vec3 wash=vMetric.y<${FLOORS.B3.elevation - 0.29}?vec3(.54,.76,1.):vMetric.y<${FLOORS.B2.elevation - 0.29}?vec3(1.,.41,.67):vMetric.y<${FLOORS.B1.elevation - 0.29}?vec3(1.,.33,.095):vec3(1.,.82,.63);
           float levelY=mod(vMetric.y-(${FLOORS.B4.elevation})+.002,${FLOORS.B4.pitch});
@@ -237,7 +243,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         `#include <fog_fragment>
       #ifdef USE_FOG
         float lowHaze=exp(-max(0.,vMetric.y+160.)*.0024);
-        gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,lowHaze*(1.-exp(-vFogDepth*.00035)));
+        gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,lowHaze*(1.-exp(-vFogDepth*min(fogDensity,.00035))));
       #endif`,
       )
   }

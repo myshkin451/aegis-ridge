@@ -16,6 +16,7 @@ import { floorAt, roomAt } from '../../geometry/viewGeometry'
 import { FLOORS, FLOOR_ORDER } from '../../data/floors'
 import { useShelterStore } from '../../store/useShelterStore'
 import { appendSolids, positionGeometry } from '../utils/solidGeometry'
+import { reduceMotion } from '../utils/Model'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { SurveyRuntime } from './runtime'
 import { WALK, WalkCollision } from './walkCollision'
@@ -46,6 +47,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   const gl = useThree((s) => s.gl),
     scene = useThree((s) => s.scene),
     get = useThree((s) => s.get)
+  const active = useShelterStore((s) => s.cameraState === 'walkthrough')
   const player = useRef<WalkCollision | null>(null),
     leaves = useRef<InstancedMesh>(null),
     ring = useRef<Mesh>(null)
@@ -88,19 +90,21 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     ]) {
       const root = scene.getObjectByName(name)
       if (root)
-        appendSolids(
-          root,
-          vertices,
-          (m) => !m.userData.annotation && !['lamp', 'foliage', 'needles'].includes(m.userData.finish),
-        )
+        appendSolids(root, vertices, (m) => {
+          let excluded = m.userData.annotation || ['lamp', 'foliage', 'needles'].includes(m.userData.finish)
+          m.traverseAncestors((parent) => {
+            if (parent.userData.skipWalk) excluded = true
+          })
+          return !excluded
+        })
     }
     const collision = new WalkCollision(positionGeometry(vertices))
-    player.current = collision
+    rt.collision = player.current = collision
     return () => {
       collision.dispose()
-      player.current = null
+      rt.collision = player.current = null
     }
-  }, [scene])
+  }, [scene, rt])
   useLayoutEffect(() => {
     doors.forEach((d, i) => {
       const tint = new Color(d.airlock ? '#806b52' : '#849290')
@@ -110,6 +114,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     return () => mat.dispose()
   }, [mat])
   useEffect(() => {
+    if (!active) return
     const canvas = gl.domElement
     let start: { id: number; x: number; y: number; lastX: number; lastY: number; moved: boolean } | null =
       null
@@ -145,7 +150,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
     const down = (e: PointerEvent) => {
       if (e.button !== 0 || rt.moving) return
-      audio()
       start = {
         id: e.pointerId,
         x: e.clientX,
@@ -189,7 +193,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       ) {
         e.preventDefault()
         input.keys.add(key)
-        audio()
+        if (key === 'e' && rt.nearby) audio()
         if (key !== 'e') input.goal = null
       }
     }
@@ -213,7 +217,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       const d = (e as CustomEvent<{ x: number; y: number; hold?: boolean }>).detail
       if (d.hold !== undefined) {
         rt.hold = d.hold
-        if (d.hold) audio()
+        if (d.hold && rt.nearby) audio()
       } else rt.stick = d
     }
     window.addEventListener('ars-walk', touch)
@@ -234,10 +238,13 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       window.removeEventListener('ars-walk', touch)
       if (document.pointerLockElement === canvas) document.exitPointerLock()
       if (input.audio) void input.audio.close().catch(() => {})
+      input.audio = null
+      input.opened.clear()
+      input.unlocked.clear()
     }
-  }, [gl, get, input, rt, tools])
+  }, [active, gl, get, input, rt, tools])
   useFrame((_, raw) => {
-    if (rt.moving || !player.current || !leaves.current) return
+    if (!active || rt.moving || !player.current || !leaves.current) return
     const dt = Math.min(0.08, raw),
       { p, q, scale, matrix, dir } = tools,
       cam = get().camera
@@ -272,19 +279,20 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     } else input.held = 0
     rt.nearby = nearest
     rt.pressure = input.unlocked.has(nearest) ? 1 : Math.min(1, input.held / 1.5)
+    const snap = reduceMotion()
     for (const [i, d] of doors.entries()) {
       const near = Math.hypot(rt.feet.x - d.base[0], rt.feet.y - d.base[1], rt.feet.z - d.base[2]) < 2.6
       if (!near) input.unlocked.delete(d.id)
       const open = Number(near && (!d.airlock || input.unlocked.has(d.id))),
         last = input.opened.get(d.id) ?? 0
-      const value = open + (last - open) * Math.exp(-7 * dt)
+      const value = snap ? open : open + (last - open) * Math.exp(-7 * dt)
       input.opened.set(d.id, value)
       for (const side of [-1, 1]) {
         const offset = side * d.width * (0.25 + 0.52 * value)
         p.set(
-          d.base[0] + Math.cos(d.yaw) * offset,
+          d.base[0] + Math.cos(d.yaw) * offset + Math.sin(d.yaw) * (d.trackOffset ?? 0),
           d.base[1] + d.height / 2,
-          d.base[2] - Math.sin(d.yaw) * offset,
+          d.base[2] - Math.sin(d.yaw) * offset + Math.cos(d.yaw) * (d.trackOffset ?? 0),
         )
         q.setFromAxisAngle(dir.set(0, 1, 0), d.yaw)
         scale.set(d.width * 0.49, d.height - 0.05, 0.075)
@@ -335,7 +343,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     const room = roomAt(rt.floor, rt.feet.x, rt.feet.z)
     rt.room = room?.name ?? (Math.abs(rt.feet.x) > 16 ? '平硐步道' : '主通道')
     const exposure = rt.floor.startsWith('L') ? 0.98 : room?.id === 'b3_hydroponics' ? 1.09 : 1.2
-    gl.toneMappingExposure += (exposure - gl.toneMappingExposure) * (1 - Math.exp(-dt / 1.05))
+    gl.toneMappingExposure += (exposure - gl.toneMappingExposure) * (snap ? 1 : 1 - Math.exp(-dt / 1.05))
     if (ring.current) {
       ring.current.visible = !!input.hover && !document.pointerLockElement
       if (input.hover) {
@@ -349,7 +357,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       .join(',')
   }, -2)
   return (
-    <>
+    <group visible={active}>
       <instancedMesh ref={leaves} args={[undefined, mat, doors.length * 2]} frustumCulled={false}>
         <boxGeometry />
       </instancedMesh>
@@ -357,6 +365,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         <ringGeometry args={[0.147, 0.157, 40]} />
         <meshBasicMaterial color="#fff8ed" depthWrite={false} />
       </mesh>
-    </>
+    </group>
   )
 }

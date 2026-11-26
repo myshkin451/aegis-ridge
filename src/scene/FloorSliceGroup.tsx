@@ -15,6 +15,7 @@ import {
 } from '../geometry/coords'
 import { ModelBuilder } from './utils/modelBuilder'
 import { StudyFixtures, WalkCeiling } from './StudyFixtures'
+import type { SurveyRuntime } from './camera/runtime'
 import { Model } from './utils/Model'
 import {
   addSlab,
@@ -130,7 +131,7 @@ function plenumFrame(id: UndergroundId) {
   return m
 }
 
-export function FloorSliceGroup({ id }: { id: UndergroundId }) {
+export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRuntime }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
@@ -148,12 +149,23 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
     }),
     [id],
   )
-  const floorGroup = useRef<Group>(null)
+  const floorGroup = useRef<Group>(null),
+    ceiling = useRef<Group>(null)
   useFrame(({ camera }) => {
-    if (floorGroup.current && walk && floor !== 'ALL') {
-      const closeToEye = Math.abs(camera.position.y - getFloorElevation(id) - 1.65) < 5.8
+    if (ceiling.current)
+      ceiling.current.visible =
+        (walk || rt.garageTransfer) && !(rt.dropping && camera.position.y > FLOORS[id].elevation + 2.5)
+    if (!floorGroup.current) return
+    if (!walk && mode === 'exterior') {
       floorGroup.current.visible =
-        closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
+        rt.garageTransfer && Math.abs(camera.position.y - FLOORS[id].elevation - 1.65) < 6
+      return
+    }
+    if (walk && floor !== 'ALL') {
+      const closeToEye = Math.abs(camera.position.y - getFloorElevation(id) - 1.65) < 5.8
+      floorGroup.current.visible = rt.dropping
+        ? FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
+        : closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
     }
   })
   const closed = mode !== 'xray' && (floor === 'ALL' || walk)
@@ -169,8 +181,12 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
           : !(mode === 'exterior' && floor === 'ALL')
       }
     >
-      {seen && mode !== 'xray' && <StudyFixtures id={id} />}
-      {walk && <WalkCeiling id={id} />}
+      <group visible={seen && mode !== 'xray'}>
+        <StudyFixtures id={id} />
+      </group>
+      <group ref={ceiling} visible={walk}>
+        <WalkCeiling id={id} />
+      </group>
       <Model build={builders.frame} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0} />
       <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
       <Model build={builders.rear} delayMs={delayMs} opacity={Number(seen && mode !== 'xray')} />

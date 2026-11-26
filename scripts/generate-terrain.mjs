@@ -191,7 +191,9 @@ function earthworks(h, x, z, step) {
     const flat = 4.6 + Math.min(step, 5) * 1.34
     h = mix(level - 0.12, h, smooth(flat, flat + 9.5, nearest))
   }
-  pad(-1, -1, 16.5, 11, 0, 2.2)
+  // The perimeter bench ends below the sloping apron and its retaining face.
+  const offSlab = Math.max(0, Math.abs(x + 1) - 15, Math.abs(z + 1) - 9)
+  pad(-1, -1, 17.2, 11.2, -0.25 * smooth(0.75, 2.1, offSlab), 2.2)
   return h
 }
 

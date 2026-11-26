@@ -34,7 +34,7 @@ export function ElevationRuler() {
         <span className="rock-label" style={segment(0, buffer.bottom)}>
           6.0 m
         </span>
-        {FLOOR_ORDER.map((id, i) => {
+        {FLOOR_ORDER.map((id) => {
           const f = FLOORS[id],
             p = floorSection(id)
           return (
@@ -47,7 +47,7 @@ export function ElevationRuler() {
               <i className="band slab" style={segment(p.floor, p.floor - SLAB)} />
               <button
                 aria-label={id + ' ' + f.shortName}
-                title={i + 1 + ' · ' + f.name}
+                title={f.name}
                 aria-pressed={s.floor === id}
                 onClick={() => s.selectFloor(id)}
                 style={segment(p.cap, p.floor)}

@@ -1,14 +1,16 @@
 import { slabPlan } from '../geometry/planGeometry'
 import { Color, Group } from 'three'
 import { useFrame } from '@react-three/fiber'
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { roomsOn } from '../data/defaultBlueprint'
 import { FLOORS, SLAB } from '../data/floors'
 import { useShelterStore } from '../store/useShelterStore'
 import type { Point3 } from '../types/shelter'
 import { footprint, getFloorElevation, shaftPlans } from '../geometry/coords'
 import { lid, outline } from './utils/planGeometry'
-import { Model } from './utils/Model'
+import type { SurveyRuntime } from './camera/runtime'
+import { groundAt, type TerrainAtlas } from '../geometry/siteElevations'
+import { Model, reduceMotion } from './utils/Model'
 import { ModelBuilder } from './utils/modelBuilder'
 import { addSlab, iBeam, shaftFrames, stairStructure, steel, warm } from './utils/shellGeometry'
 import { randomSource } from '../geometry/random'
@@ -43,7 +45,6 @@ function groundFloor() {
     m.box('#afb7b3', [x, l1h / 2, l1.z1 - 2.6], [0.17, l1h, 5.2])
     m.box(steel, [x, l1h - 0.24, l1.z], [0.23, 0.48, l1.d], 'steel')
   }
-  m.box('#a6aca2', [l1.x, 0.04, l1.z1 + 0.87], [l1.w, 0.08, 1.74])
   m.box('#8b9290', [garage.x, 0.095, l1.z1 + 0.85], [garage.w - 0.4, 0.07, 1.67])
   for (let x = garage.x0 + 0.75; x < garage.x1; x += 1.3)
     m.box('#d0b58a', [x, 0.138, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
@@ -59,7 +60,7 @@ function groundFloor() {
   return m
 }
 
-function groundFacade(walk = false) {
+function groundFacade() {
   const m = new ModelBuilder()
   m.box(ivory, [l1.x, l1h / 2, l1.z0 + 0.14], [l1.w, l1h, 0.28])
   for (const x of [l1.x0 + 0.12, l1.x1 - 0.12]) {
@@ -71,9 +72,6 @@ function groundFacade(walk = false) {
   for (let bay = 0; bay < 2; bay++) {
     const x = garage.x0 + garage.w * (0.25 + bay * 0.5),
       z = garage.z1
-    m.box(mullion, [x, 1.5, z - 0.16], [4.38, 3.0, 0.2], 'steel')
-    for (let j = 0; j < 14; j++)
-      m.box(j === 9 ? '#80979a' : '#596568', [x, 0.14 + j * 0.204, z - 0.025], [4.18, 0.176, 0.15], 'steel')
     for (const dx of [-2.22, 2.22]) m.box(ivory, [x + dx, 1.58, z], [0.22, 3.16, 0.3])
     m.box('#ecd1a0', [x, 3.09, z + 0.1], [2.9, 0.06, 0.12], 'lamp')
   }
@@ -83,11 +81,7 @@ function groundFacade(walk = false) {
     m.box(mullion, [x - 0.82, 1.75, lobby.z1 - 0.08], [0.09, 3.18, 0.13], 'steel')
   }
   m.box(cedar, [lobby.x, l1h - 0.15, lobby.z1], [lobby.w, 0.3, 0.3], 'wood')
-  if (!walk) {
-    m.box('#767c79', [vestibule.x, 1.55, l1.z1 - 0.25], [vestibule.w - 0.3, 3.1, 0.25], 'steel')
-    for (const dx of [-0.61, 0.61])
-      m.box('#424f52', [vestibule.x + dx, 1.37, l1.z1 - 0.06], [1.14, 2.68, 0.12], 'steel')
-  } else {
+  {
     const jamb = (vestibule.w - 2.4) / 2
     for (const sign of [-1, 1])
       m.box(
@@ -103,6 +97,27 @@ function groundFacade(walk = false) {
   }
   for (let i = 0; i < 8; i++)
     m.box(cedar, [lobby.x1 - 2.3 + i * 0.29, 1.68, l1.z1 + 0.1], [0.095, 3.2, 0.32], 'wood')
+  return m
+}
+
+function garagePanels() {
+  const m = new ModelBuilder()
+  for (let bay = 0; bay < 2; bay++) {
+    const x = garage.x0 + garage.w * (0.25 + bay * 0.5),
+      z = garage.z1
+    m.box(mullion, [x, 1.5, z - 0.16], [4.38, 3.0, 0.2], 'steel')
+    for (let j = 0; j < 14; j++)
+      m.box(j === 9 ? '#80979a' : '#596568', [x, 0.14 + j * 0.204, z - 0.025], [4.18, 0.176, 0.15], 'steel')
+  }
+  return m
+}
+
+function entryPanels() {
+  const m = new ModelBuilder()
+  m.box('#767c79', [vestibule.x, 1.34, l1.z1 - 0.25], [2.38, 2.64, 0.12], 'steel')
+  for (const dx of [-0.61, 0.61])
+    m.box('#424f52', [vestibule.x + dx, 1.37, l1.z1 - 0.06], [1.14, 2.68, 0.12], 'steel')
+
   return m
 }
 
@@ -254,7 +269,7 @@ function radome(m: ModelBuilder, x: number, y: number, z: number) {
 }
 
 function solarWing(m: ModelBuilder, x: number, y: number, z: number, folded: boolean) {
-  const tilt = folded ? 1.32 : 0.19,
+  const tilt = folded ? 0.018 : 0.19,
     w = 5.8,
     d = 3
   m.box('#9ba5a4', [x, y, z], [w + 0.15, 0.16, d + 0.15], 'steel', [tilt, 0, 0])
@@ -271,12 +286,24 @@ function solarWing(m: ModelBuilder, x: number, y: number, z: number, folded: boo
       )
     }
   for (const dx of [-1.9, 1.9]) {
-    m.beam([x + dx, y - 1.3, z], [x + dx, y - 0.1, z - 0.88], 0.12, 0.11, mullion)
-    m.beam([x + dx, y - 1.3, z], [x + dx, y - 0.23, z + 0.88], 0.12, 0.11, mullion)
+    m.beam(
+      [x + dx, roof + 0.31, z],
+      [x + dx, y - 0.08 + 0.88 * Math.sin(tilt), z - 0.88],
+      0.12,
+      0.11,
+      mullion,
+    )
+    m.beam(
+      [x + dx, roof + 0.31, z],
+      [x + dx, y - 0.08 - 0.88 * Math.sin(tilt), z + 0.88],
+      0.12,
+      0.11,
+      mullion,
+    )
   }
 }
 
-function roofscape(cold = false) {
+function roofscape() {
   const m = new ModelBuilder()
   m.box(mullion, [hall.x, roof - 0.36, hall.z], [hall.w + 0.7, 0.34, hall.d + 0.67], 'steel')
   m.box(ivory, [hall.x, roof - 0.13, hall.z], [hall.w + 0.92, 0.26, hall.d + 0.92])
@@ -296,22 +323,36 @@ function roofscape(cold = false) {
       m.box(mullion, [ridge, roof, garden.z], [0.11, 0.12, garden.d], 'steel')
       m.box('#97a19d', [centre, l2h + rise / 2, garden.z], [0.075, 0.06, garden.d], 'steel')
     }
-  radome(m, hall.x - 0.55, roof + 0.06, hall.z + 1.25)
-  const pz = l2.z0 + 1.05,
-    py = roof + 1.4
+  const pz = l2.z0 + 1.05
   m.box(mullion, [hall.x + 0.6, roof + 0.35, pz], [15.6, 0.3, 0.34], 'steel')
-  for (const x of [hall.x - 3.85, hall.x + 5.15]) solarWing(m, x, py, pz, cold)
-  for (const x of [hall.x0 + 0.7, hall.x1 - 0.7]) {
-    const z = hall.z1 - 1.0
-    m.part('round', 'steel', '#8a928f', [x, roof + 1.32, z], [0.1, 2.64, 0.1])
-    for (let i = 0; i < 3; i++) {
-      const a = (i * 2 * Math.PI) / 3,
-        dx = Math.cos(a) * 0.41,
-        dz = Math.sin(a) * 0.41
-      m.beam([x, roof + 1.65, z], [x + dx, roof + 2.1, z + dz], 0.09, 0.1, ivory)
-      m.beam([x + dx, roof + 2.1, z + dz], [x + dx, roof + 2.83, z + dz], 0.12, 0.09, ivory)
-      m.beam([x + dx, roof + 2.83, z + dz], [x, roof + 3.17, z], 0.09, 0.1, ivory)
-    }
+  for (const x of [hall.x0 + 0.7, hall.x1 - 0.7])
+    m.part('round', 'steel', '#8a928f', [x, roof + 1.32, hall.z1 - 1], [0.1, 2.64, 0.1])
+  return m
+}
+function wings(folded: boolean) {
+  const m = new ModelBuilder()
+  for (const x of [hall.x - 3.85, hall.x + 5.15])
+    solarWing(m, x, roof + (folded ? 0.64 : 1.4), l2.z0 + 1.05, folded)
+  return m
+}
+const extendedWings = () => wings(false)
+const foldedWings = () => wings(true)
+function dome() {
+  const m = new ModelBuilder()
+  radome(m, 0, 0, 0)
+  return m
+}
+function turbine() {
+  const m = new ModelBuilder(),
+    x = 0,
+    z = 0
+  for (let i = 0; i < 3; i++) {
+    const a = (i * 2 * Math.PI) / 3,
+      dx = Math.cos(a) * 0.41,
+      dz = Math.sin(a) * 0.41
+    m.beam([x, roof + 1.65, z], [x + dx, roof + 2.1, z + dz], 0.09, 0.1, ivory)
+    m.beam([x + dx, roof + 2.1, z + dz], [x + dx, roof + 2.83, z + dz], 0.12, 0.09, ivory)
+    m.beam([x + dx, roof + 2.83, z + dz], [x, roof + 3.17, z], 0.09, 0.1, ivory)
   }
   return m
 }
@@ -323,14 +364,14 @@ function stormShutters() {
     for (let i = 0; i < 14; i++)
       m.box(
         i % 3 ? '#849599' : '#94a4a6',
-        [l2.x, 0.3 + i * 0.23, z + side * 0.13],
-        [l2.w, 0.23, 0.11],
+        [l2.x, 0.3 + i * 0.23, z + side * 0.49],
+        [l2.w + 0.84, 0.23, 0.11],
         'steel',
         [side * 0.22, 0, 0],
       )
     const x = side > 0 ? l2.x1 : l2.x0
     for (let i = 0; i < 14; i++)
-      m.box('#899b9e', [x + side * 0.17, 0.3 + i * 0.23, l2.z], [0.1, 0.23, l2.d], 'steel')
+      m.box('#899b9e', [x + side * 0.49, 0.3 + i * 0.23, l2.z], [0.1, 0.23, l2.d + 0.84], 'steel')
   }
   const entryZ = l1.z1 + 0.04
   for (const dx of [-1.18, 1.18])
@@ -339,8 +380,6 @@ function stormShutters() {
   m.box('#dae3e6', [hall.x, roof + 0.095, hall.z], [hall.w, 0.08, hall.d], 'snow')
   return m
 }
-const closedWeatherRoof = () => roofscape(true)
-const walkFacade = () => groundFacade(true)
 
 function facadeOutline(r: typeof l1, h: number) {
   const m = new ModelBuilder()
@@ -354,15 +393,64 @@ function facadeOutline(r: typeof l1, h: number) {
 const lowerOutline = () => facadeOutline(l1, l1h)
 const upperOutline = () => facadeOutline(l2, l2h)
 
-export function SurfaceStation() {
+// A 2.1 m apron falls away at 2%. Its outer wall follows the surveyed slope at metre intervals.
+function stationApron(atlas: TerrainAtlas) {
+  const m = new ModelBuilder('stone'),
+    w = 2.1
+  const corners = [
+    [l1.x0, l1.z0],
+    [l1.x0, l1.z1],
+    [l1.x1, l1.z1],
+    [l1.x1, l1.z0],
+  ]
+  const outer = corners.map(([x, z]) => [x + Math.sign(x - l1.x) * w, z + Math.sign(z - l1.z) * w])
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4,
+      a = corners[i],
+      b = corners[j],
+      c = outer[i],
+      d = outer[j]
+    const n = Math.ceil(Math.hypot(d[0] - c[0], d[1] - c[1]))
+    const point = (u: number, outerEdge: boolean): Point3 => {
+      const [p, q] = outerEdge ? [c, d] : [a, b]
+      return [p[0] + (q[0] - p[0]) * u, outerEdge ? 0.012 : 0.054, p[1] + (q[1] - p[1]) * u]
+    }
+    for (let k = 0; k < n; k++) {
+      const l = point(k / n, true),
+        r = point((k + 1) / n, true)
+      m.quad(point(k / n, false), l, r, point((k + 1) / n, false), '#b0aea1')
+      const toe = (p: Point3): Point3 => [
+        p[0],
+        Math.min(p[1] - 0.16, groundAt(atlas, p[0], p[2]).height - 0.15),
+        p[2],
+      ]
+      m.quad(l, toe(l), toe(r), r, k % 5 === 0 ? '#949389' : '#8c8980')
+    }
+  }
+  return m
+}
+export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyRuntime }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough'),
     cold = useShelterStore((s) => s.cold)
-  const building = useRef<Group>(null)
-  useFrame(({ camera }) => {
-    if (building.current) building.current.visible = !walk || camera.position.y > -10.3
+  const apron = useMemo(() => () => stationApron(atlas), [atlas])
+  const panels = useRef<Group>(null),
+    building = useRef<Group>(null),
+    radar = useRef<Group>(null),
+    a = useRef<Group>(null),
+    b = useRef<Group>(null)
+  useFrame(({ camera }, dt) => {
+    if (!reduceMotion() && !cold && upper && !wire && (floor === 'ALL' || walk)) {
+      const step = Math.min(dt, 0.08)
+      if (radar.current) radar.current.rotation.y += step * 0.075
+      if (a.current) a.current.rotation.y += step * 0.47
+      if (b.current) b.current.rotation.y += step * 0.39
+    }
+    if (panels.current)
+      panels.current.visible = !rt.garageTransfer && !walk && lower && !wire && floor !== 'L1'
+    if (building.current) building.current.visible = (!walk || camera.position.y > -10.3) && !rt.dropping
   })
   const lower = walk || floor === 'ALL' || floor === 'L1' || floor === 'L2'
   const upper = walk || floor === 'ALL' || floor === 'L2'
@@ -370,12 +458,16 @@ export function SurfaceStation() {
   return (
     <group ref={building} name="科研观测站">
       <group position-y={getFloorElevation('L1')}>
+        <group visible={lower && !wire}>
+          <Model build={apron} />
+        </group>
         <Model build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
         <Model build={lowerServices} opacity={Number(lower && !wire && (plenum || floor === 'L2'))} />
-        <Model
-          build={walk ? walkFacade : groundFacade}
-          opacity={Number(lower && !wire && (floor !== 'L1' || walk))}
-        />
+        <Model build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
+        <group ref={panels} visible={!walk && lower && !wire && floor !== 'L1'} userData={{ skipWalk: true }}>
+          <Model build={entryPanels} />
+          <Model build={garagePanels} />
+        </group>
         <Model build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
         <Model build={lowerOutline} opacity={lower && wire ? 0.12 : 0} />
       </group>
@@ -383,11 +475,27 @@ export function SurfaceStation() {
         <Model build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
         <Model build={upperServices} opacity={Number(upper && plenum && !wire)} />
         <Model build={upperFacade} opacity={Number(upper && !wire)} />
-        <Model
-          build={cold ? closedWeatherRoof : roofscape}
-          opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)}
-        />
-        {cold && <Model build={stormShutters} opacity={Number(upper && !wire)} />}
+        <Model build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
+        <group visible={upper && !wire && (floor === 'ALL' || walk)}>
+          <group visible={!cold}>
+            <Model build={extendedWings} />
+          </group>
+          <group visible={cold}>
+            <Model build={foldedWings} />
+          </group>
+          <group ref={radar} position={[hall.x - 0.55, roof + 0.06, hall.z + 1.25]}>
+            <Model build={dome} />
+          </group>
+          <group ref={a} position={[hall.x0 + 0.7, 0, hall.z1 - 1]}>
+            <Model build={turbine} />
+          </group>
+          <group ref={b} position={[hall.x1 - 0.7, 0, hall.z1 - 1]}>
+            <Model build={turbine} />
+          </group>
+        </group>
+        <group visible={cold && upper && !wire}>
+          <Model build={stormShutters} />
+        </group>
         <Model build={upperOutline} opacity={upper && wire ? 0.12 : 0} />
       </group>
     </group>

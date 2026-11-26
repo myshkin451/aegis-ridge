@@ -6,6 +6,7 @@ import {
   DodecahedronGeometry,
   Euler,
   Float32BufferAttribute,
+  FrontSide,
   Group,
   IcosahedronGeometry,
   InstancedMesh,
@@ -169,7 +170,8 @@ export class ModelBuilder {
         shapes.set(shape, geom)
         geometries.add(geom)
       }
-      const paintKey = finish + (shape === 'box' ? '-edge' : '')
+      const closedFoliage = finish === 'foliage' && shape !== 'leaf'
+      const paintKey = finish + (shape === 'box' ? '-edge' : '') + (closedFoliage ? '-hull' : '')
       let mat = paints.get(paintKey)
       if (!mat) {
         if (finish === 'needles') {
@@ -177,6 +179,8 @@ export class ModelBuilder {
           textures.push(needles.map)
           mat = needles.material
         } else mat = pbrMaterial(finish, shape === 'box')
+        // Shrubs are closed icosahedra. Only the thin hydroponic leaves need two-sided shading.
+        if (closedFoliage) mat.side = FrontSide
         paints.set(paintKey, mat)
         materials.add(mat)
       }

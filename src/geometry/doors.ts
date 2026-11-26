@@ -13,6 +13,8 @@ export interface Doorway {
   height: number
   airlock: boolean
   interlock?: string
+  /** Signed distance from the jamb centreline to the sliding leaf track. */
+  trackOffset?: number
 }
 export function roomDoor(room: RoomInstance): Doorway {
   const r = footprint(room.bounds)
@@ -25,6 +27,7 @@ export function roomDoor(room: RoomInstance): Doorway {
       room.bounds.gz0 === 0 ? r.z1 - 0.085 : r.z0 + 0.085,
     ],
     yaw: 0,
+    trackOffset: room.bounds.gz0 === 0 ? -0.16 : 0.16,
     width: 2.04,
     height: 2.4,
     airlock: room.id === 'b1_decon',

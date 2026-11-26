@@ -63,21 +63,22 @@ function stand(atlas: TerrainAtlas) {
       s.slope < 31 &&
       (Math.hypot(x, z) > 85 || (s.curvature > 0.12 && s.flow > 0.2 && random() < 0.32))
     ) {
-      const h = (3.5 + random() * 5.7) * (0.85 + 0.15 * north),
-        w = h * (0.22 + random() * 0.06)
+      const h = (2.3 + random() ** 0.68 * 8.4) * (0.85 + 0.15 * north),
+        w = h * (0.15 + random() * 0.18)
       m.box('#514c3f', [u, y + h * 0.31, v], [0.14, h * 0.62, 0.14], 'wood')
-      const shades = ['#475d47', '#4e644e', '#394f43', '#586b54']
+      const shades = ['#475d47', '#4e644e', '#394f43', '#586b54', '#637557', '#364e46', '#7a8061']
       const tint = shades[Math.floor(random() * shades.length)],
         angle = random() * Math.PI * 2
-      const depth = w * (1.9 + random() * 0.38)
-      m.part('fir', 'needles', tint, [u, y + h * 0.52, v], [w * 2.3, h, depth], [0.025, angle, 0.035])
+      const lean = Math.sin(x * 1.73 + z * 0.89) * 0.095,
+        depth = w * (1.5 + random() * 0.85)
+      m.part('fir', 'needles', tint, [u, y + h * 0.52, v], [w * 2.3, h, depth], [lean, angle, 0.035])
       plot.distant.part(
         'distantFir',
         'needles',
         tint,
         [u, y + h * 0.52, v],
         [w * 2.3, h, depth],
-        [0.025, angle, 0.035],
+        [lean, angle, 0.035],
       )
     } else if (s.slope < 28 && s.flow + 0.4 * north > 0.33) {
       m.part('bud', 'foliage', '#697557', [u, y + 0.27, v], [1.3, 0.84, 0.93], [0, random() * 6, 0.2])
