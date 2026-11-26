@@ -2,8 +2,8 @@
 
 > **执行铁律**：
 > 1. **每个里程碑开一个全新 Codex Session**，严格按顺序串行推进；
-> 2. 每次交付前必须跑通 `npm run verify`（含 `tests/` 与 `src/` 全部单元测试），自 `M1.5b` 起还需跑通 `npm run shots` 截取 5 个固定机位图；
-> 3. **签字权归属用户**：Codex 完成交付并提交推送后，只能将 `docs/PROGRESS.md` 中本阶段状态改为 **`REVIEW`（待签收）**，由用户在浏览器与 5 机位画廊验收通过后再改为 `DONE` 并推进下一阶段。
+> 2. 每次交付前必须跑通 `npm run verify`（含 `tests/` 与 `src/` 全部单元测试），自 `M1.5b` 起还需跑通 `npm run shots`（5 机位出片）与 `npm run perf`（真 GPU 帧时/零切换顿挫回归）；
+> 3. **签字权归属用户**：Codex 完成交付并提交推送后，只能将 `docs/PROGRESS.md` 中本阶段状态改为 **`REVIEW`（待签收）**，由用户在浏览器、5 机位画廊与性能数据验收通过后再改为 `DONE` 并推进下一阶段。
 
 ---
 
@@ -85,6 +85,41 @@
    - 用 Playwright 自动截取 docs/02 第 6 节的 5 个固定机位图保存至 docs/shots/m1.5b/，并在 docs/PROGRESS.md 中挂出 5 张图清单。
 
 完成前执行 npm run verify 与 npm run shots，将 docs/PROGRESS.md 中 M1.5b 标为 REVIEW，自动 commit 与 push。
+```
+
+#### 阶段 M1.5b 返修精修（`fix(m1.5b)`：零切换顿挫 + 相机防穿模 + 3D 自由飞行 + 接地细节 + `npm run perf`）
+
+> **背景**：用户与跨模型真 GPU 实测发现初版 M1.5b 稳态帧率 60 FPS 但存在 4 类不可带入 M2 的底座问题：① 切视图触发 32–42 个 shader 重编译（0.2–0.3s 主线程冻结）与自动画质静止期来回跳档；② 轨道相机无碰撞可滚轮钻入站房墙体与山坡，过渡直线插值不可打断；③ 极寒光伏翼竖立、装甲百叶穿幕墙与木格栅、B3 叶片穿框、站房基座生插绿坡；④ 缺少 3D 透视视角自由飞行。**须在本轮返修达标后再签收进 M2。**
+
+```text
+请先完整阅读 AGENTS.md、docs/PROGRESS.md、docs/02-visual-and-ux-spec.md（第 2.2 节）、docs/03-technical-architecture.md（第 4.1 节）与 docs/05-camera-and-walkthrough-spec.md（第 1.1 节），并检查当前 M1.5b 代码。
+
+本轮为 M1.5b 返修精修（不引入 M2 房间装修内容），目标彻底解决“切换卡顿、相机与模型穿模、手感僵硬、缺少 3D 自由移动”四大问题并建立 npm run perf 性能门禁：
+
+1. 根治切换顿挫与自动画质震荡（RenderPipeline.tsx / ShelterCanvas.tsx / WalkthroughRig.tsx）：
+   - 阴影系统（CSM）与后处理管线（EffectComposer / N8AO / SelectiveBloom / SMAA / AgX）改为常驻不销毁重建，切视图/进漫游/开 X 光仅通过开关与 uniform 控制，严禁在视图切换时增删材质 USE_CSM 宏或触发全场景 needsUpdate；
+   - 在首屏开场期间一次性预编译全场景着色器（gl.compile），并缓存复用 WalkthroughRig 的 MeshBVH 碰撞树（不再每次切入漫游同步现建）；
+   - 重写自动画质：换档只平滑调节 DPR（不重建后期与阴影），剔除长任务异常帧，拉宽升降档滞回带，确保静止 8 秒内画布分辨率零震荡；
+   - 取消 CSM 0.16s 抽搐式更新节流，相机移动时阴影连续平滑跟随；室外/室内动态切换 near/far（室外 near >= 0.5m / far 15000m，漫游 near 0.12m / far 350m）。
+   - 量化验收硬门槛：除首屏预编译外，任意一次视图切换（含首次切剖面/平面/漫游/X光）主线程长任务必须 <= 50 ms、新增 WebGL linkProgram 次数 = 0。
+
+2. 相机防穿模 + 3D 自由飞行 + 可打断平滑转场（CameraStateMachine.tsx / Instruments.tsx）：
+   - 统一无冲突键位：WASD + Q/E（Shift 加速）专职移动；1–5 直达视图（1 现场 / 2 剖面 / 3 平面 / 4 X光 / 5 漫游），[/] 切层，V 循环视图，M 夹层，X X光，F 聚焦，H 隐藏 HUD，? 快捷键，Esc 退出/打断；
+   - 在 site / sectionBox / floorOrbit / xray 透视视角下实现【3D 自由飞行（Free-Fly）】：WASD 沿视向水平飞行、Q/E 升降、速度随离地高度自适应；
+   - 在 site 视图下给轨道与自由飞行相机加上地形高度场防钻地约束（相机始终高于地形 +0.8m）与站房外廓防穿墙碰撞，彻底消除 dolly-in 钻入混凝土墙或山体的现象；
+   - 视角过渡改为避开山体与楼板的平滑弧线，且任何鼠标拖拽、滚轮或按键均能立即打断过渡动画把控制权还给用户。
+
+3. 修复截图实锤的穿模、粗糙接地与静态僵硬感（SurfaceStation.tsx / StudyFixtures.tsx / MultiScaleMountain.tsx / Vegetation.tsx / PhysicalSky.tsx）：
+   - 极寒封锁（shot-03）：修正光伏翼收拢角度使其真正平铺折拢（严禁像广告牌一样 76° 竖立），外挂装甲百叶整体外扩偏移完全避开倾斜幕墙立柱与木格栅；
+   - B3 样段（shot-05）与 B2 走廊（walk）：水培叶片严格收束在托盘边界内不得穿破铝框，排查并清除 B2 走廊近楼梯处地面/门框小穿模；
+   - 站房基座与山坡接缝（site）：给 L1 站房四周补建整平混凝土散水台基与毛石/混凝土挡墙过渡，让建筑稳妥“坐”在山坡上而非生插进草坡；
+   - 景深与呼吸感（shot-02）：消除远山背坡横向条纹，丰富松树高度/冠幅/色彩个体差异，云海优化为多层柔和错落薄层并缓慢漂移，屋顶测地雷达罩与双风力机加入克制慢速旋转。
+
+4. 新增性能回归脚本 scripts/measure-perf.mjs 与 package.json 的 npm run perf 命令：
+   - 基于 Playwright + 真 GPU（ANGLE Metal）自动测量：现场静止 8s（校验画布宽度无震荡）、现场连续环绕、连续两轮切换全部视图与 X 光、漫游步行 4s、向山坡滚轮推近防穿模检查；
+   - 校验并汇报每项的 FPS、P95 帧时、最长主线程任务（<= 50 ms）、新增 shader linkProgram 次数（= 0）与控制台零错误。
+
+完成前请跑通 npm run verify、npm run shots（更新 docs/shots/m1.5b/ 五张图）与 npm run perf 全部达标，将完整性能数字与改动写入 docs/PROGRESS.md（M1.5b 保持 REVIEW 等用户二次签收），同步文档后自动 commit（fix(m1.5b): ...）并 git push origin main。
 ```
 
 ---

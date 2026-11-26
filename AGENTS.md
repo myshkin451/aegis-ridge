@@ -58,8 +58,9 @@
 - **真实尺度地形与材质纪律**：
   - 彻底废除等厚等高线纸板山和平涂无纹理方块；采用构建期预计算的侵蚀高度场（四尺度：远景 10km、主山 2–3km、场地 300m、剖切体 80m）+ 10 种程序化 PBR 材质 + 全局 `5–20mm` 倒角规则 + 物理天空、空气透视、AgX 色调映射与 N8AO。
 - **相机与性能纪律**：
-  - 默认视角为**透视长焦（现场 `50–85mm`）**，正交投影专用于平面与剖面图纸视图，通过 6 状态相机状态机连续切换。
-  - 主流 M1/M2 笔记本（1440p，DPR ≤ 1.5）稳定 **60 FPS**，绘制调用 ≤ 400，三角形 ≤ 3–4M，实时太阳阴影用 CSM（3 级）且每层实时局部投影灯 ≤ 1 盏，所有动态 GPU 资源卸载必释放。
+  - 默认视角为**透视长焦（现场 `50–85mm`）**，正交投影专用于平面与剖面图纸视图，通过 6 状态相机状态机连续切换；所有 3D 透视视图均支持 **WASD + Q/E 自由飞行（速度随离地高度自适应）**，且轨道/自由飞行相机与过渡路径严禁穿入山体或楼体，所有过渡动画随时可被用户操作立即打断。
+  - 主流 M1/M2 笔记本（1440p，DPR ≤ 1.5）稳态 **60 FPS**，绘制调用 ≤ 400，三角形 ≤ 3–4M，实时太阳阴影用 CSM（3 级）且每层实时局部投影灯 ≤ 1 盏，所有动态 GPU 资源卸载必释放。
+  - **零切换顿挫铁律**：所有材质着色器必须在开场初始化阶段一次性预编译；阴影系统（CSM）与后处理管线（`EffectComposer` / `N8AO` / `Bloom` / `SMAA`）常驻不重建，切换视图只切换开关或 uniform；**任何一次视图切换（含首次）主线程冻结必须 ≤ 50 ms、零新增 `linkProgram` 着色器编译**；自动画质只平滑调节 DPR 且剔除长任务帧、加宽滞回带，严禁静止期画幅震荡。
 
 ---
 
@@ -87,14 +88,15 @@
   - `npm run build`：Vite 生产构建通过。
   - `npm run verify`：`npm run typecheck && npm run test && npm run build`。
   - `npm run shots`（自 `M1.5b` 起建立）：调用 Playwright 自动截取 5 个固定出片机位保存至 `docs/shots/<milestone>/`。
+  - `npm run perf`（自 `M1.5b` 返修起建立）：调用 Playwright（真实 GPU / ANGLE Metal）自动测量各视图稳态帧时、切换最长主线程任务（须 `≤ 50 ms`）、新增 WebGL `linkProgram` 次数（须 `= 0`）与静止期画布宽度稳定性，并输出可核查性能报告。
 
 ### 5.2 验收签字权归属用户（`REVIEW` 门禁）
-- **Codex 不得擅自把里程碑标为 `DONE` 并推进下一阶段**：每次里程碑自检与截图完成后，在 `docs/PROGRESS.md` 中将本阶段状态更新为 **`REVIEW`（待用户签收）**，记录本轮改动、验证命令输出与 5 张固定机位截图路径；待用户肉眼检视确认满意后，再标为 `DONE` 并把下一阶段设为 `NEXT`。
+- **Codex 不得擅自把里程碑标为 `DONE` 并推进下一阶段**：每次里程碑自检与截图完成后，在 `docs/PROGRESS.md` 中将本阶段状态更新为 **`REVIEW`（待用户签收）**，记录本轮改动、验证命令输出、`npm run perf` 关键指标与 5 张固定机位截图路径；待用户肉眼检视确认满意后，再标为 `DONE` 并把下一阶段设为 `NEXT`。
 - 若实现中对目录结构、坐标、模板或参数作了合理微调，必须同步更新 `README.md` 与 `docs/` 对应小节，防止文档过期。
 
 ### 5.3 Public GitHub 仓库的自动 Commit 与 Push 规矩
 本仓库为 **公开（Public）GitHub 仓库**，每次完成阶段交付或微调后按以下顺序执行：
-1. **质量门禁**：必须先跑通 `npm run verify` 全部通过；严禁将构建或测试失败的代码 commit / push 到 `main`。
+1. **质量门禁**：必须先跑通 `npm run verify` 全部通过（且自 `M1.5b` 返修起 `npm run perf` 达标）；严禁将构建或测试失败的代码 commit / push 到 `main`。
 2. **公开仓库安全检查**：提交前必须执行 `git status` 与 `git diff --cached --stat`，严禁将 `.env*`、密钥/Token、原始 `.zip` 压缩包或无关临时文件纳入提交。
 3. **规范提交**：使用 Conventional Commits 格式提交（例如 `feat(m1.5a): upgrade 16x12 blueprint, eroded terrain and site lifelines`）。
 4. **自动推送**：确认存在 `origin` 后执行 `git push origin main`。若因沙箱网络限制无法直连 GitHub，请明确告知“本地已提交，因网络限制未完成推送”，并输出一行可复制执行的 `git push origin main` 命令。
@@ -102,5 +104,5 @@
 ### 5.4 每轮交付汇报格式
 回复末尾简洁列出：
 1. 本阶段完成项与已同步文档；
-2. `npm run verify`（及 `npm run shots`）与 `git commit / push` 执行结果；
+2. `npm run verify`、`npm run shots`、`npm run perf`（稳态 FPS / 最长切换冻结 ms / 新增 shader 编译数）与 `git commit / push` 执行结果；
 3. 5 张固定机位截图清单与建议用户重点肉眼验收的 3–5 个画面/交互点。

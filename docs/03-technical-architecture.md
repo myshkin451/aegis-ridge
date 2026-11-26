@@ -27,7 +27,8 @@
 ├── README.md
 ├── scripts/
 │   ├── generate-terrain.mjs        # 构建期确定性侵蚀高度场与 5 张驱动图预计算脚本
-│   └── capture-shots.mjs           # M1.5b 起：Playwright 自动截取 5 个固定机位图
+│   ├── capture-shots.mjs           # M1.5b 起：Playwright 自动截取 5 个固定机位图（npm run shots）
+│   └── measure-perf.mjs            # M1.5b 返修起：Playwright 真 GPU 性能与切换零顿挫回归脚本（npm run perf）
 ├── public/
 │   ├── terrain/                    # 预计算 16-bit 高度图与坡度/曲率/汇流/坡向驱动图
 │   ├── fonts/                      # 按需子集化图纸长仿宋（缺失时回退系统仿宋）
@@ -192,13 +193,19 @@ export interface RoomInstance {
 
 ## 4. 运行时性能预算与工程防坑清单
 
-### 4.1 性能预算（1440p，M1/M2 级笔记本）
-- **帧率**：稳定 `60 FPS`，`DPR` 上限 `1.5`；
+### 4.1 性能预算与流畅度硬指标（1440p，M1/M2 级笔记本）
+- **稳态帧率**：稳定 `60 FPS`，`DPR` 上限 `1.5`；
+- **零切换顿挫门禁（`npm run perf` 量化验收）**：
+  - 所有材质与后处理着色器在首屏开场期间一次性预编译完成；**之后任意一次视图切换（含首次切换）主线程冻结必须 `≤ 50 ms`、新增 WebGL `linkProgram` 次数 `= 0`**；
+  - 阴影系统（CSM）与后处理管线（`EffectComposer` / `N8AO` / `Bloom` / `SMAA` / `AgX`）常驻内存不销毁重建，模式切换仅调整 Pass `enabled` 与 uniform；
+  - 自动画质**仅平滑调节渲染像素比（DPR）**，严禁在换档时重建 `EffectComposer` 或触发全场景材质 `needsUpdate`；采样时剔除单帧卡顿毛刺并拉宽升降档滞回带，静止 8 秒内画布分辨率不得来回震荡；
+  - 相机运动时阴影连续平滑更新（消除 `0.16 s` 抽搐跳动）；漫游 `MeshBVH` 碰撞树缓存复用（不在每次切入漫游时同步重算）；
+  - 按室内外动态调节 `near / far` 裁面（室外 `near ≥ 0.5 m / far 15 000 m`，漫游 `near 0.12 m / far 350 m`），保证深度缓冲精度；
 - **绘制调用**：`≤ 400`（重复构件强制 `InstancedMesh` / `ModelBuilder` 合批）；
 - **三角形总量**：`≤ 3–4 M`（远景山体与植被按距离做 LOD 与视锥裁剪）；
 - **实时阴影**：太阳 CSM `3` 级 + 每层实时局部投影灯 `≤ 1` 盏（其余室内靠自发光、面光近似与顶点烘焙 AO）；
 - **纹理显存**：`≤ 400 MB`；
-- **首屏体验**：`3 s` 内出现绘图仪描线与图签，`8 s` 内材质与完整光照就绪。
+- **首屏体验**：`3 s` 内出现绘图仪描线与图签，`8 s` 内材质、预编译与完整光照就绪。
 
 ### 4.2 强制修复清单（自 M1.5a 立即生效）
 1. **`vite.config.ts` 测试包含路径**：改为 `test: { include: ['tests/**/*.test.ts', 'src/**/*.test.ts'] }`，彻底杜绝引擎测试被静默跳过。
