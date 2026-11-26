@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
 import { ADIT, CORRIDOR, FLOORS, FLOOR_ORDER } from '../data/floors'
+import { roomsOn } from '../data/defaultBlueprint'
 import { adits } from '../data/siteFacilities'
 import { useShelterStore } from '../store/useShelterStore'
 import type { UndergroundId } from '../types/shelter'
@@ -14,7 +15,8 @@ import {
   undergroundPlan as plan,
 } from '../geometry/coords'
 import { ModelBuilder } from './utils/modelBuilder'
-import { StudyFixtures, WalkCeiling } from './StudyFixtures'
+import { CorridorFixtures, RoomInteriors, WalkCeiling } from './rooms/RoomInteriors'
+import { atriumFootprint, clipZSpan } from '../geometry/atrium'
 import type { SurveyRuntime } from './camera/runtime'
 import { Model } from './utils/Model'
 import {
@@ -101,6 +103,14 @@ function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
       wall(x, aditCentreZ - ADIT.width / 2, x, aditCentreZ + ADIT.width / 2, ADIT.height)
     } else wall(x, plan.z0, x, plan.z1)
   }
+  for (const room of roomsOn(id)) {
+    if (!room.clearHeightOverride) continue
+    const b = footprint(room.bounds),
+      top = room.clearHeightOverride
+    if (side !== 'front' && b.z0 === plan.z0) wall(b.x0, b.z0 + 0.1, b.x1, b.z0 + 0.1, h, top)
+    if (side !== 'rear' && b.z1 === plan.z1) wall(b.x0, b.z1 - 0.1, b.x1, b.z1 - 0.1, h, top)
+    if (side !== 'rear' && b.x0 === plan.x0) wall(b.x0 + 0.1, b.z0, b.x0 + 0.1, b.z1, h, top)
+  }
   return m
 }
 
@@ -113,9 +123,10 @@ function plenumFrame(id: UndergroundId) {
   iBeam(m, corridor.x, low + 0.18, corridor.z, corridor.w, true, 0.26)
   for (const z of [plan.z0 + 0.18, plan.z1 - 0.18]) {
     iBeam(m, 0, high - 0.14, z, plan.w, true, 0.24)
-    m.box('#718087', [0, low + 0.05, z], [plan.w, 0.1, 0.12], 'steel')
+    const edgeLow = id === 'B2' ? 3.6 : low
+    m.box('#718087', [0, edgeLow + 0.05, z], [plan.w, 0.1, 0.12], 'steel')
     for (let x = plan.x0 + 0.3; x < plan.x1; x += 3.9)
-      m.box(trim, [x, (low + high) / 2, z], [0.085, high - low, 0.09], 'steel')
+      m.box(trim, [x, (edgeLow + high) / 2, z], [0.085, high - edgeLow, 0.09], 'steel')
   }
   for (const x of [plan.x0 + 0.25, plan.x1 - 0.25])
     for (const [a, b] of [
@@ -124,7 +135,12 @@ function plenumFrame(id: UndergroundId) {
     ])
       iBeam(m, x, high - 0.15, (a + b) / 2, b - a, false, 0.22)
   for (let x = plan.x0 + 2; x < plan.x1; x += 4) {
-    iBeam(m, x, high - 0.17, (corridor.z1 + plan.z1) / 2, plan.z1 - corridor.z1, false, 0.21)
+    const holes =
+      id === 'B3'
+        ? [{ ...atriumFootprint, x0: atriumFootprint.x0 - 0.09, x1: atriumFootprint.x1 + 0.09 }]
+        : []
+    for (const [a, b] of clipZSpan(x, corridor.z1, plan.z1, holes))
+      iBeam(m, x, high - 0.17, (a + b) / 2, b - a, false, 0.21)
     // The northern joists terminate before the four adjacent core openings.
     iBeam(m, x, high - 0.17, plan.z0 + 2.8, 5.6, false, 0.21)
   }
@@ -182,7 +198,8 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
       }
     >
       <group visible={seen && mode !== 'xray'}>
-        <StudyFixtures id={id} />
+        <CorridorFixtures id={id} />
+        <RoomInteriors id={id} />
       </group>
       <group ref={ceiling} visible={walk}>
         <WalkCeiling id={id} />

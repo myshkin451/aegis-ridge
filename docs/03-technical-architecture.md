@@ -59,6 +59,7 @@
 │   ├── data/
 │   │   ├── floors.ts               # L2..B4 标高、16×12 网格、扩容核心筒与双平硐定义
 │   │   ├── defaultBlueprint.ts     # v2.0 垂直干湿对齐完整避难所蓝图（含机位锚点）
+│   │   ├── roomLayouts/           # M2 分层设备清册、安装原点和室内机位
 │   │   ├── photographs.ts          # 5 个固定机位的时刻、镜头、取景与漫游落点
 │   │   ├── siteFacilities.ts       # 19 处“藏于科研”外围设施与三条出路元数据
 │   │   ├── roomTemplates.ts        # 可替换房间模块库
@@ -139,11 +140,9 @@ export type CameraStateId =
 export type WetDryZone = 'wet' | 'semi_wet' | 'dry' | 'strict_dry_electrical'
 
 export interface RoomCameraAnchor {
-  id: string
-  label: string
-  position: [number, number, number] // 相对房间地板原点的眼位偏移
-  lookAt: [number, number, number]
-  fov?: number
+  name: string
+  position: [number, number, number] // 米，世界 X/Z、距本层地面的眼高 Y
+  target: [number, number, number]   // 同一坐标系内的视线目标
 }
 
 export interface EquipmentUnit {
@@ -156,12 +155,16 @@ export interface EquipmentUnit {
     | 'medical' | 'comms' | 'storage' | 'security'
   redundantGroup?: string
   powerKw: number                    // 正耗电，负发电
-  thermalEfficiency?: number         // 发电机组热电效率（如 0.30），用于真实推导堆侧废热
-  heatRejectionKw?: number           // 散热设备额定排热能力（kWth）
-  o2RateKgPerDay?: number            // 正产氧（电解/光合），负耗氧
+  inputPowerKw: number               // 机组辅机或用电设备的额定输入
+  generatedPowerKw: number           // 毛发电量；powerKw = 输入 − 毛发电
+  heatKw: number                     // 设备在所列工况产生的热负荷
+  thermalEfficiency: number | null         // 发电机组热电效率（如 0.30），用于真实推导堆侧废热
+  heatRejectionKw: number           // 散热设备额定排热能力（kWth）
+  o2RateKgPerDay: number            // 正产氧（电解/光合），负耗氧
   requiresExternalExhaust?: boolean  // 如备用 CHP，在密闭工况下自动闭锁
   hasRunawayVent?: boolean           // 储能电池柜独立热失控排烟校验标志
-  moduleSizeM: [number, number, number]
+  position: [number, number, number] // 世界 X/Z，底面距本层地面的 Y
+  moduleSizeM: [number, number, number] // 宽、高、深
   weightKg: number
   serviceIntervalDays: number
   requiredSpareType: 'structural' | 'precision_filter' | 'electronic' | 'consumable'
@@ -190,6 +193,8 @@ export interface RoomInstance {
 ```
 
 ---
+
+M2 在同一楼层内按材质和原语合批。每个实例保留设备位号，点击后可回到同一条设备记录。漫游碰撞采用设备安装包络，龙门吊、洗消拱门、独立寝舱用分件碰撞体保留开口。首屏将设备与建筑一次性建入 BVH，再沿有楼板支撑、满足胶囊净距的位置测出货梯至室内机位的路径。设备饰面跟随建筑裁切面，图纸的材料封口归属结构实体。
 
 ## 4. 运行时性能预算与工程防坑清单
 

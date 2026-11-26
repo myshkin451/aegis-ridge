@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { defaultBox, moveFace } from '../geometry/viewGeometry'
 import type { SectionBounds } from '../geometry/viewGeometry'
+import { defaultBlueprint } from '../data/defaultBlueprint'
 import { FLOORS } from '../data/floors'
 import { photo } from '../data/photographs'
 import type { ShotId } from '../data/photographs'
@@ -31,6 +32,9 @@ interface ShelterView {
   layers: Record<SystemId, boolean>
   preset: CameraPreset
   facilityId: number | null
+  equipmentTag: string | null
+  anchorIndex: number
+  landingTarget: Point3 | null
   roomId: string | null
   landing: Point3 | null
   cameraRevision: number
@@ -44,7 +48,9 @@ interface ShelterView {
   followFloor: (floor: FloorId) => void
   frame: (preset: CameraPreset) => void
   focusFacility: (id: number) => void
-  focusRoom: (id: string | null) => void
+  focusRoom: (id: string | null, equipmentTag?: string) => void
+  selectAnchor: (index: number) => void
+  enterRoom: () => void
   refocus: () => void
   photograph: (shot: ShotId) => void
   setSectionZ: (z: number) => void
@@ -64,6 +70,9 @@ function viewFields(s: ShelterView, view: CameraStateId) {
     orbitCut: false,
     shot: null,
     roomId: null,
+    equipmentTag: null,
+    anchorIndex: 0,
+    landingTarget: null,
     facilityId: null,
     landing: null,
     preset: (view === 'section' ? 'section' : 'surface') as CameraPreset,
@@ -85,6 +94,9 @@ export const useShelterStore = create<ShelterView>((set) => ({
   layers: allLayers,
   facilityId: null,
   roomId: null,
+  equipmentTag: null,
+  anchorIndex: 0,
+  landingTarget: null,
   cameraRevision: 0,
   landing: null,
   shot: null,
@@ -123,8 +135,40 @@ export const useShelterStore = create<ShelterView>((set) => ({
       facilityId: id,
       mode: id === 6 || id === 7 ? 'xray' : 'exterior',
     })),
-  focusRoom: (roomId) => set({ roomId }),
-  refocus: () => set((s) => ({ cameraRevision: s.cameraRevision + 1 })),
+  focusRoom: (roomId, equipmentTag) =>
+    set((s) => ({
+      roomId,
+      equipmentTag: equipmentTag ?? null,
+      anchorIndex: s.roomId === roomId ? s.anchorIndex : 0,
+    })),
+  selectAnchor: (anchorIndex) => set({ anchorIndex }),
+  enterRoom: () =>
+    set((s) => {
+      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+      const anchor = room?.cameraAnchors[s.anchorIndex]
+      if (!room || !anchor) return s
+      const y = FLOORS[room.floorId].elevation
+      return {
+        ...viewFields(s, 'walkthrough'),
+        floor: room.floorId,
+        lastFloor: room.floorId,
+        landing: [anchor.position[0], y + anchor.position[1] - 1.65, anchor.position[2]],
+        landingTarget: [anchor.target[0], y + anchor.target[1], anchor.target[2]],
+      }
+    }),
+  refocus: () =>
+    set((s) => {
+      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+      if (!room) return { cameraRevision: s.cameraRevision + 1 }
+      return {
+        ...viewFields(s, s.cameraState === 'plan' ? 'plan' : 'floorOrbit'),
+        lastFloor: room.floorId,
+        floor: room.floorId,
+        roomId: room.id,
+        equipmentTag: s.equipmentTag,
+        anchorIndex: s.anchorIndex,
+      }
+    }),
   photograph: (shot) =>
     set((s) => {
       const p = photo(shot)

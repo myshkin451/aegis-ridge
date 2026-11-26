@@ -57,7 +57,9 @@ function Sheet({ close }: { close: () => void }) {
   if (!room) return null
   const f = FLOORS[room.floorId],
     p = footprint(room.bounds),
-    h = room.clearHeightOverride ?? f.clearHeight
+    h = room.clearHeightOverride ?? f.clearHeight,
+    unit = room.equipment.find((e) => e.tagCode === s.equipmentTag) ?? room.equipment[0],
+    dive = s.cameraState === 'site' && room.floorId.startsWith('B')
   return (
     <section className="drawer room-sheet" aria-label="房间数据表">
       <div className="sheet-head">
@@ -70,6 +72,10 @@ function Sheet({ close }: { close: () => void }) {
         {[
           ['楼层', f.id],
           ['面积', p.area + ' m²'],
+          [
+            '装机用电合计',
+            Number(room.equipment.reduce((sum, u) => sum + u.inputPowerKw, 0).toFixed(3)) + ' kW',
+          ],
           ['地面标高', f.elevation.toFixed(3) + ' m'],
           ['净高 / 夹层', h.toFixed(2) + ' / ' + (f.pitch - h - 0.3).toFixed(2) + ' m'],
           [
@@ -85,8 +91,58 @@ function Sheet({ close }: { close: () => void }) {
           </div>
         ))}
       </dl>
-      <button onClick={() => s.setView('walkthrough', [p.x, f.elevation, p.z])}>
-        进入漫游 <kbd>5</kbd>
+      <label>
+        设备位号
+        <select
+          aria-label="设备位号"
+          value={unit.tagCode}
+          onChange={(e) => s.focusRoom(room.id, e.target.value)}
+        >
+          {room.equipment.map((u) => (
+            <option key={u.tagCode} value={u.tagCode}>
+              {u.tagCode}　{u.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <dl aria-label="设备设计工况">
+        {[
+          ['设备', unit.name],
+          ['额定用电', unit.inputPowerKw + ' kW'],
+          ...(unit.generatedPowerKw > 0 ? [['额定发电', unit.generatedPowerKw + ' kW']] : []),
+          [
+            '热电效率',
+            unit.thermalEfficiency === null ? '不适用' : (unit.thermalEfficiency * 100).toFixed(1) + '%',
+          ],
+          ['散热负荷', Number(unit.heatKw.toFixed(2)) + ' kW'],
+          ...(unit.heatRejectionKw ? [['额定排热能力', unit.heatRejectionKw + ' kW']] : []),
+          ['额定产氧', unit.o2RateKgPerDay + ' kg/d'],
+          ['宽 × 高 × 深', unit.moduleSizeM.join(' × ') + ' m'],
+          ['设计质量', unit.weightKg.toLocaleString('zh-CN') + ' kg'],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="design-basis">概念设计额定值。{unit.notes}</p>
+      <label>
+        室内机位
+        <select
+          aria-label="室内机位"
+          value={s.anchorIndex}
+          onChange={(e) => s.selectAnchor(Number(e.target.value))}
+        >
+          {room.cameraAnchors.map((a, i) => (
+            <option key={a.name} value={i}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button onClick={s.enterRoom}>
+        {dive ? '竖井下潜' : '掀顶落地'}　进入漫游 <kbd>5</kbd>
       </button>
     </section>
   )
@@ -97,6 +153,7 @@ function WalkHud() {
   return (
     <>
       <span className="crosshair" />
+      <output id="equipment-sight" className="equipment-sight" />
       <div className="walk-map">
         <svg viewBox="-18 -14 36 28" aria-label="当前层平面与朝向">
           {roomsOn(floor).map((room) => {
@@ -219,9 +276,8 @@ export function Instruments() {
       else if (k === 'm') v.togglePlenum()
       else if (k === 'x') v.setMode(v.mode === 'xray' ? 'exterior' : 'xray')
       else if (k === '5') {
-        const room = defaultBlueprint.rooms.find((r) => r.id === v.roomId),
-          p = room && footprint(room.bounds)
-        v.setView('walkthrough', p && room ? [p.x, FLOORS[room.floorId].elevation, p.z] : undefined)
+        if (v.roomId) v.enterRoom()
+        else v.setView('walkthrough')
       } else if (k === 'f') v.refocus()
       else if (k === 'h') v.toggleHud()
       else if (k === '?') {
@@ -323,6 +379,28 @@ export function Instruments() {
                   <option key={f.id} value={f.id}>
                     {String(f.id).padStart(2, '0')}　{f.name}
                   </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              房间索引
+              <select
+                aria-label="房间索引"
+                value={s.roomId ?? ''}
+                onChange={(e) => {
+                  s.focusRoom(e.target.value || null)
+                  setOpen(null)
+                }}
+              >
+                <option value="">选择房间</option>
+                {FLOOR_ORDER.map((id) => (
+                  <optgroup key={id} label={id}>
+                    {roomsOn(id).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>

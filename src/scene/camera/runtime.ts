@@ -16,6 +16,7 @@ export function surveyRuntime() {
     pitch: 0,
     floor: 'B2' as FloorId,
     walkRevision: -1,
+    roomRoutes: new Map<string, Vector3[]>(),
     collision: null as WalkCollision | null,
     readout: new Vector3(),
     hit: false,

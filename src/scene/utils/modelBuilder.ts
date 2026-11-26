@@ -28,6 +28,7 @@ type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud' | 'fir' | 'distantFir' | 
 interface Stamp {
   matrix: Matrix4
   color: Color
+  tag?: string
 }
 interface Batch {
   shape: Shape
@@ -46,6 +47,22 @@ export interface BuiltModel {
 /** Each immutable subassembly owns its GPU resources. All repeated parts share instanced draws. */
 export class ModelBuilder {
   constructor(private readonly faceFinish: Finish = 'stone') {}
+  private placement?: { origin: Point3; tag: string }
+
+  /** Append a tagged module to the floor batches without creating a draw call per device. */
+  equipment(tag: string, origin: Point3, draw: () => void) {
+    this.placement = { origin, tag }
+    try {
+      draw()
+    } finally {
+      this.placement = undefined
+    }
+  }
+  private placed(p: Point3): Point3 {
+    const origin = this.placement?.origin
+    return origin ? [p[0] + origin[0], p[1] + origin[1], p[2] + origin[2]] : p
+  }
+
   private batches = new Map<string, Batch>()
   private vertices: number[] = []
   private faceColors: number[] = []
@@ -72,8 +89,9 @@ export class ModelBuilder {
         ? rotation
         : new Quaternion().setFromEuler(new Euler(...((rotation ?? [0, 0, 0]) as Point3)))
     batch.stamps.push({
-      matrix: new Matrix4().compose(new Vector3(...centre), q, new Vector3(...size)),
+      matrix: new Matrix4().compose(new Vector3(...this.placed(centre)), q, new Vector3(...size)),
       color: new Color(tint),
+      tag: this.placement?.tag,
     })
   }
 
@@ -97,13 +115,13 @@ export class ModelBuilder {
   }
 
   line(a: Point3, b: Point3, tint: Tint) {
-    this.lines.push(...a, ...b)
+    this.lines.push(...this.placed(a), ...this.placed(b))
     const { r, g, b: blue } = new Color(tint)
     this.lineColors.push(r, g, blue, r, g, blue)
   }
 
   tri(a: Point3, b: Point3, c: Point3, tint: Tint) {
-    this.vertices.push(...a, ...b, ...c)
+    this.vertices.push(...this.placed(a), ...this.placed(b), ...this.placed(c))
     const { r, g, b: blue } = new Color(tint)
     this.faceColors.push(r, g, blue, r, g, blue, r, g, blue)
   }
@@ -189,6 +207,10 @@ export class ModelBuilder {
         mesh.setMatrixAt(i, matrix)
         mesh.setColorAt(i, color)
       })
+      if (stamps.some((stamp) => stamp.tag)) {
+        mesh.userData.equipmentTags = stamps.map((stamp) => stamp.tag)
+        mesh.userData.batchTags = [...new Set(mesh.userData.equipmentTags)]
+      }
       mesh.userData.closedSolid = true
       mesh.userData.finish = finish
       mesh.userData.shape = shape

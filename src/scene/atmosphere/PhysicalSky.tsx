@@ -20,7 +20,7 @@ import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
 import { nearSurfaceOpening } from '../../geometry/doors'
 import { randomSource } from '../../geometry/random'
-import { weatherUniform } from '../materials/pbrLibrary'
+import { roomClockMinutes, weatherUniform } from '../materials/pbrLibrary'
 import { reduceMotion } from '../utils/Model'
 
 export function sunAt(time: string) {
@@ -203,6 +203,8 @@ export function PhysicalSky() {
   }, [environments, gl, scene, sky])
   useLayoutEffect(() => {
     weatherUniform.value = Number(cold)
+    const [hours, minutes] = time.split(':').map(Number)
+    roomClockMinutes.value = hours * 60 + minutes
     const u = sky.material.uniforms
     u.sunPosition.value.copy(sun).multiplyScalar(450000)
     u.turbidity.value = cold ? 9 : 2.6

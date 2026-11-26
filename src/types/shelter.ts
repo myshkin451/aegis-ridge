@@ -35,6 +35,19 @@ export interface EquipmentUnit {
     | 'medical'
     | 'comms'
     | 'storage'
+  /** Installed concept-design module. X/Z are world plan coordinates, Y is its base above the floor. */
+  tagCode: string
+  position: Point3
+  notes: string
+  /** Null for equipment without a heat-to-electric conversion process. */
+  thermalEfficiency: number | null
+  heatRejectionKw: number
+  requiresExternalExhaust?: boolean
+  hasRunawayVent?: boolean
+  inputPowerKw: number
+  generatedPowerKw: number
+  o2RateKgPerDay: number
+  collisionBoxes?: { center: Point3; size: Point3 }[]
   redundantGroup?: string
   powerKw: number
   heatKw: number
@@ -62,10 +75,16 @@ export interface RoomInstance {
   atriumVoidToBelow?: GridBounds
   isDryElectricalZone: boolean
   requiresHoistRail: boolean
+  cameraAnchors: RoomCameraAnchor[]
   equipment: EquipmentUnit[]
 }
 
 export type Point3 = [number, number, number]
+export interface RoomCameraAnchor {
+  name: string
+  position: Point3
+  target: Point3
+}
 export type ShaftId = 'freight' | 'personnel' | 'wet' | 'electrical' | 'escape'
 export interface Shaft {
   id: ShaftId

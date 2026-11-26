@@ -4,7 +4,7 @@ import { FLOORS, FLOOR_ORDER, GRID, UNDERGROUND } from '../data/floors'
 import { roomsOn } from '../data/defaultBlueprint'
 import { footprint, gridToWorld, undergroundPlan } from '../geometry/coords'
 import { useShelterStore } from '../store/useShelterStore'
-import { Inscription } from './StudyFixtures'
+import { Inscription } from './rooms/Inscription'
 
 function Rules({ points, color }: { points: number[]; color: string }) {
   const geometry = useMemo(() => {

@@ -13,7 +13,8 @@ import {
 import { acceleratedRaycast, MeshBVH } from 'three-mesh-bvh'
 import { FLOORS, GRID } from '../../data/floors'
 import { altitude, worldToGrid } from '../../geometry/coords'
-import { roomAt } from '../../geometry/viewGeometry'
+import { aimedEquipment, taggedEquipment, visibleHit } from '../rooms/picking'
+import { floorAt, roomAt } from '../../geometry/viewGeometry'
 import { useShelterStore } from '../../store/useShelterStore'
 import type { SurveyRuntime } from './runtime'
 
@@ -23,6 +24,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
     scene = useThree((s) => s.scene)
   const last = useRef(0),
     dirty = useRef(true),
+    pointerOnCanvas = useRef(false),
     uv = useRef(new Vector2(0, 0)),
     cache = useRef(new Map<string, HTMLElement>())
   const kit = useMemo(
@@ -46,10 +48,15 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
           accelerated.add(o)
         }
       })
+    const leave = () => {
+      pointerOnCanvas.current = false
+      dirty.current = true
+    }
     const coords = (e: PointerEvent) => {
       const b = canvas.getBoundingClientRect()
       uv.current.set(((e.clientX - b.left) * 2) / b.width - 1, 1 - ((e.clientY - b.top) * 2) / b.height)
       dirty.current = true
+      pointerOnCanvas.current = true
     }
     let startX = 0,
       startY = 0
@@ -60,20 +67,56 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
     const click = (e: PointerEvent) => {
       if (Math.hypot(e.clientX - startX, e.clientY - startY) > 4 || rt.moving) return
       const s = useShelterStore.getState()
-      if (s.cameraState !== 'plan' && s.cameraState !== 'floorOrbit') return
+      if (s.mode === 'xray' || e.button !== 0) return
       coords(e)
-      kit.ray.setFromCamera(uv.current, get().camera)
-      kit.plane.setComponents(0, 1, 0, -FLOORS[s.lastFloor].elevation)
-      const p = kit.ray.ray.intersectPlane(kit.plane, kit.p)
-      if (!p) return
-      const room = roomAt(s.lastFloor, p.x, p.z)
-      if (s.cameraState === 'floorOrbit' && room) s.setView('walkthrough', [p.x, p.y, p.z])
-      else s.focusRoom(room?.id ?? null)
+      kit.ray.setFromCamera(document.pointerLockElement ? kit.centre : uv.current, get().camera)
+      const hit = visibleHit(scene, kit.ray, true)
+      if (s.cameraState === 'plan' || (s.cameraState === 'floorOrbit' && s.orbitCut)) {
+        kit.plane.setComponents(0, 1, 0, -(FLOORS[s.lastFloor].elevation + s.cutHeight))
+        const cut = kit.ray.ray.intersectPlane(kit.plane, kit.p)
+        if (cut && (!hit || kit.ray.ray.origin.distanceTo(cut) < hit.distance - 0.002)) {
+          const onCut = aimedEquipment(s.lastFloor, cut)
+          if (onCut) {
+            s.focusRoom(onCut.room.id, onCut.unit.tagCode)
+            return
+          }
+        }
+      }
+      const tag = hit?.instanceId !== undefined && hit.object.userData.equipmentTags?.[hit.instanceId]
+      const entry = tag && taggedEquipment.get(tag)
+      if (entry) {
+        s.focusRoom(entry.room.id, entry.unit.tagCode)
+        if (document.pointerLockElement) document.exitPointerLock()
+        return
+      }
+      if (s.cameraState === 'walkthrough') {
+        if (hit?.face && Math.abs(hit.face.normal.y) < 0.45) {
+          const p = hit.point,
+            room = roomAt(rt.floor, p.x, p.z)
+          if (room) {
+            s.focusRoom(room.id)
+            if (document.pointerLockElement) document.exitPointerLock()
+          }
+        }
+        return
+      }
+      if (s.cameraState === 'plan' || s.cameraState === 'floorOrbit') {
+        kit.plane.setComponents(0, 1, 0, -FLOORS[s.lastFloor].elevation)
+        const p = kit.ray.ray.intersectPlane(kit.plane, kit.p)
+        s.focusRoom(p ? (roomAt(s.lastFloor, p.x, p.z)?.id ?? null) : null)
+      } else if (hit) {
+        const p = hit.point
+        const floor = floorAt(p.y + 0.025)
+        const room = p.y <= FLOORS.L2.elevation + FLOORS.L2.pitch + 0.1 && roomAt(floor, p.x, p.z)
+        s.focusRoom(room ? room.id : null)
+      }
     }
+    canvas.addEventListener('pointerleave', leave)
     canvas.addEventListener('pointermove', coords)
     canvas.addEventListener('pointerdown', down)
     canvas.addEventListener('pointerup', click)
     return () => {
+      canvas.removeEventListener('pointerleave', leave)
       canvas.removeEventListener('pointermove', coords)
       canvas.removeEventListener('pointerdown', down)
       canvas.removeEventListener('pointerup', click)
@@ -113,7 +156,8 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       gl.domElement.dataset.instrumentRevision = String(s.cameraRevision)
       kit.ray.setFromCamera(walking ? kit.centre : uv.current, camera)
       kit.ray.firstHitOnly = true
-      if (s.cameraState === 'section') {
+      if (!walking && !pointerOnCanvas.current) rt.hit = false
+      else if (s.cameraState === 'section') {
         kit.plane.setComponents(0, 0, 1, -s.sectionZ)
         rt.hit =
           !!kit.ray.ray.intersectPlane(kit.plane, rt.readout) &&
@@ -123,27 +167,12 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       } else if (s.cameraState === 'plan') {
         kit.plane.setComponents(0, 1, 0, -(FLOORS[s.lastFloor].elevation + s.cutHeight))
         rt.hit = !!kit.ray.ray.intersectPlane(kit.plane, rt.readout)
-      } else if (walking && rt.collision && camera.position.y < 0) {
+      } else if (walking && rt.collision) {
         const hit = rt.collision.tree.raycastFirst(kit.ray.ray, DoubleSide, 0.12, 350)
         rt.hit = !!hit
         if (hit) rt.readout.copy(hit.point)
       } else {
-        const meshes: Mesh[] = []
-        scene.traverseVisible((o) => {
-          if (
-            o instanceof Mesh &&
-            (o.material.isMeshStandardMaterial || o.geometry.boundsTree) &&
-            o.material.opacity > 0.22 &&
-            o.userData.shape !== 'leaf' &&
-            o.userData.shape !== 'fir' &&
-            o.userData.shape !== 'distantFir'
-          )
-            meshes.push(o)
-        })
-        const hit = kit.ray.intersectObjects(meshes, false).find((hit) => {
-          const m = (hit.object as Mesh).material
-          return !Array.isArray(m) && !m.clippingPlanes?.some((p) => p.distanceToPoint(hit.point) < 0)
-        })
+        const hit = visibleHit(scene, kit.ray, false)
         rt.hit = !!hit
         if (hit) rt.readout.copy(hit.point)
       }
@@ -179,6 +208,8 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
     content('scale-half', String(length / 2))
     content('scale-full', length + ' m')
     if (walking) {
+      const aimed = rt.hit && aimedEquipment(rt.floor, rt.readout)
+      content('equipment-sight', aimed ? aimed.unit.tagCode + '　' + aimed.unit.name : '')
       content('walk-room', rt.room || '竖井下潜')
       content('flight-level', '▽ ' + (rt.moving ? camera.position.y : rt.feet.y).toFixed(3) + ' m')
       content('walk-altitude', '海拔 ' + altitude(camera.position.y).toFixed(2) + ' m')

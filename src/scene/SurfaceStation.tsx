@@ -1,3 +1,4 @@
+import { RoomInteriors } from './rooms/RoomInteriors'
 import { slabPlan } from '../geometry/planGeometry'
 import { Color, Group } from 'three'
 import { useFrame } from '@react-three/fiber'
@@ -13,7 +14,6 @@ import { groundAt, type TerrainAtlas } from '../geometry/siteElevations'
 import { Model, reduceMotion } from './utils/Model'
 import { ModelBuilder } from './utils/modelBuilder'
 import { addSlab, iBeam, shaftFrames, stairStructure, steel, warm } from './utils/shellGeometry'
-import { randomSource } from '../geometry/random'
 
 const l1 = footprint(FLOORS.L1.bounds),
   l2 = footprint(FLOORS.L2.bounds)
@@ -48,10 +48,7 @@ function groundFloor() {
   m.box('#8b9290', [garage.x, 0.095, l1.z1 + 0.85], [garage.w - 0.4, 0.07, 1.67])
   for (let x = garage.x0 + 0.75; x < garage.x1; x += 1.3)
     m.box('#d0b58a', [x, 0.138, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
-  // The garage crane centres on the freight hatch within the garage footprint.
   const freight = shaftPlans.find((s) => s.id === 'freight')!
-  iBeam(m, (garage.x0 + freight.x + 0.8) / 2, l1h + 0.12, freight.z, freight.x + 0.8 - garage.x0, true, 0.32)
-  m.box('#bca177', [freight.x, l1h - 0.1, freight.z], [0.7, 0.3, 0.45], 'steel')
   for (const x of [freight.x - 0.91, freight.x + 0.91])
     for (const z of [freight.z - 0.91, freight.z + 0.91])
       m.box('#b6a382', [x, 0.53, z], [0.11, 1.06, 0.11], 'steel')
@@ -145,8 +142,7 @@ function lowerCeiling() {
 }
 
 function observationFloor() {
-  const m = new ModelBuilder(),
-    random = randomSource(305)
+  const m = new ModelBuilder()
   addSlab(m, 'L2')
   const hallPlan = slabPlan(roomsOn('L2')[0].bounds, FLOORS.L2.elevation)
   lid(m, hallPlan, 0.012, '#bca688')
@@ -160,19 +156,6 @@ function observationFloor() {
   for (const sign of [-1, 1]) {
     const leaf = (garden.w - 1.45) / 2
     m.box(glass, [garden.x + sign * (0.725 + leaf / 2), l2h / 2, beds.z0], [leaf, l2h, 0.09], 'glass')
-  }
-  for (const x of [beds.x0 + 1.6, beds.x + 0.2, beds.x1 - 1.5]) {
-    m.box('#999b89', [x, 0.21, beds.z], [1.38, 0.42, beds.d - 2.2])
-    m.box('#655e4c', [x, 0.43, beds.z], [1.2, 0.035, beds.d - 2.4], 'wood')
-    for (let z = beds.z0 + 1.7; z < beds.z1 - 0.8; z += 1.1) {
-      const h = 0.7 + random() * 0.92
-      m.part('bud', 'foliage', '#829067', [x, 0.46 + h * 0.42, z], [1.14, h, 1.04], [0, random() * 4, 0.24])
-      m.part('bud', 'foliage', '#657a5b', [x + 0.27, 0.52 + h * 0.29, z + 0.22], [0.88, h * 0.68, 0.7])
-    }
-  }
-  for (let z = hall.z0 + 1; z < hall.z1 - 0.4; z += 2.25) {
-    m.box(cedar, [hall.x0 + 0.65, 0.5, z], [0.63, 1.0, 1.89], 'wood')
-    m.box('#718381', [hall.x0 + 0.62, 1.02, z], [0.76, 0.1, 2.02], 'steel')
   }
   return m
 }
@@ -323,6 +306,21 @@ function roofscape() {
       m.box(mullion, [ridge, roof, garden.z], [0.11, 0.12, garden.d], 'steel')
       m.box('#97a19d', [centre, l2h + rise / 2, garden.z], [0.075, 0.06, garden.d], 'steel')
     }
+  // The optics sit on the east greenhouse ridge, directly over SOL-212's interior coupling.
+  m.equipment('SOL-212', [9.5, roof, 4], () => {
+    m.part('round', 'steel', '#a1afa8', [0, -0.4, 0], [0.16, 0.82, 0.16])
+    m.box(mullion, [0, 0.09, 0], [0.86, 0.17, 1.14], 'steel')
+    m.part('round', 'steel', '#91a49e', [0, 0.29, 0], [0.47, 0.32, 0.47])
+    m.box(cedar, [0, 0.55, 0], [1.64, 0.13, 1.08], 'steel', [-0.22, 0, 0])
+    for (let col = 0; col < 5; col++)
+      for (let row = 0; row < 3; row++) {
+        const x = (col - 2) * 0.3,
+          z = (row - 1) * 0.31
+        const y = 0.64 + z * 0.22
+        m.part('round', 'steel', '#819b9a', [x, y, z], [0.28, 0.058, 0.28], [-0.22, 0, 0])
+        m.part('round', 'glass', '#bdd5ca', [x, y + 0.042, z], [0.243, 0.039, 0.243], [-0.22, 0, 0])
+      }
+  })
   const pz = l2.z0 + 1.05
   m.box(mullion, [hall.x + 0.6, roof + 0.35, pz], [15.6, 0.3, 0.34], 'steel')
   for (const x of [hall.x0 + 0.7, hall.x1 - 0.7])
@@ -438,6 +436,9 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
   const apron = useMemo(() => () => stationApron(atlas), [atlas])
   const panels = useRef<Group>(null),
     building = useRef<Group>(null),
+    upperFloor = useRef<Group>(null),
+    roofShell = useRef<Group>(null),
+    setback = useRef<Group>(null),
     radar = useRef<Group>(null),
     a = useRef<Group>(null),
     b = useRef<Group>(null)
@@ -450,7 +451,12 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
     }
     if (panels.current)
       panels.current.visible = !rt.garageTransfer && !walk && lower && !wire && floor !== 'L1'
-    if (building.current) building.current.visible = (!walk || camera.position.y > -10.3) && !rt.dropping
+    if (building.current)
+      building.current.visible =
+        (!walk || camera.position.y > -10.3) && (!rt.dropping || floor === 'L1' || floor === 'L2')
+    if (upperFloor.current) upperFloor.current.visible = !(rt.dropping && floor === 'L1')
+    if (roofShell.current) roofShell.current.visible = !rt.dropping
+    if (setback.current) setback.current.visible = !(rt.dropping && floor === 'L1')
   })
   const lower = walk || floor === 'ALL' || floor === 'L1' || floor === 'L2'
   const upper = walk || floor === 'ALL' || floor === 'L2'
@@ -461,6 +467,9 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
         <group visible={lower && !wire}>
           <Model build={apron} />
         </group>
+        <group visible={lower && !wire}>
+          <RoomInteriors id="L1" />
+        </group>
         <Model build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
         <Model build={lowerServices} opacity={Number(lower && !wire && (plenum || floor === 'L2'))} />
         <Model build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
@@ -468,29 +477,36 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
           <Model build={entryPanels} />
           <Model build={garagePanels} />
         </group>
-        <Model build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
+        <group ref={setback}>
+          <Model build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
+        </group>
         <Model build={lowerOutline} opacity={lower && wire ? 0.12 : 0} />
       </group>
-      <group position-y={getFloorElevation('L2')}>
+      <group ref={upperFloor} position-y={getFloorElevation('L2')}>
+        <group visible={upper && !wire}>
+          <RoomInteriors id="L2" />
+        </group>
         <Model build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
         <Model build={upperServices} opacity={Number(upper && plenum && !wire)} />
         <Model build={upperFacade} opacity={Number(upper && !wire)} />
-        <Model build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
-        <group visible={upper && !wire && (floor === 'ALL' || walk)}>
-          <group visible={!cold}>
-            <Model build={extendedWings} />
-          </group>
-          <group visible={cold}>
-            <Model build={foldedWings} />
-          </group>
-          <group ref={radar} position={[hall.x - 0.55, roof + 0.06, hall.z + 1.25]}>
-            <Model build={dome} />
-          </group>
-          <group ref={a} position={[hall.x0 + 0.7, 0, hall.z1 - 1]}>
-            <Model build={turbine} />
-          </group>
-          <group ref={b} position={[hall.x1 - 0.7, 0, hall.z1 - 1]}>
-            <Model build={turbine} />
+        <group ref={roofShell}>
+          <Model build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
+          <group visible={upper && !wire && (floor === 'ALL' || walk)}>
+            <group visible={!cold}>
+              <Model build={extendedWings} />
+            </group>
+            <group visible={cold}>
+              <Model build={foldedWings} />
+            </group>
+            <group ref={radar} position={[hall.x - 0.55, roof + 0.06, hall.z + 1.25]}>
+              <Model build={dome} />
+            </group>
+            <group ref={a} position={[hall.x0 + 0.7, 0, hall.z1 - 1]}>
+              <Model build={turbine} />
+            </group>
+            <group ref={b} position={[hall.x1 - 0.7, 0, hall.z1 - 1]}>
+              <Model build={turbine} />
+            </group>
           </group>
         </group>
         <group visible={cold && upper && !wire}>

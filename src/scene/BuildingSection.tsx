@@ -63,7 +63,7 @@ function makeCaps(cut: Cut) {
   for (const [k, kind] of kinds.entries()) {
     const vertices: number[] = []
     for (const [model, type] of cut.models) {
-      if (type !== kind) continue
+      if (type !== kind || model.object.userData.fitout) continue
       const opaque = new Set(model.materials.filter((m) => m.alpha === 1).map((m) => m.material))
       appendSolids(
         model.object,

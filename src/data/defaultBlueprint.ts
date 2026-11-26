@@ -1,3 +1,5 @@
+import { atriumBounds } from '../geometry/atrium'
+import { roomLayouts } from './roomLayouts'
 import { gridRect as rect } from './floors'
 import type { FloorId, GridBounds, RoomInstance } from '../types/shelter'
 
@@ -21,7 +23,7 @@ function room(
     adjustable: false,
     requiresHoistRail: false,
     isDryElectricalZone: false,
-    equipment: [],
+    ...roomLayouts[id],
     ...options,
   }
 }
@@ -70,7 +72,7 @@ export const defaultBlueprint = {
       wetDryZone: 'semi_wet',
       adjustable: true,
       clearHeightOverride: 3.6,
-      atriumVoidToBelow: rect(1, 2, 7, 9),
+      atriumVoidToBelow: atriumBounds,
     }),
     room('B2', 'b2_gym', '综合健身房与光疗心理康复室', rect(5, 8, 6, 11), { ...high, replaceable: true }),
     room('B2', 'b2_quarters', '10 人模块化独立居住舱区', se, high),

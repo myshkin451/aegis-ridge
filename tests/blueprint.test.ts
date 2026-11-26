@@ -10,6 +10,7 @@ import {
   shaftsAt,
   worldToGrid,
 } from '../src/geometry/coords'
+import { atriumBounds } from '../src/geometry/atrium'
 import { contains, slabPlan } from '../src/geometry/planGeometry'
 import type { GridBounds } from '../src/types/shelter'
 
@@ -135,25 +136,29 @@ describe('v2 survey and room register', () => {
     ])
     expect(JSON.parse(JSON.stringify(defaultBlueprint))).toEqual(defaultBlueprint)
   })
-  it.each([...FLOOR_ORDER, 'buffer'] as const)('cuts only the shafts actually served at %s', (level) => {
-    const id = level === 'buffer' ? 'B1' : level,
-      y = level === 'buffer' ? -3 : FLOORS[id].elevation
-    const plan = slabPlan(FLOORS[id].bounds, y)
-    const active =
-      level === 'L2'
-        ? ['personnel', 'electrical']
-        : level === 'L1' || level === 'buffer'
-          ? ['personnel', 'electrical', 'wet', 'freight']
-          : shaftPlans.map((s) => s.id)
-    for (const key of cells(FLOORS[id].bounds)) {
-      const [gx, gz] = key.split(',').map(Number),
-        [x, , z] = gridToWorld(gx, gz, id)
-      const concrete = plan.some(
-        (poly) => contains(poly[0], x, z) && !poly.slice(1).some((r) => contains(r, x, z)),
-      )
-      expect(concrete, key).toBe(
-        !shaftPlans.some((s) => active.includes(s.id) && cells(s.bounds).includes(key)),
-      )
-    }
-  })
+  it.each([...FLOOR_ORDER, 'buffer'] as const)(
+    'cuts only the shafts served and the B2 atrium at %s',
+    (level) => {
+      const id = level === 'buffer' ? 'B1' : level,
+        y = level === 'buffer' ? -3 : FLOORS[id].elevation
+      const plan = slabPlan(FLOORS[id].bounds, y)
+      const active =
+        level === 'L2'
+          ? ['personnel', 'electrical']
+          : level === 'L1' || level === 'buffer'
+            ? ['personnel', 'electrical', 'wet', 'freight']
+            : shaftPlans.map((s) => s.id)
+      for (const key of cells(FLOORS[id].bounds)) {
+        const [gx, gz] = key.split(',').map(Number),
+          [x, , z] = gridToWorld(gx, gz, id)
+        const concrete = plan.some(
+          (poly) => contains(poly[0], x, z) && !poly.slice(1).some((r) => contains(r, x, z)),
+        )
+        expect(concrete, key).toBe(
+          !shaftPlans.some((s) => active.includes(s.id) && cells(s.bounds).includes(key)) &&
+            !(level === 'B2' && cells(atriumBounds).includes(key)),
+        )
+      }
+    },
+  )
 })

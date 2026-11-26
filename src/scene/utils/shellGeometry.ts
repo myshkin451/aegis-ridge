@@ -1,4 +1,5 @@
 import { FLOORS, SLAB } from '../../data/floors'
+import { atriumFootprint, clipZSpan } from '../../geometry/atrium'
 import { roomDoor } from '../../geometry/doors'
 import { roomsOn } from '../../data/defaultBlueprint'
 import type { FloorId, Point3, UndergroundId } from '../../types/shelter'
@@ -170,10 +171,17 @@ export function roomStructure(m: ModelBuilder, id: UndergroundId) {
         m.box(trim, [x, 0.08, z], [0.46, 0.16, 0.46], 'steel')
         m.box(steel, [x, h - 0.12, z], [0.48, 0.24, 0.48], 'steel')
       }
+    const atrium = room.atriumVoidToBelow ? [atriumFootprint] : []
     for (let x = r.x0 + 2; x < r.x1; x += 2)
-      m.line([x, 0.014, r.z0 + 0.18], [x, 0.014, r.z1 - 0.18], '#858e90')
-    for (let z = r.z0 + 2; z < r.z1; z += 2)
-      m.line([r.x0 + 0.18, 0.014, z], [r.x1 - 0.18, 0.014, z], '#858e90')
+      for (const [a, b] of clipZSpan(x, r.z0 + 0.18, r.z1 - 0.18, atrium))
+        m.line([x, 0.014, a], [x, 0.014, b], '#858e90')
+    for (let z = r.z0 + 2; z < r.z1; z += 2) {
+      const a = atrium[0]
+      if (a && z > a.z0 && z < a.z1) {
+        m.line([r.x0 + 0.18, 0.014, z], [a.x0, 0.014, z], '#858e90')
+        m.line([a.x1, 0.014, z], [r.x1 - 0.18, 0.014, z], '#858e90')
+      } else m.line([r.x0 + 0.18, 0.014, z], [r.x1 - 0.18, 0.014, z], '#858e90')
+    }
     // Recessed strip lights and skirtings articulate the empty architectural bays.
     const back = north ? r.z0 + 0.19 : r.z1 - 0.19
     for (let x = r.x0 + 1.9; x < r.x1 - 0.8; x += 3.6) {

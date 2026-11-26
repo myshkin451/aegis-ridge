@@ -38,10 +38,12 @@ export function Model({
   opacity = 1,
   delayMs = 0,
   cutMaterial = 'structure',
+  interior = false,
 }: {
   build: () => ModelBuilder
   opacity?: number
   delayMs?: number
+  interior?: boolean
   cutMaterial?: CutMaterial
 }) {
   const cut = useBuildingCut()
@@ -55,6 +57,11 @@ export function Model({
   useLayoutEffect(() => {
     const built = build().build()
     const parent = mount.current!
+    if (interior) {
+      built.object.userData.fitout = true
+      for (const caster of built.shadowCasters) caster.castShadow = false
+      built.shadowCasters.length = 0
+    }
     parent.add(built.object)
     model.current = built
     setOpacity(built, amount.current)
@@ -66,7 +73,7 @@ export function Model({
       model.current = null
       gl.shadowMap.needsUpdate = true
     }
-  }, [build, invalidate, gl])
+  }, [build, invalidate, gl, interior])
   useLayoutEffect(() => {
     if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
   }, [cut, cutMaterial, build])

@@ -2,7 +2,8 @@ import { Canvas, useLoader } from '@react-three/fiber'
 import { Component, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { AgXToneMapping, PCFSoftShadowMap } from 'three'
-import { StudyLights } from './StudyFixtures'
+import { InteriorLights } from './rooms/RoomInteriors'
+import { FibreDaylight } from './rooms/FibreDaylight'
 import { SurfaceStation } from './SurfaceStation'
 import { UndergroundShell } from './UndergroundShell'
 import { MultiScaleMountain } from './terrain/MultiScaleMountain'
@@ -43,7 +44,8 @@ function SurveyScene() {
       <group visible={!xray}>
         <DrawingMarks />
       </group>
-      <StudyLights />
+      <InteriorLights />
+      <FibreDaylight />
       <CameraStateMachine atlas={atlas} rt={rt} />
       <WalkthroughRig rt={rt} />
       <SectionBoxTool rt={rt} />

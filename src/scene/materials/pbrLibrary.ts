@@ -37,6 +37,7 @@ export const floorLight = {
   B3: '#ffd7ee',
   B4: '#e0efff',
 } as const
+export const roomClockMinutes = { value: 460 }
 export const weatherUniform = { value: 0 }
 function hash(x: number, y: number) {
   let n = Math.imul(x + 71, 374761393) + Math.imul(y + 31, 668265263)
@@ -175,6 +176,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.uniforms.isLamp = { value: kind === 'lamp' }
     shader.uniforms.grains = { value: map }
     shader.uniforms.snowCover = weatherUniform
+    shader.uniforms.roomMinutes = roomClockMinutes
     const vary = 'varying vec3 vMetric; varying vec3 vBoxLocal; varying vec3 vExtent;'
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + vary)
@@ -191,7 +193,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform float snowCover; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+        '#include <common>\nuniform sampler2D grains; uniform float snowCover,roomMinutes; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
           vary,
       )
       .replace(
@@ -234,6 +236,16 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
           vec3 wash=vMetric.y<${FLOORS.B3.elevation - 0.29}?vec3(.54,.76,1.):vMetric.y<${FLOORS.B2.elevation - 0.29}?vec3(1.,.41,.67):vMetric.y<${FLOORS.B1.elevation - 0.29}?vec3(1.,.33,.095):vec3(1.,.82,.63);
           float levelY=mod(vMetric.y-(${FLOORS.B4.elevation})+.002,${FLOORS.B4.pitch});
           float pool=.22+.98*pow(.5+.5*cos(vMetric.x*1.76),2.)*(.38+.62*smoothstep(0.,2.7,levelY));
+          bool farm=vMetric.y>=${FLOORS.B3.elevation} && vMetric.y<${FLOORS.B3.elevation + 3.0} && vMetric.x<2. && vMetric.z>0.;
+          bool command=vMetric.y>=${FLOORS.B2.elevation} && vMetric.y<${FLOORS.B2.elevation + 3.0} && vMetric.x>4. && vMetric.z< -2.;
+          if(farm && roomMinutes>=720. && roomMinutes<1200.) {
+            wash=vec3(.6,.68,.63); pool*=.38;
+            if(isLamp) totalEmissiveRadiance*=.025;
+          }
+          if(command && (roomMinutes>=1380. || roomMinutes<390.)) {
+            wash=vec3(1.,.045,.012);
+            if(isLamp) totalEmissiveRadiance*=vec3(.65,.02,.012);
+          }
           totalEmissiveRadiance+=diffuseColor.rgb*wash*pool;
         }`,
       )

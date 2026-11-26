@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm1.5b'
+const milestone = process.argv[2] ?? 'm2'
 if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -60,6 +60,8 @@ try {
     const revision = await page.locator('canvas').getAttribute('data-revision')
     await page.getByRole('button', { name: '机位与图幅' }).click()
     await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption(id)
+    // selectOption need not move a physical mouse. Leave the canvas as a user picking from the menu would.
+    await page.locator('canvas').dispatchEvent('pointerleave')
     await page.waitForFunction(
       ([v, p, rev]) => {
         const c = document.querySelector('canvas')?.dataset
@@ -79,6 +81,8 @@ try {
     )
     if ((await page.getByRole('alert').count()) || errors.length)
       throw Error('浏览器验收失败 ' + errors.join('\n').slice(0, 3500))
+    if (view !== 'walkthrough')
+      await page.waitForFunction(() => document.querySelector('#cursor-coords')?.textContent?.includes('X —'))
     await page.screenshot({ path: join(staging, id + '.png'), timeout: 90000 })
     const { calls, triangles, feet } = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
     console.log(

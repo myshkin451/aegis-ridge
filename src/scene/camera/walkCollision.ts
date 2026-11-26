@@ -22,7 +22,7 @@ export class WalkCollision {
     const hit = this.tree.raycastFirst(this.ray, DoubleSide, 0, 2 * WALK.step + 0.05)
     return hit && Math.abs(hit.face?.normal.y ?? 0) > 0.65 ? hit.point.y : undefined
   }
-  private stands(x: number, y: number, z: number) {
+  stands(x: number, y: number, z: number, clearance = 0) {
     const floor = this.floor(x, y, z)
     if (floor === undefined || Math.abs(floor - y) > 0.19) return false
     const segment = this.capsule
@@ -32,12 +32,16 @@ export class WalkCollision {
       .makeEmpty()
       .expandByPoint(segment.start)
       .expandByPoint(segment.end)
-      .expandByScalar(WALK.radius)
+      .expandByScalar(WALK.radius + clearance)
+    // The capsule can otherwise be wholly inside a broad cabinet and never touch a side triangle.
+    this.ray.origin.set(x, floor + 0.025, z)
+    this.ray.direction.set(0, 1, 0)
+    if (this.tree.raycastFirst(this.ray, DoubleSide, 0.001, WALK.height - 0.025)) return false
     return !this.tree.shapecast({
       intersectsBounds: (box) => box.intersectsBox(this.bounds),
       intersectsTriangle: (tri) =>
         Math.max(tri.a.y, tri.b.y, tri.c.y) > floor + WALK.step &&
-        tri.closestPointToSegment(segment) < WALK.radius - 0.001,
+        tri.closestPointToSegment(segment) < WALK.radius + clearance - 0.001,
     })
   }
   landing(feet: Vector3) {

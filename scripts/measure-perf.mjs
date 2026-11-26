@@ -374,6 +374,27 @@ try {
       }, previous)
     })
   }
+  // Exercise the M2 selection and authored camera route on the same warmed WebGL context.
+  for (const room of [
+    'l2_observatory',
+    'l1_garage',
+    'b1_workshop',
+    'b2_commons',
+    'b3_aquaponics',
+    'b4_switchgear',
+  ]) {
+    await measure('室内 ' + room, async () => {
+      await view('1', site)()
+      await page.getByRole('button', { name: '机位与图幅' }).click()
+      await page.getByLabel('房间索引').selectOption(room)
+      await page
+        .getByLabel('房间数据表')
+        .getByRole('button', { name: /进入漫游/ })
+        .click()
+      await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
+      await wait(250)
+    })
+  }
   const total = await page.evaluate(() => window.surveyPerf.links - window.surveyPerf.coldLinks)
   console.log('就绪后全程链接', total)
   if (total !== 0) failures.push('就绪后全程链接 ' + total)

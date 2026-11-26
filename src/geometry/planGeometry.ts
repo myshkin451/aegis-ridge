@@ -1,6 +1,8 @@
 import polygonClipping from 'polygon-clipping'
 import type { Polygon, Ring } from 'polygon-clipping'
 import { footprint, shaftsAt } from './coords'
+import { FLOORS } from '../data/floors'
+import { atriumFootprint } from './atrium'
 import type { GridBounds } from '../types/shelter'
 
 export function rectangle(x0: number, x1: number, z0: number, z1: number): Polygon {
@@ -18,6 +20,10 @@ export function rectangle(x0: number, x1: number, z0: number, z1: number): Polyg
 export function slabPlan(bounds: GridBounds, level: number) {
   const a = footprint(bounds)
   const holes = shaftsAt(level).map((s) => rectangle(s.x0, s.x1, s.z0, s.z1))
+  if (level === FLOORS.B2.elevation) {
+    const g = atriumFootprint
+    holes.push(rectangle(g.x0, g.x1, g.z0, g.z1))
+  }
   return polygonClipping.difference(rectangle(a.x0, a.x1, a.z0, a.z1), ...holes)
 }
 

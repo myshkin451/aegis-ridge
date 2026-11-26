@@ -514,9 +514,36 @@ input[type='checkbox']:checked::after {
 .room-sheet {
   position: absolute;
   right: var(--margin);
-  top: 30%;
-  width: 242px;
+  top: max(102px, 16%);
+  width: min(302px, calc(100vw - 2 * var(--margin)));
+  max-height: calc(84% - 70px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 9px;
+}
+.room-sheet > label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.room-sheet select {
+  width: 100%;
+  padding: 4px;
+}
+.room-sheet .design-basis {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 6px 0;
+}
+.equipment-sight {
+  position: absolute;
+  left: calc(50% + 9px);
+  top: calc(50% + 7px);
+  color: #fff;
+  text-shadow: 0 1px 2px #1c2928;
+  font: 12px var(--mono);
+  pointer-events: none;
 }
 .sheet-head {
   display: flex;
@@ -790,7 +817,8 @@ input[type='checkbox']:checked::after {
     max-width: 183px;
   }
   .room-sheet {
-    top: 190px;
+    top: 174px;
+    max-height: calc(100% - 225px);
   }
   .walk-map {
     bottom: var(--margin);

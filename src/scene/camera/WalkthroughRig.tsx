@@ -11,6 +11,9 @@ import {
   Vector2,
   Vector3,
 } from 'three'
+import { defaultBlueprint } from '../../data/defaultBlueprint'
+import { equipmentSolids } from '../../geometry/equipment'
+import { BoxGeometry, Group } from 'three'
 import { doors } from '../../geometry/doors'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
 import { FLOORS, FLOOR_ORDER } from '../../data/floors'
@@ -19,6 +22,7 @@ import { appendSolids, positionGeometry } from '../utils/solidGeometry'
 import { reduceMotion } from '../utils/Model'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { SurveyRuntime } from './runtime'
+import { surveyRoomRoutes } from './roomRoutes'
 import { WALK, WalkCollision } from './walkCollision'
 
 function hiss(ctx: AudioContext) {
@@ -49,6 +53,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     get = useThree((s) => s.get)
   const active = useShelterStore((s) => s.cameraState === 'walkthrough')
   const player = useRef<WalkCollision | null>(null),
+    doorGroup = useRef<Group>(null),
     leaves = useRef<InstancedMesh>(null),
     ring = useRef<Mesh>(null)
   const input = useMemo(
@@ -71,14 +76,35 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     () => ({
       ray: new Raycaster(),
       uv: new Vector2(),
-      matrix: new Matrix4(),
-      q: new Quaternion(),
-      p: new Vector3(),
-      scale: new Vector3(),
       dir: new Vector3(),
     }),
     [],
   )
+  const placeDoor = useMemo(() => {
+    const installed = doors.map((d) => ({
+      door: d,
+      cos: Math.cos(d.yaw),
+      sin: Math.sin(d.yaw),
+      rotation: new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), d.yaw),
+      size: new Vector3(d.width * 0.49, d.height - 0.05, 0.075),
+    }))
+    const position = new Vector3(),
+      matrix = new Matrix4()
+    return (index: number, opening: number) => {
+      if (!leaves.current) return
+      const { door, cos, sin, rotation, size } = installed[index]
+      const track = door.trackOffset ?? 0
+      for (let leaf = 0; leaf < 2; leaf++) {
+        const offset = (2 * leaf - 1) * door.width * (0.25 + 0.52 * opening)
+        position.set(
+          door.base[0] + cos * offset + sin * track,
+          door.base[1] + door.height / 2,
+          door.base[2] - sin * offset + cos * track,
+        )
+        leaves.current.setMatrixAt(index * 2 + leaf, matrix.compose(position, rotation, size))
+      }
+    }
+  }, [])
   const mat = useMemo(() => pbrMaterial('steel', true), [])
   useLayoutEffect(() => {
     const vertices: number[] = []
@@ -98,21 +124,39 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
           return !excluded
         })
     }
+    // Decorated models contain thousands of leaves, fins and books. Reuse their dimensioned
+    // installation solids for capsule contact, retaining the gaps between gantry legs and cabin walls.
+    const hulls = new Group()
+    const cube = new BoxGeometry(1, 1, 1)
+    for (const room of defaultBlueprint.rooms)
+      for (const unit of room.equipment)
+        for (const { center, size } of equipmentSolids(unit)) {
+          const hull = new Mesh(cube, mat)
+          hull.position.set(...center)
+          hull.position.y += FLOORS[room.floorId].elevation
+          hull.scale.set(...size)
+          hulls.add(hull)
+        }
+    appendSolids(hulls, vertices, () => true)
+    cube.dispose()
     const collision = new WalkCollision(positionGeometry(vertices))
     rt.collision = player.current = collision
+    rt.roomRoutes = surveyRoomRoutes(collision)
+    gl.domElement.dataset.surveyedAnchors = String(rt.roomRoutes.size)
     return () => {
       collision.dispose()
       rt.collision = player.current = null
     }
-  }, [scene, rt])
+  }, [scene, rt, mat, gl])
   useLayoutEffect(() => {
     doors.forEach((d, i) => {
       const tint = new Color(d.airlock ? '#806b52' : '#849290')
       leaves.current!.setColorAt(i * 2, tint)
       leaves.current!.setColorAt(i * 2 + 1, tint)
+      placeDoor(i, 0)
     })
     return () => mat.dispose()
-  }, [mat])
+  }, [mat, placeDoor])
   useEffect(() => {
     if (!active) return
     const canvas = gl.domElement
@@ -181,7 +225,13 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
     const up = (e: PointerEvent) => {
       if (start?.id !== e.pointerId) return
-      if (!start.moved && !document.pointerLockElement) input.goal = ground(e)
+      if (!start.moved && !document.pointerLockElement) {
+        const point = ground(e)
+        // Selection runs on the same pointer release. A picked device must not also move the visitor.
+        queueMicrotask(() => {
+          input.goal = useShelterStore.getState().roomId ? null : point
+        })
+      }
       start = null
     }
     const keydown = (e: KeyboardEvent) => {
@@ -244,9 +294,28 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
   }, [active, gl, get, input, rt, tools])
   useFrame((_, raw) => {
-    if (!active || rt.moving || !player.current || !leaves.current) return
+    if (!player.current || !leaves.current || !doorGroup.current) return
+    const guided = rt.moving && rt.garageTransfer
+    doorGroup.current.visible = active || guided
+    if (rt.moving) {
+      if (ring.current) ring.current.visible = false
+      if (guided) {
+        const eye = get().camera.position
+        for (let i = 0; i < doors.length; i++) {
+          const [x, y, z] = doors[i].base
+          const distance = Math.hypot(eye.x - x, eye.y - WALK.eye - y, eye.z - z)
+          // The guide's passage is visual. It does not grant a manual pressure-door unlock.
+          const fraction = Math.max(0, Math.min(1, (3.15 - distance) / 1.7))
+          const opening = fraction * fraction * (3 - 2 * fraction)
+          placeDoor(i, opening)
+        }
+        leaves.current.instanceMatrix.needsUpdate = true
+      }
+      return
+    }
+    if (!active) return
     const dt = Math.min(0.08, raw),
-      { p, q, scale, matrix, dir } = tools,
+      { dir } = tools,
       cam = get().camera
     if (input.revision !== rt.walkRevision) {
       input.revision = rt.walkRevision
@@ -287,17 +356,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         last = input.opened.get(d.id) ?? 0
       const value = snap ? open : open + (last - open) * Math.exp(-7 * dt)
       input.opened.set(d.id, value)
-      for (const side of [-1, 1]) {
-        const offset = side * d.width * (0.25 + 0.52 * value)
-        p.set(
-          d.base[0] + Math.cos(d.yaw) * offset + Math.sin(d.yaw) * (d.trackOffset ?? 0),
-          d.base[1] + d.height / 2,
-          d.base[2] - Math.sin(d.yaw) * offset + Math.cos(d.yaw) * (d.trackOffset ?? 0),
-        )
-        q.setFromAxisAngle(dir.set(0, 1, 0), d.yaw)
-        scale.set(d.width * 0.49, d.height - 0.05, 0.075)
-        leaves.current.setMatrixAt(i * 2 + Number(side === 1), matrix.compose(p, q, scale))
-      }
+      placeDoor(i, value)
     }
     leaves.current.instanceMatrix.needsUpdate = true
     const k = input.keys
@@ -357,7 +416,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       .join(',')
   }, -2)
   return (
-    <group visible={active}>
+    <group ref={doorGroup} visible={active}>
       <instancedMesh ref={leaves} args={[undefined, mat, doors.length * 2]} frustumCulled={false}>
         <boxGeometry />
       </instancedMesh>
