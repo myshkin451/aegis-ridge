@@ -1,47 +1,42 @@
-# Project Aegis Ridge（磐石山脊避难所）
+# Project Aegis Ridge（磐石山脊高山生态与气象观测站 ARS-01）
 
-一个面向“现实工程可行性验证与沉浸式空间展示”的 **交互式 3D 山体避难所工程数字孪生（Interactive 3D Shelter Digital Twin）**。
+一个以**现实工程可行性验证与双语域沉浸展示**为核心的 **交互式 3D 高山避难所数字孪生（Interactive 3D Shelter Digital Twin）**。
 
-项目选址于半山腰，地表伪装为一座常规的现代化高山生态与气象科研观测站（L1–L2），地下经由 6 米防护岩层缓冲带向下延伸出 4 层高规格自持地下综合体（B1–B4，地下总面积 2,240 m²），服务于一支 10 人规模、主副职互补的高素质科研与工程团队，用以抵御极寒、生化危机、核尘埃封锁等末日情境。
-
-> **第一阶段定位（Phase 1）**：不是数值催命的经营游戏，也不是从零毛坯手搭模拟器，而是**把脑海中完整的避难所构想以高水准 3D 架构与工程管网可视化出来**——验证空间布局、强弱电分离、给排水闭环、三防新风、大件物流与可维修性在现实世界（近未来适度超前尺度）是否成立，并支持楼层切片、X 光管网透视、检修隔离演练、末日工况切换以及有限度的模块替换实验。
-
----
-
-## 本地预览
-
-建议使用 Node.js 22 和 npm。在仓库根目录执行以下命令，打开 Vite 打印的本机地址。
-
-```sh
-npm ci
-npm run dev
-```
-
-初始画面是地质半剖。拖动旋转，滚轮缩放，右键拖动平移。触屏支持单指旋转、双指缩放和平移。顶部可切换山体显示方式，右上角可重新取景。点击左侧楼层后，上方建筑和山体逐渐移开，保留所选层和下方楼层。窄屏上楼层条位于视口底部。
-
-运行 `npm run verify` 可依次执行严格类型检查、Vitest 测试与 Vite 生产构建。构建产物在 `dist/`，可用 `npm run preview` 在本机检查生产版。M1 已实现六层蓝图、建筑骨架、山体与楼层剥离，后续里程碑见进度账本。
+项目选址于海拔 `1,450.000 m` 的花岗岩南向半山腰平台：
+- **山外是实景**：真实尺度的高山侵蚀山脊、远景群峰、物理天空与山谷云海，地表建有常规现代化高山科研观测站（L1–L2），周界与生命线严格遵循**“藏于科研”**原则（19 处外围设施全部拥有合理的高山科研或山地工程明面用途）。
+- **剖开是图纸**：地表之下经由 `6.0 m` 复合防护层（钢筋混凝土顶盖 + 连续花岗岩）延伸出 4 层高规格地下自持综合体（B1–B4，单层 `32m × 24m = 768 m²`，地下合计 `3,072 m²`，全站总建面 `3,996 m²`），服务于一支 10 人规模、主副职互补的高素质专家团队。剖面与平面严格遵循建筑制图、地质剖面图例与 GB 7231 工业管道标识规范。
 
 ---
 
-## 文档导航
-
-所有设计定稿均位于 `docs/` 目录，按阅读与开发依赖顺序组织：
+## 文档导航（v2.0）
 
 | 文档 | 内容说明 |
 | --- | --- |
-| [`AGENTS.md`](./AGENTS.md) | 仓库级工程规范、Harness 验证与自动提交约束（Codex 会自动读取） |
-| [`docs/PROGRESS.md`](./docs/PROGRESS.md) | **开发进度与交接账本**：记录当前所处里程碑、历史决策与验收结果（跨 Session 记忆锚点） |
-| [`docs/01-shelter-engineering-spec.md`](./docs/01-shelter-engineering-spec.md) | **避难所建筑与工程总设计**：半山腰选址、L2–B4 精确坐标与房间清单、六大机电与物流管网规范、近未来可行性测算公式、四大情景工况、10 人互助专家团设定 |
-| [`docs/02-visual-and-ux-spec.md`](./docs/02-visual-and-ux-spec.md) | **视觉审美与交互规格**：高级建筑微缩模型 + 洁净数字孪生配色、光照与材质标准、程序化 3D 设备精细度要求、6 图层管网透视与流向动效、UI 与检修模拟交互 |
-| [`docs/03-technical-architecture.md`](./docs/03-technical-architecture.md) | **前端技术架构与数据模型**：Vite + React + TS + Three.js/R3F 分层结构、数据驱动蓝图 Schema（为 Phase 2 模拟与自由建造留好扩展位）、性能红线与自测规范 |
-| [`docs/04-codex-execution-roadmap.md`](./docs/04-codex-execution-roadmap.md) | **Codex 分阶段开发路线图（M1–M6）**：每个里程碑的明确范围、验收清单，以及可直接粘贴给 Codex 的分步指令模板 |
+| [`AGENTS.md`](./AGENTS.md) | 仓库级工程红线、视觉纪律、Harness 验证与 `REVIEW` 签收规则（Codex 自动读取） |
+| [`docs/PROGRESS.md`](./docs/PROGRESS.md) | **开发进度与视觉签收账本**：里程碑状态、历史交接记录与 5 机位截图画廊 |
+| [`docs/01-shelter-engineering-spec.md`](./docs/01-shelter-engineering-spec.md) | **避难所建筑与工程总设计（v2.0）**：`16×12` 精确零重叠网格、真实尺寸核心筒、垂直干湿对齐、物理守恒可行性模型（热/电/水/粮/氧/安全）、6 大 MEP 管网、4 工况与 10 人专家团 |
+| [`docs/02-visual-and-ux-spec.md`](./docs/02-visual-and-ux-spec.md) | **双语域视觉圣经与仪器 HUD 规格（v2.0）**：实景 × 图纸设计系统、溯源色板、4 字体角色、图签与真实比例标高尺、四尺度侵蚀地形、10 种程序化 PBR 材质、物理天空/云海/AgX/N8AO、5 个出片机位 |
+| [`docs/03-technical-architecture.md`](./docs/03-technical-architecture.md) | **技术架构与数据模型（v2.0）**：WebGL2 渲染管线、构建期地形预计算、中立 `src/geometry/` 坐标层、纯 TS 工程引擎、纯 CSS 设计令牌与运行时预算 |
+| [`docs/04-codex-execution-roadmap.md`](./docs/04-codex-execution-roadmap.md) | **Codex 分阶段开发路线图（M1.5a → M6）**：拆解清晰的垂直里程碑、验收画廊与直接可复制的 Codex 启动指令 |
+| [`docs/05-camera-and-walkthrough-spec.md`](./docs/05-camera-and-walkthrough-spec.md) | **相机状态机与第一人称漫游规格**：6 状态相机、竖井下潜等 5 大招牌转场、`three-mesh-bvh` 漫游手感、气闸压差、Alt X 光透镜、测距与照片模式 |
+| [`docs/06-site-security-and-lifelines-spec.md`](./docs/06-site-security-and-lifelines-spec.md) | **外围地景、隐蔽安保与逃生体系规格**：“藏于科研” 19 处外围设施清单、三条出路与 270m 东侧冲沟逃生平硐、热信号掩护、30 秒封锁编排 |
+| [`docs/archive/visual-review-m1/index.html`](./docs/archive/visual-review-m1/index.html) | **设计演进归档**：基于 M1 (`1fcd52c`) 实测截图的视觉与工程评审报告（促成 `v2.0` 重定调的原始评审记录） |
+
+---
+
+## 本地运行与校验
+
+```bash
+npm install
+npm run dev       # 本地开发预览
+npm run verify    # 一键执行 typecheck + Vitest 单元测试 + 生产构建
+```
 
 ---
 
 ## 开发推进方式（面向 Codex）
 
-本项目推荐采用 **单仓单主干 + 6 个垂直里程碑（M1 → M6）串行推进 + 每步肉眼验收 + Git 提交存档** 的方式开发：
-
-1. **每个里程碑开一个新的 Codex Session**，直接粘贴 `docs/04-codex-execution-roadmap.md` 中对应阶段的提示词。
-2. Codex 完成后先确保 `npm run verify` 通过，再在本地浏览器打开肉眼检查 3D 视觉与交互。
-3. 在当前 Session 内微调至满意后，执行一次 `git commit` 留下稳定存档点，再开新 Session 进入下一里程碑。
+本项目采用 **Spec-Driven + 垂直里程碑分 Session + 5 机位截图人工签收** 模式推进：
+1. 每个里程碑新开一个 Codex Session，发一句启动指令让其按 `AGENTS.md` 与 `docs/PROGRESS.md` 完成当前 `NEXT` 里程碑。
+2. Codex 跑通 `npm run verify`（及 `M1.5b` 起的 `npm run shots` 5 机位截图）后，更新 `docs/PROGRESS.md` 标为 `REVIEW` 并提交推送。
+3. 开发者在浏览器与验收画廊中确认满意后，签收为 `DONE` 并推进下一里程碑。

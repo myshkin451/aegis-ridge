@@ -1,0 +1,1452 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>磐石山脊视觉评审（M1 归档）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+:root {
+  /* Layout: a review drawing set. A title block opens the page; sheets R-00 to R-06 run in one reading column with framed drawing panels; a sticky sheet index sits in the left margin on wide screens. */
+  --paper: #eceeea;
+  --panel: #f6f7f3;
+  --ink: #15181a;
+  --ink-2: #545b61;
+  --rule: rgba(21, 24, 26, 0.16);
+  --rule-strong: rgba(21, 24, 26, 0.5);
+  --sepia: #87572a;
+  --sepia-soft: rgba(135, 87, 42, 0.13);
+  --flag: #c0372a;
+  --flag-ink: #ffffff;
+  --grow: #c25fb2;
+  --night-red: #b3261e;
+  --e-power: #cf6a16;
+  --e-comms: #17899c;
+  --e-water: #2b7bbb;
+  --e-waste: #75579e;
+  --e-hvac: #27885d;
+  --e-hoist: #b8940c;
+  --e-guard: #b3372a;
+  --map-light: #f4f0e1;
+  --map-shadow: #8a97ae;
+  --map-haze: #e4e7e2;
+  --map-forest: #8fa77a;
+  /* The HUD mockup sits on a dark render in both themes, so its tokens never change. */
+  --hud-bg: #121a24;
+  --hud-ink: #ece9e1;
+  --hud-ink-2: #b7b4ab;
+  --hud-rule: rgba(236, 233, 225, 0.34);
+  --hud-sheet: rgba(13, 15, 17, 0.88);
+  --hud-halo: rgba(10, 14, 20, 0.9);
+  --hud-power: #f08a35;
+  --hud-comms: #3fb6c9;
+  --hud-water: #5ba6e3;
+  --hud-waste: #a487d0;
+  --hud-hvac: #4cb886;
+  --hud-hoist: #e2bf3c;
+  --hud-guard: #e35b4c;
+  --mk-ring: #ffffff;
+  --font-ui: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-label: "IBM Plex Sans Condensed", "Noto Sans SC", "Arial Narrow", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-fang: "STFangsong", "FangSong", "FangSong_GB2312", "仿宋", "Songti SC", serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1112; --panel: #161a1c; --ink: #e5e6e1; --ink-2: #9aa0a5;
+    --rule: rgba(229, 230, 225, 0.15); --rule-strong: rgba(229, 230, 225, 0.45);
+    --sepia: #d09a62; --sepia-soft: rgba(208, 154, 98, 0.16); --flag: #ff6a5a; --flag-ink: #1b0d0b;
+    --grow: #de86cf; --night-red: #ff5b4f;
+    --e-power: #f08a35; --e-comms: #3fb6c9; --e-water: #5ba6e3; --e-waste: #a487d0; --e-hvac: #4cb886; --e-hoist: #e2bf3c; --e-guard: #e35b4c;
+    --map-light: #6e7376; --map-shadow: #0f1215; --map-haze: #1b1f22; --map-forest: #33473a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1112; --panel: #161a1c; --ink: #e5e6e1; --ink-2: #9aa0a5;
+  --rule: rgba(229, 230, 225, 0.15); --rule-strong: rgba(229, 230, 225, 0.45);
+  --sepia: #d09a62; --sepia-soft: rgba(208, 154, 98, 0.16); --flag: #ff6a5a; --flag-ink: #1b0d0b;
+  --grow: #de86cf; --night-red: #ff5b4f;
+  --e-power: #f08a35; --e-comms: #3fb6c9; --e-water: #5ba6e3; --e-waste: #a487d0; --e-hvac: #4cb886; --e-hoist: #e2bf3c; --e-guard: #e35b4c;
+  --map-light: #6e7376; --map-shadow: #0f1215; --map-haze: #1b1f22; --map-forest: #33473a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.78;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 72px;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--ink); }
+a:focus-visible { outline: 2px solid var(--sepia); outline-offset: 2px; }
+code, .num { font-family: var(--font-mono); font-size: 0.9em; font-variant-numeric: tabular-nums; }
+b, strong { font-weight: 600; }
+h1, h2, h3, h4 { text-wrap: balance; }
+
+.wrap { max-width: 1200px; margin: 0 auto; }
+
+/* Title block */
+.titleblock {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  margin-top: 28px;
+  border: 1px solid var(--rule-strong);
+  background: var(--panel);
+}
+.titleblock > div { padding: 10px 14px; min-width: 0; border-left: 1px solid var(--rule); border-top: 1px solid var(--rule); }
+.titleblock > div:nth-child(2), .titleblock > div:nth-child(3), .titleblock > div:nth-child(4) { border-top: 0; }
+.titleblock .tb-name { grid-row: span 2; border-left: 0; border-top: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; }
+.tb-k { display: block; font-size: 11.5px; line-height: 1.4; color: var(--ink-2); }
+.tb-v { display: block; font-size: 14px; line-height: 1.5; }
+.titleblock h1 { margin: 0; font-size: clamp(26px, 3.3vw, 38px); line-height: 1.18; font-weight: 700; letter-spacing: 0; }
+@media (max-width: 760px) {
+  .titleblock { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .titleblock .tb-name { grid-column: 1 / -1; grid-row: auto; padding-block: 14px; }
+  .titleblock > div:nth-child(2), .titleblock > div:nth-child(3), .titleblock > div:nth-child(4) { border-top: 1px solid var(--rule); }
+  .titleblock > div:nth-child(2n) { border-left: 0; }
+}
+
+/* Sheet index + reading column */
+.layout { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 52px; margin-top: 36px; }
+.index { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; display: flex; flex-direction: column; border-top: 1px solid var(--rule-strong); }
+.index a { display: grid; grid-template-columns: 44px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--rule); text-decoration: none; font-size: 14px; color: var(--ink-2); }
+.index a .num { color: var(--ink-2); font-size: 12px; padding-top: 2px; }
+.index a:hover, .index a[aria-current="true"] { color: var(--ink); }
+.index a[aria-current="true"] .num { color: var(--sepia); }
+main { min-width: 0; max-width: 900px; }
+@media (max-width: 1080px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+  .index { position: static; flex-direction: row; flex-wrap: wrap; gap: 0 18px; border-top: 0; }
+  .index a { grid-template-columns: auto auto; border-bottom: 0; padding: 4px 0; }
+}
+
+/* Sheets */
+.sheet { padding-top: 40px; margin-top: 40px; border-top: 1px solid var(--rule-strong); scroll-margin-top: 16px; }
+.sheet:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+.sheet-head { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 18px; align-items: baseline; margin-bottom: 18px; }
+.sheet-no { font-family: var(--font-label); font-weight: 600; font-size: 15px; letter-spacing: 0.06em; color: var(--sepia); }
+.sheet-head h2 { margin: 0; font-size: clamp(22px, 2.6vw, 28px); line-height: 1.3; font-weight: 700; }
+.verdict { grid-column: 2; margin: 10px 0 0; font-size: 17px; line-height: 1.75; color: var(--ink); max-width: 44em; }
+@media (max-width: 560px) { .sheet-head { grid-template-columns: minmax(0, 1fr); } .verdict { grid-column: 1; } }
+h3 { margin: 34px 0 10px; font-size: 18px; font-weight: 700; line-height: 1.45; }
+h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+p { margin: 0 0 14px; max-width: 44em; }
+.lede { font-size: 18px; line-height: 1.8; }
+ul, ol { margin: 0 0 16px; padding-left: 1.4em; max-width: 46em; }
+li { margin-bottom: 7px; }
+li::marker { color: var(--ink-2); font-family: var(--font-mono); font-size: 0.86em; }
+.moves li { margin-bottom: 9px; }
+.note { border: 1px solid var(--rule-strong); padding: 12px 16px; margin: 18px 0; max-width: 46em; background: var(--panel); }
+.note .note-k { display: block; font-family: var(--font-label); font-size: 12px; letter-spacing: 0.06em; color: var(--sepia); margin-bottom: 4px; }
+.note p:last-child { margin-bottom: 0; }
+
+/* Figures */
+.fig { margin: 26px 0 30px; border: 1px solid var(--rule-strong); background: var(--panel); }
+.fig > figcaption { display: flex; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--rule); font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.fig > figcaption b { font-family: var(--font-label); font-weight: 600; color: var(--ink); white-space: nowrap; }
+.fig-scroll { overflow-x: auto; }
+.fig-pad { padding: 18px; }
+
+/* Annotated screenshot */
+.shot { position: relative; min-width: 640px; }
+.shot img { display: block; width: 100%; height: auto; }
+.mk { position: absolute; width: 22px; height: 22px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--flag); color: var(--flag-ink); box-shadow: 0 0 0 2px var(--mk-ring); font: 600 12px/22px var(--font-label); text-align: center; }
+.mk.scene { background: var(--sepia); }
+
+/* Tables */
+.table-scroll { overflow-x: auto; margin: 14px 0 22px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.6; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+thead th { font-weight: 500; font-size: 12.5px; color: var(--ink-2); border-bottom: 1px solid var(--rule-strong); white-space: nowrap; }
+td:first-child, th:first-child { padding-left: 0; }
+.issues td:first-child { font-family: var(--font-label); color: var(--flag); font-weight: 600; width: 2em; }
+.issues tr.scene td:first-child { color: var(--sepia); }
+.issues { min-width: 720px; }
+.wide { min-width: 640px; }
+.chip { display: inline-block; width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px; background: var(--c); border: 1px solid var(--rule-strong); }
+.chip.stripe { background: repeating-linear-gradient(45deg, #f2c200 0 3px, #1a1a1a 3px 6px); }
+
+/* Palette */
+.palette { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 28px; padding: 18px; }
+@media (max-width: 640px) { .palette { grid-template-columns: minmax(0, 1fr); } }
+.pal-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 10px; }
+.sw-c { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.35; min-width: 0; }
+.sw-c i { display: block; height: 34px; background: var(--c); border: 1px solid var(--rule-strong); }
+.sw-c code { font-size: 11px; color: var(--ink-2); }
+.eng { display: grid; grid-template-columns: 3.6em 74px minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 13px; }
+.eng svg { width: 74px; height: 14px; display: block; }
+.eng small { color: var(--ink-2); font-size: 12px; }
+
+/* Type specimen */
+.type-spec { display: grid; grid-template-columns: 110px minmax(0, 1fr); padding: 6px 18px 14px; }
+.type-spec > div { padding: 12px 0; border-bottom: 1px solid var(--rule); min-width: 0; overflow: hidden; }
+.type-spec > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.type-spec .role { font-size: 13px; color: var(--ink-2); line-height: 1.5; padding-right: 12px; }
+.type-spec .role b { display: block; color: var(--ink); font-size: 14px; }
+.ts-ui { font-size: 22px; font-weight: 500; line-height: 1.4; }
+.ts-fang { font-family: var(--font-fang); font-size: 24px; line-height: 1.4; display: inline-block; transform: scaleX(0.74); transform-origin: left center; white-space: nowrap; }
+.ts-mono { font-family: var(--font-mono); font-size: 18px; }
+.ts-label { font-family: var(--font-label); font-weight: 600; font-size: 18px; letter-spacing: 0.06em; }
+.ts-scale { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline; }
+.ts-scale span { white-space: nowrap; }
+@media (max-width: 560px) { .type-spec { grid-template-columns: minmax(0, 1fr); } .type-spec > div.role { border-bottom: 0; padding-bottom: 0; } .ts-fang { font-size: 19px; } }
+
+/* HUD mockup over the M1 render */
+.hud-demo {
+  position: relative;
+  min-width: 680px;
+  aspect-ratio: 560 / 430;
+  background-color: var(--hud-bg);
+  background-image: url("shots/m1-cutaway.jpg");
+  background-repeat: no-repeat;
+  background-size: 142.857% auto;
+  background-position: 70.833% 62.857%;
+  color: var(--hud-ink);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+.hud-demo .halo { text-shadow: 0 0 2px var(--hud-halo), 0 0 5px var(--hud-halo), 0 0 9px var(--hud-halo); }
+.hud-tb { position: absolute; left: 2.2%; top: 3%; display: grid; grid-template-columns: auto auto; border: 1px solid var(--hud-rule); background: var(--hud-sheet); font-size: 11.5px; line-height: 1.5; }
+.hud-tb > span { padding: 4px 10px; border-top: 1px solid var(--hud-rule); }
+.hud-tb > span:nth-child(-n + 2) { border-top: 0; }
+.hud-tb > span:nth-child(2n) { border-left: 1px solid var(--hud-rule); font-family: var(--font-mono); font-size: 11px; color: var(--hud-ink-2); }
+.hud-tb b { font-weight: 600; }
+.hud-tabs { position: absolute; right: 2.4%; top: 3.6%; display: flex; gap: 16px; font-size: 12.5px; }
+.hud-tabs span { padding-bottom: 2px; border-bottom: 2px solid transparent; color: var(--hud-ink-2); }
+.hud-tabs span.on { color: var(--hud-ink); border-bottom-color: var(--hud-ink); }
+.hud-tabs sup { font-family: var(--font-mono); font-size: 9px; margin-left: 2px; color: var(--hud-ink-2); }
+.hud-ruler { position: absolute; left: 1.4%; top: 17%; height: 57%; width: auto; overflow: visible; }
+.hud-legend { position: absolute; left: 2.4%; bottom: 3.2%; display: grid; grid-template-columns: 1.2em 34px auto; gap: 1px 8px; align-items: center; font-size: 11px; line-height: 1.5; }
+.hud-legend svg { width: 34px; height: 10px; display: block; overflow: visible; }
+.hud-legend .k { font-family: var(--font-mono); color: var(--hud-ink-2); }
+.hud-br { position: absolute; right: 2.4%; bottom: 3.2%; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-family: var(--font-mono); font-size: 11px; }
+.hud-br .row { display: flex; gap: 12px; align-items: center; }
+.hud-br svg { display: block; overflow: visible; }
+.hud-sheet { position: absolute; right: 2.4%; top: 23%; width: 30%; border: 1px solid var(--hud-rule); background: var(--hud-sheet); font-size: 11.5px; line-height: 1.5; }
+.hud-sheet .hs-head { padding: 6px 10px; border-bottom: 1px solid var(--hud-rule); }
+.hud-sheet .hs-head span { display: block; font-family: var(--font-mono); font-size: 10.5px; color: var(--hud-ink-2); }
+.hud-sheet dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; padding: 6px 10px; }
+.hud-sheet dt { color: var(--hud-ink-2); }
+.hud-sheet dd { margin: 0; font-family: var(--font-mono); font-size: 11px; text-align: right; }
+.hud-sheet .hs-act { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--hud-rule); }
+.hud-sheet .hs-act span { padding: 6px 10px; text-align: center; }
+.hud-sheet .hs-act span + span { border-left: 1px solid var(--hud-rule); }
+
+/* SVG drawings */
+.drawing { display: block; width: 100%; height: auto; }
+.drawing text { font-family: var(--font-ui); fill: var(--ink); }
+.drawing .mono { font-family: var(--font-mono); }
+.drawing .lab { font-family: var(--font-label); font-weight: 600; }
+.drawing .t-2 { fill: var(--ink-2); }
+.drawing .t-sepia { fill: var(--sepia); }
+.drawing .t-flag { fill: var(--flag); }
+.ln { stroke: var(--ink); }
+.ln-2 { stroke: var(--ink-2); fill: none; }
+.ln-rule { stroke: var(--rule-strong); fill: none; }
+.fill-ink { fill: var(--ink); }
+.fill-panel { fill: var(--panel); }
+.fill-paper { fill: var(--paper); }
+.pt { fill: none; stroke: var(--ink-2); stroke-width: 1; }
+.pt-thin { fill: none; stroke: var(--ink-2); stroke-width: 0.8; opacity: 0.55; }
+.pd { fill: var(--ink-2); }
+.pt-guard { fill: none; stroke: var(--e-guard); stroke-width: 1.4; }
+.pt-pv { fill: none; stroke: var(--e-water); stroke-width: 1; }
+.pt-hud { fill: none; stroke: var(--hud-ink-2); stroke-width: 0.9; }
+.ah { fill: var(--ink-2); }
+.ah-key { fill: var(--sepia); }
+.node rect { fill: var(--panel); stroke: var(--ink); stroke-width: 1.2; }
+.node.key rect { fill: var(--sepia-soft); stroke: var(--sepia); stroke-width: 1.8; }
+.node .n-name { font-size: 18px; font-weight: 700; text-anchor: middle; }
+.node .n-lens { font-family: var(--font-mono); font-size: 12px; text-anchor: middle; fill: var(--ink-2); }
+.edge { fill: none; stroke: var(--ink-2); stroke-width: 1.3; }
+.edge.key { stroke: var(--sepia); stroke-width: 2.2; }
+.e-lab { font-size: 13px; fill: var(--ink-2); }
+.e-lab.key { fill: var(--sepia); font-weight: 500; }
+
+/* Material swatches */
+.swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 18px; }
+@media (max-width: 720px) { .swatches { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .swatches { grid-template-columns: minmax(0, 1fr); } }
+.swatch { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12.5px; line-height: 1.5; }
+.swatch canvas { display: block; width: 100%; height: auto; aspect-ratio: 5 / 3; background: var(--rule); border: 1px solid var(--rule-strong); }
+.swatch b { font-size: 13.5px; }
+.swatch span { color: var(--ink-2); }
+
+/* Screenshot triptych */
+.triptych { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 14px; }
+@media (max-width: 720px) { .triptych { grid-template-columns: minmax(0, 1fr); } }
+.triptych img { display: block; width: 100%; height: auto; border: 1px solid var(--rule); }
+.triptych p { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--ink-2); }
+.triptych p b { color: var(--ink); }
+
+/* Site plan */
+.plan-wrap { position: relative; min-width: 720px; aspect-ratio: 1600 / 1100; background: var(--map-haze); }
+.plan-wrap canvas, .plan-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.map .road-casing { fill: none; stroke: var(--ink); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.map .road-fill { fill: none; stroke: var(--panel); stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round; }
+.map .gallery { fill: none; stroke: var(--ink); stroke-width: 18; stroke-dasharray: 3 4; }
+.map .tunnel { fill: none; stroke: var(--sepia); stroke-width: 5; stroke-dasharray: 12 7; }
+.map .duct { fill: none; stroke: var(--e-hvac); stroke-width: 3; stroke-dasharray: 7 6; }
+.map .water-line { fill: none; stroke: var(--e-water); stroke-width: 3; stroke-dasharray: 10 6; }
+.map .drain-line { fill: none; stroke: var(--e-waste); stroke-width: 3; stroke-dasharray: 10 6; }
+.map .rope { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.map .radio { fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-dasharray: 2 9; stroke-linecap: round; }
+.map .sym { fill: var(--panel); stroke: var(--ink); stroke-width: 2.5; }
+.map .sym-open { fill: none; stroke: var(--ink); stroke-width: 3; }
+.map .bldg { fill: var(--ink); }
+.map .ug { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 4 3; }
+.map .pond { fill: var(--e-water); fill-opacity: 0.45; stroke: var(--e-water); stroke-width: 2; }
+.map .pv { fill: url(#pat-pv); stroke: var(--e-water); stroke-width: 2; }
+.map .sensor { fill: var(--flag); }
+.map .lead { stroke: var(--ink); stroke-width: 1.6; }
+.map .lab-c { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
+.map .lab-t { font-family: var(--font-label); font-weight: 600; font-size: 21px; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.map .note-t { font-family: var(--font-mono); font-size: 20px; fill: var(--ink-2); paint-order: stroke; stroke: var(--map-haze); stroke-width: 6px; stroke-linejoin: round; }
+.map .pad-t { font-family: var(--font-label); font-weight: 600; font-size: 14px; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.legend-cols { columns: 2; column-gap: 32px; padding: 14px 18px; font-size: 13px; line-height: 1.6; }
+.legend-cols div { break-inside: avoid; margin-bottom: 4px; display: grid; grid-template-columns: 2em 1fr; }
+.legend-cols b { font-family: var(--font-label); color: var(--sepia); }
+@media (max-width: 560px) { .legend-cols { columns: 1; } }
+
+/* Timeline */
+.timeline { list-style: none; padding: 0; margin: 12px 0 20px; max-width: 46em; border-left: 1px solid var(--rule-strong); }
+.timeline li { display: grid; grid-template-columns: 4.4em minmax(0, 1fr); gap: 10px; padding: 4px 0 4px 14px; margin: 0; }
+.timeline .num { color: var(--sepia); }
+
+.foot { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule-strong); font-size: 13px; color: var(--ink-2); }
+.refs { columns: 2; column-gap: 32px; font-size: 13.5px; padding-left: 1.2em; }
+.refs li { break-inside: avoid; }
+@media (max-width: 640px) { .refs { columns: 1; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="pat-granite" width="16" height="16" patternUnits="userSpaceOnUse"><path class="pt" d="M4 1.5v5M1.5 4h5M12 9.5v5M9.5 12h5"/></pattern>
+    <pattern id="pat-weathered" width="14" height="14" patternUnits="userSpaceOnUse"><path class="pt" d="M4 2v4M2 4h4"/><circle class="pd" cx="10.5" cy="9" r="0.9"/><circle class="pd" cx="6" cy="11.5" r="0.7"/></pattern>
+    <pattern id="pat-soil" width="10" height="10" patternUnits="userSpaceOnUse"><path class="pt" d="M0 10L10 0"/><circle class="pd" cx="2.5" cy="2.5" r="0.7"/></pattern>
+    <pattern id="pat-rc" width="18" height="18" patternUnits="userSpaceOnUse"><path class="pt" d="M0 18L18 0"/><path class="pt" d="M3.5 7.5l2-4 2 4z"/><path class="pt" d="M10 13.5l1.5-3 1.5 3z"/><circle class="pd" cx="12.5" cy="4.5" r="0.8"/><circle class="pd" cx="15" cy="13" r="0.8"/><circle class="pd" cx="5" cy="14" r="0.6"/></pattern>
+    <pattern id="pat-dike" width="6" height="6" patternUnits="userSpaceOnUse"><circle class="pd" cx="3" cy="3" r="0.6"/></pattern>
+    <pattern id="pat-plenum" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="pt-thin" d="M0 0v6"/></pattern>
+    <pattern id="pat-guard" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="pt-guard" d="M0 0v6"/></pattern>
+    <pattern id="pat-pv" width="5" height="5" patternUnits="userSpaceOnUse"><path class="pt-pv" d="M0 2.5h5"/></pattern>
+    <pattern id="pat-granite-hud" width="10" height="10" patternUnits="userSpaceOnUse"><path class="pt-hud" d="M2.5 1v3M1 2.5h3M7.5 6v3M6 7.5h3"/></pattern>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+    <marker id="arr-key" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah-key" d="M0 0L10 5L0 10z"/></marker>
+  </defs>
+</svg>
+
+<div class="wrap">
+<header class="titleblock" aria-label="图签">
+  <div class="tb-name"><span class="tb-k">图名</span><h1>磐石山脊视觉评审</h1></div>
+  <div><span class="tb-k">项目</span><span class="tb-v">Aegis Ridge · 磐石山脊高山观测站</span></div>
+  <div><span class="tb-k">评审对象</span><span class="tb-v">M1 画面与交互 · <code>1fcd52c</code></span></div>
+  <div><span class="tb-k">浏览器实测</span><span class="tb-v num">1440 × 900 · 375 × 812</span></div>
+  <div><span class="tb-k">评审视角</span><span class="tb-v">建筑可视化美术总监 × 前端交互设计</span></div>
+  <div><span class="tb-k">日期</span><span class="tb-v num">2026-11-26</span></div>
+  <div><span class="tb-k">图号</span><span class="tb-v num">R-00 ～ R-06</span></div>
+</header>
+
+<div class="layout">
+<nav class="index" aria-label="图纸目录">
+  <a href="#r00"><span class="num">R-00</span>总评</a>
+  <a href="#r01"><span class="num">R-01</span>去 AI 味</a>
+  <a href="#r02"><span class="num">R-02</span>山体与材质</a>
+  <a href="#r03"><span class="num">R-03</span>相机与漫游</a>
+  <a href="#r04"><span class="num">R-04</span>外围与逃生</a>
+  <a href="#r05"><span class="num">R-05</span>加分巧思</a>
+  <a href="#r06"><span class="num">R-06</span>落地顺序</a>
+</nav>
+
+<main>
+
+<!-- R-00 -->
+<section class="sheet" id="r00">
+  <header class="sheet-head"><span class="sheet-no">R-00</span><h2>总评</h2></header>
+  <p class="lede">M1 的工程骨架是对的，画面也干净。问题在于它说错了语言：深海军蓝配香槟金的暗色仪表盘，1.2 m 等厚层叠的纸板山，正交轴测的玩具相机。三样叠在一起，就是你感觉到的廉价模板感。</p>
+  <p>建议整件作品改用两种语域。站在山外时是<b>实景</b>：真实尺度的高山、天空、空气透视和时间。剖开以后是<b>图纸</b>：剖切面、标高、轴网、图例都遵守建筑与地质制图规范。HUD 则像一张图纸的图签，加上一件测量仪器的读数窗。</p>
+  <div class="note">
+    <span class="note-k">附注 1 · 问题首先出在规格上</span>
+    <p>当前画面忠实执行了 <code>docs/02</code>。那里写着“建筑沙盘式等高线阶梯地形”和“深炭磨砂玻璃半透明面板”，色板 17 个色值里有 12 个是 Tailwind 默认色、2 个来自 Nord 编辑器主题。不先改文档，下一个 agent 会继续做出同样的东西。</p>
+  </div>
+  <h3>八个关键动作（按优先级）</h3>
+  <ol class="moves">
+    <li><b>先改规格。</b>重写 <code>docs/02</code>，确立“实景 × 图纸”双语域，删掉等高线阶梯、磨砂玻璃和框架默认色板。</li>
+    <li><b>相机默认改为透视长焦。</b>正交只留给平面、剖面这些图纸视图，两者之间用投影变形过渡。</li>
+    <li><b>地形换成真实尺度的侵蚀高度场。</b>主山 2–3 km，远景 10 km，剖切面按地质剖面图来画。</li>
+    <li><b>建立程序化材质库和光照体系。</b>物理天空与空气透视、AgX 色调映射、环境光遮蔽、分楼层光温。</li>
+    <li><b>HUD 重做为全屏仪器。</b>图签、真实比例的标高尺、线型图例、比例尺与坐标读数；去掉图标、圆角、玻璃和金色。</li>
+    <li><b>相机做成状态机。</b>现场、剖面、剖切盒、平面、楼层俯瞰、第一人称之间连续过渡，招牌转场是“竖井下潜”。</li>
+    <li><b>外围体系遵循“藏于科研”。</b>每一处安保和生命线都有一个说得通的科研或山地工程用途。</li>
+    <li><b>用固定机位的出片画面做视觉验收。</b>每个里程碑自动截图，由你本人逐张签收。</li>
+  </ol>
+</section>
+
+<!-- R-01 -->
+<section class="sheet" id="r01">
+  <header class="sheet-head"><span class="sheet-no">R-01</span><h2>前端去 AI 味</h2>
+    <p class="verdict">现在的界面是一套通用的暗色 SaaS 模板套在了一座山上。每个零件都不算错，合在一起却没有一处来自这个项目自己的世界。</p></header>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="shot">
+      <img src="shots/m1-cutaway.jpg" width="800" height="500" alt="M1 默认半剖画面截图，标出 14 处问题位置">
+      <span class="mk" style="left:17.8%;top:4.4%">1</span>
+      <span class="mk" style="left:62.8%;top:4.4%">2</span>
+      <span class="mk" style="left:29.6%;top:97.2%">3</span>
+      <span class="mk" style="left:14.6%;top:11.8%">4</span>
+      <span class="mk" style="left:14.8%;top:33.6%">5</span>
+      <span class="mk" style="left:14.8%;top:65.8%">6</span>
+      <span class="mk" style="left:19.6%;top:88%">7</span>
+      <span class="mk" style="left:9.6%;top:97.2%">8</span>
+      <span class="mk" style="left:88%;top:22%">9</span>
+      <span class="mk" style="left:50.6%;top:47.4%">10</span>
+      <span class="mk scene" style="left:81%;top:62%">11</span>
+      <span class="mk scene" style="left:60.4%;top:18.2%">12</span>
+      <span class="mk scene" style="left:62%;top:90%">13</span>
+      <span class="mk scene" style="left:72%;top:70%">14</span>
+    </div></div>
+    <figcaption><b>图 1-1</b><span>M1 默认画面，1440 × 900 实测截图。红圈是界面问题，褐圈是场景问题，编号对应下表。</span></figcaption>
+  </figure>
+
+  <div class="table-scroll"><table class="issues">
+    <thead><tr><th>#</th><th>现象</th><th>为什么像模板</th><th>改成什么</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>金色描边圆角图标块；全大写 AEGIS RIDGE 拉开 0.125em 字距；中文副标再加 0.16em 字距</td><td>通用的“高端品牌”套路，与科研站无关</td><td>图签里写正式机构名与站号，如“磐石山脊高山生态与气象观测站 ARS-01”，不要 logo 块</td></tr>
+      <tr><td>2</td><td>居中分段控件：图标加文字、圆角容器、暖金选中态和内阴影</td><td>与 shadcn、Tailwind UI 的 Tabs 组件同一形态</td><td>纯文字视图切换，选中用 2 px 下划线，旁边标键位</td></tr>
+      <tr><td>3</td><td>默认画面同时出现 12 个线性图标：山、图层、扫描线、相机、手、鼠标、十字、尺子、雪山……</td><td>图标不承载信息，只是在填空</td><td>删掉。图形只留给必须用图形表达的东西：图例线型、指北针、剖切符号</td></tr>
+      <tr><td>4</td><td>场址海拔、指北针、手势提示各占一角</td><td>装饰信息占了 HUD 的大半；剖切位置、标高、比例、投影这些工程信息反而缺席</td><td>并入图签一行：±0.000 = 海拔 1450.000 m</td></tr>
+      <tr><td>5</td><td>楼层面板：9 px 圆角、半透明深蓝底、28 px 投影</td><td>玻璃拟态浮层卡片，最常见的 AI 仪表盘部件</td><td>贴边的真实比例标高尺（图 1-5）</td></tr>
+      <tr><td>6</td><td>iOS 式拨动开关控制“机电夹层”</td><td>消费级控件出现在工程工具里，语汇不对</td><td>图层清单里的一行勾选，快捷键 M</td></tr>
+      <tr><td>7</td><td>左下大标题加金色竖条</td><td>典型的 hero 标题加强调竖条</td><td>图签中的“当前图名”一栏</td></tr>
+      <tr><td>8</td><td>绿色状态点“建筑沙盘”，页脚常驻操作提示</td><td>没有任何实时数据，却借用了“在线”指示</td><td>删掉。操作提示只在第一次进入时出现一次</td></tr>
+      <tr><td>9</td><td>径向渐变的暗角背景</td><td>产品渲染图的聚光灯；模型悬浮在虚空里，没有天空和地平线</td><td>场景内的物理天空、远山和空气透视</td></tr>
+      <tr><td>10</td><td>场景标注：发光圆点加随意引线，标签压在建筑上</td><td>网页 tooltip 的语法，不是图纸的语法</td><td>标高符号、剖切符号、轴号、房间标签；引线只走 0°、45°、90°，并做避让</td></tr>
+      <tr class="scene"><td>11</td><td>山体按 1.2 m 等厚层叠，侧壁垂直</td><td>千层蛋糕</td><td>侵蚀高度场，见 R-02</td></tr>
+      <tr class="scene"><td>12</td><td>同一配方的圆锥松均匀撒布</td><td>火车模型树</td><td>按海拔、坡向、汇流分带的植被</td></tr>
+      <tr class="scene"><td>13</td><td>平底托盘、十字测量网格、西侧一刀直切</td><td>沙盘底座语汇，与“实景”目标冲突</td><td>地形一直延伸到远景，消失在空气透视里</td></tr>
+      <tr class="scene"><td>14</td><td>剖开后是白色空层，切口没有任何表达</td><td>像停车库，不像剖面图</td><td>剖到的岩体和楼板做 poché（涂黑或图例填充），剖切线 2 px</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>色板出在哪里</h3>
+  <p><code>docs/02</code> 的 17 个色值里，12 个是 Tailwind 默认色：gray-900、slate-800、slate-300、slate-400、sky-300、sky-400、amber-500、cyan-500、purple-500、emerald-500、yellow-500、red-500。另有 2 个是 Nord 编辑器主题的 Polar Night（<code>#3B4252</code>、<code>#4C566A</code>）。实现时又叠加了一层海军蓝配香槟金。这些颜色来自 UI 框架和代码编辑器，不来自山、岩石、混凝土，也不来自工程标准。去 AI 味的第一条规则：每一个颜色都要说得出它取自哪里。</p>
+
+  <h3>设计系统提案</h3>
+  <p>核心思路是让界面的每个元素都对应一种真实的制图或仪器惯例：图签、标高符号、轴号、剖切符号、线型图例、分段比例尺。建筑师和工程师一眼就认得这些语汇，通用模板里一个都没有。</p>
+
+  <figure class="fig">
+    <div class="palette">
+      <div>
+        <h4>图纸 · 日间（现场、平面、剖面）</h4>
+        <div class="pal-row">
+          <div class="sw-c"><i style="--c:#eceeea"></i>底 · 绘图胶片<code>#ECEEEA</code></div>
+          <div class="sw-c"><i style="--c:#15181a"></i>墨<code>#15181A</code></div>
+          <div class="sw-c"><i style="--c:#545b61"></i>次墨<code>#545B61</code></div>
+          <div class="sw-c"><i style="--c:#000000"></i>剖切涂黑<code>#000000</code></div>
+          <div class="sw-c"><i style="--c:#c0372a"></i>修改红 · 只用于选中与问题<code>#C0372A</code></div>
+        </div>
+      </div>
+      <div>
+        <h4>仪器 · 夜间（X 光、夜景、漫游）</h4>
+        <div class="pal-row">
+          <div class="sw-c"><i style="--c:#0f1112"></i>底<code>#0F1112</code></div>
+          <div class="sw-c"><i style="--c:#e5e6e1"></i>墨<code>#E5E6E1</code></div>
+          <div class="sw-c"><i style="--c:#9aa0a5"></i>次墨<code>#9AA0A5</code></div>
+          <div class="sw-c"><i style="--c:#2a2d2f"></i>细线 · 墨 15%<code>#2A2D2F</code></div>
+          <div class="sw-c"><i style="--c:#ff6a5a"></i>信号<code>#FF6A5A</code></div>
+        </div>
+      </div>
+      <div>
+        <h4>取自现场的中性色</h4>
+        <div class="pal-row">
+          <div class="sw-c"><i style="--c:#b9a196"></i>长石灰粉<code>#B9A196</code></div>
+          <div class="sw-c"><i style="--c:#d3d3cd"></i>石英灰<code>#D3D3CD</code></div>
+          <div class="sw-c"><i style="--c:#2d2b2a"></i>黑云母<code>#2D2B2A</code></div>
+          <div class="sw-c"><i style="--c:#b7b3aa"></i>清水混凝土<code>#B7B3AA</code></div>
+          <div class="sw-c"><i style="--c:#a3a199"></i>风化落叶松<code>#A3A199</code></div>
+          <div class="sw-c"><i style="--c:#7e4524"></i>耐候钢<code>#7E4524</code></div>
+          <div class="sw-c"><i style="--c:#7a8457"></i>高山草甸<code>#7A8457</code></div>
+          <div class="sw-c"><i style="--c:#c3cedd"></i>雪的阴影<code>#C3CEDD</code></div>
+        </div>
+      </div>
+      <div>
+        <h4>工程色谱（降饱和，并配线型）</h4>
+        <div class="eng">
+          <b>强电</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 7h70" stroke="var(--e-power)" stroke-width="3"/></svg><small>实线 · 桥架</small>
+          <b>弱电</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 7h70" stroke="var(--e-comms)" stroke-width="2.2" stroke-dasharray="6 4"/></svg><small>短虚线 · 屏蔽桥架</small>
+          <b>给水</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 7h70" stroke="var(--e-water)" stroke-width="3"/></svg><small>实线 · 法兰节点</small>
+          <b>排水</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 7h70" stroke="var(--e-waste)" stroke-width="3" stroke-dasharray="12 4"/></svg><small>长虚线 · 标坡度</small>
+          <b>新风</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 4.5h70M2 9.5h70" stroke="var(--e-hvac)" stroke-width="1.6"/></svg><small>双线 · 风管</small>
+          <b>吊轨</b><svg viewBox="0 0 74 14" aria-hidden="true"><path d="M2 7h70" stroke="var(--e-hoist)" stroke-width="3" stroke-dasharray="12 4 2 4"/></svg><small>点划线 · 物流</small>
+          <b>防护</b><svg viewBox="0 0 74 14" aria-hidden="true"><rect x="2" y="2" width="70" height="10" fill="url(#pat-guard)" stroke="var(--e-guard)" stroke-width="1.2"/></svg><small>斜线填充 · 分区</small>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>图 1-2</b><span>色彩分四组。界面只有墨与底两级明度，饱和色全部留给工程系统和问题标记。实景视图里工程色降饱和，X 光视图才全饱和。每个系统同时有线型，色弱用户和打印时也能分辨。</span></figcaption>
+  </figure>
+
+  <p>场景里的管道近看时，可以再按 GB 7231《工业管道的基本识别色》贴识别色环、介质名和流向箭头（例如水的识别色是艳绿）。地图层面的系统色和管道表面的标准识别色是两件事：前者服务于读图，后者服务于“真实”。</p>
+
+  <figure class="fig">
+    <div class="type-spec">
+      <div class="role"><b>界面</b>思源黑体<br>Noto Sans SC</div>
+      <div><span class="ts-ui">楼层 B3 · 生态农业与水循环层</span></div>
+      <div class="role"><b>标注</b>长仿宋<br>朱雀仿宋（OFL）</div>
+      <div><span class="ts-fang">B3 生态农业与水循环层 ▽−18.600</span></div>
+      <div class="role"><b>数据</b>IBM Plex Mono</div>
+      <div><span class="ts-mono">▽−18.600  22.0 kW  1 800 L/d</span></div>
+      <div class="role"><b>拉丁标签</b>IBM Plex Sans Condensed</div>
+      <div><span class="ts-label">SECTION 1-1 · SHEET A-203</span></div>
+      <div class="role"><b>字号</b>只用四级</div>
+      <div class="ts-scale"><span style="font-size:11px">11 读数</span><span style="font-size:13px">13 标签</span><span style="font-size:16px">16 正文</span><span style="font-size:22px">22 图名</span></div>
+    </div>
+    <figcaption><b>图 1-3</b><span>四种字体角色。中文不加字距。标注层用长仿宋：按 GB/T 14691《技术制图 字体》，图纸汉字写长仿宋体，字宽约为字高的 1/√2，本页用横向压缩模拟。朱雀仿宋是 OFL 授权的开源仿宋，目前仍是技术预览版，字符覆盖不全，使用时要子集化并保留系统仿宋作回退。</span></figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="hud-demo" role="img" aria-label="在 M1 渲染上替换 HUD 的示意：左上图签，右上文字视图切换，左侧标高尺，左下线型图例，右下比例尺与坐标读数，右侧数据表">
+      <div class="hud-tb">
+        <span><b>磐石山脊高山生态与气象观测站</b></span><span>ARS-01</span>
+        <span>剖面 1-1 · 地质半剖</span><span>透视 · 50 mm</span>
+        <span>±0.000 = 海拔 1450.000 m</span><span>07:40 · 日常</span>
+      </div>
+      <div class="hud-tabs halo"><span>现场<sup>1</sup></span><span class="on">剖面<sup>2</sup></span><span>平面<sup>3</sup></span><span>X 光<sup>4</sup></span><span>漫游<sup>5</sup></span></div>
+      <svg class="hud-ruler" viewBox="0 0 96 290" aria-hidden="true">
+        <g stroke="var(--hud-ink)" fill="none" stroke-width="1">
+          <path d="M18 12V276.6"/>
+          <path d="M18 40.6h-6M18 82.6h-6M18 124.6h-6M18 166.6h-6M18 208.6h-6M18 250.6h-6"/>
+          <rect x="22" y="12" width="14" height="35.3"/>
+          <rect x="22" y="47.3" width="14" height="35.3"/>
+          <rect x="22" y="82.6" width="14" height="50.4" fill="url(#pat-granite-hud)"/>
+          <rect x="22" y="133" width="14" height="35.3"/>
+          <rect x="22" y="168.3" width="14" height="35.3"/>
+          <rect x="22" y="203.6" width="14" height="35.3"/>
+          <rect x="22" y="238.9" width="14" height="37.7"/>
+        </g>
+        <g fill="var(--hud-ink)">
+          <rect x="22" y="12" width="14" height="2.5"/><rect x="22" y="47.3" width="14" height="2.5"/><rect x="22" y="82.6" width="14" height="2.5"/><rect x="22" y="133" width="14" height="2.5"/><rect x="22" y="168.3" width="14" height="2.5"/><rect x="22" y="203.6" width="14" height="2.5"/><rect x="22" y="238.9" width="14" height="2.5"/><rect x="22" y="274.1" width="14" height="2.5"/>
+        </g>
+        <g font-family="var(--font-mono)" font-size="10" fill="var(--hud-ink)" class="halo" style="paint-order:stroke" stroke="var(--hud-halo)" stroke-width="3">
+          <text x="42" y="33">L2</text><text x="42" y="68">L1</text><text x="42" y="111" fill="var(--hud-ink-2)">岩层</text><text x="42" y="154">B1</text><text x="42" y="189">B2</text><text x="42" y="224">B3</text><text x="42" y="260">B4</text>
+          <g font-size="8.5" fill="var(--hud-ink-2)" text-anchor="end"><text x="10" y="85.6">0</text><text x="10" y="169.6">−10</text><text x="10" y="253.6">−20</text></g>
+        </g>
+      </svg>
+      <div class="hud-legend halo">
+        <span class="k">电</span><svg viewBox="0 0 34 10" aria-hidden="true"><path d="M1 5h32" stroke="var(--hud-power)" stroke-width="2.6"/></svg><span>强电</span>
+        <span class="k">智</span><svg viewBox="0 0 34 10" aria-hidden="true"><path d="M1 5h32" stroke="var(--hud-comms)" stroke-width="2" stroke-dasharray="4 3"/></svg><span>弱电与智控</span>
+        <span class="k">水</span><svg viewBox="0 0 34 10" aria-hidden="true"><path d="M1 3h32" stroke="var(--hud-water)" stroke-width="2"/><path d="M1 8h32" stroke="var(--hud-waste)" stroke-width="2" stroke-dasharray="8 3"/></svg><span>给水 / 排水</span>
+        <span class="k">暖</span><svg viewBox="0 0 34 10" aria-hidden="true"><path d="M1 3h32M1 7h32" stroke="var(--hud-hvac)" stroke-width="1.3"/></svg><span>三防新风</span>
+        <span class="k">吊</span><svg viewBox="0 0 34 10" aria-hidden="true"><path d="M1 5h32" stroke="var(--hud-hoist)" stroke-width="2.6" stroke-dasharray="8 3 2 3"/></svg><span>物流吊轨</span>
+        <span class="k">防</span><svg viewBox="0 0 34 10" aria-hidden="true"><rect x="1" y="1" width="32" height="8" fill="none" stroke="var(--hud-guard)" stroke-width="1.2"/><path d="M5 9l8-8M13 9l8-8M21 9l8-8" stroke="var(--hud-guard)" stroke-width="1"/></svg><span>防护分区</span>
+      </div>
+      <div class="hud-sheet">
+        <div class="hs-head"><span>B3-04 · 示例数据</span><b>高密度立体水培与气雾农场</b></div>
+        <dl>
+          <dt>面积</dt><dd>160 m²</dd>
+          <dt>标高</dt><dd>▽ −18.600</dd>
+          <dt>净高 / 夹层</dt><dd>3.000 / 0.900</dd>
+          <dt>补光负荷</dt><dd>22.0 kW</dd>
+          <dt>主责</dt><dd>顾清禾</dd>
+        </dl>
+        <div class="hs-act"><span>进入漫游 W</span><span>隔离检修</span></div>
+      </div>
+      <div class="hud-br halo">
+        <div class="row"><span>X 4.21</span><span>Z −1.73</span><span>▽ −14.400</span><span>轴 C / 7</span></div>
+        <div class="row">
+          <svg width="122" height="22" viewBox="0 0 122 22" aria-hidden="true">
+            <g stroke="var(--hud-ink)" stroke-width="1"><rect x="1" y="3" width="24" height="5" fill="var(--hud-ink)"/><rect x="25" y="3" width="24" height="5" fill="none"/><rect x="49" y="3" width="48" height="5" fill="var(--hud-ink)"/></g>
+            <g font-family="var(--font-mono)" font-size="9" fill="var(--hud-ink)"><text x="0" y="19">0</text><text x="21" y="19">5</text><text x="43" y="19">10</text><text x="91" y="19">20 m</text></g>
+          </svg>
+          <svg width="22" height="26" viewBox="0 0 22 26" aria-hidden="true"><path d="M11 6l6 18-6-4-6 4z" fill="var(--hud-ink)"/><text x="11" y="5" font-family="var(--font-label)" font-size="8" text-anchor="middle" fill="var(--hud-ink)">N</text></svg>
+        </div>
+      </div>
+    </div></div>
+    <figcaption><b>图 1-4</b><span>同一张 M1 渲染，只换 HUD 的示意。底图没有改动，场景里的旧标注还在。正式方案里背景是物理天空和远山，不是渐变。零散标注不用面板，用制图式描边光晕保证可读；只有图签和数据表有底。</span></figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="fig-pad">
+      <svg class="drawing" viewBox="0 0 440 500" role="img" aria-label="真实比例标高尺：L2 到 B4 共六层与 6 米防护岩层，B3 被选中，平面剖切高度位于 B3 楼面以上 1.2 米" style="max-width:440px">
+        <path class="ln" d="M96 34V475"/>
+        <g class="ln-2" stroke-width="1">
+          <path d="M96 39.6h-6M96 53.6h-6M96 67.6h-6M96 81.6h-6M96 109.6h-6M96 123.6h-6M96 137.6h-6M96 165.6h-6M96 179.6h-6M96 193.6h-6M96 207.6h-6M96 221.6h-6M96 249.6h-6M96 263.6h-6M96 277.6h-6M96 291.6h-6M96 305.6h-6M96 333.6h-6M96 347.6h-6M96 361.6h-6M96 375.6h-6M96 389.6h-6M96 417.6h-6M96 431.6h-6M96 445.6h-6M96 459.6h-6M96 473.6h-6"/>
+          <path d="M96 81.6h-12M96 151.6h-12M96 221.6h-12M96 291.6h-12M96 361.6h-12M96 431.6h-12" class="ln"/>
+        </g>
+        <g class="mono t-2" font-size="11" text-anchor="end">
+          <text x="80" y="85.6">+5</text><text x="80" y="155.6">0</text><text x="80" y="225.6">−5</text><text x="80" y="295.6">−10</text><text x="80" y="365.6">−15</text><text x="80" y="435.6">−20</text>
+        </g>
+        <!-- L2 -->
+        <rect x="104" y="42.4" width="54" height="50.4" class="fill-panel ln" stroke-width="0.8"/>
+        <rect x="104" y="38.2" width="54" height="4.2" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="34" width="54" height="4.2" class="fill-ink"/>
+        <!-- L1 -->
+        <rect x="104" y="104" width="54" height="47.6" class="fill-panel ln" stroke-width="0.8"/>
+        <rect x="104" y="97" width="54" height="7" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="92.8" width="54" height="4.2" class="fill-ink"/>
+        <!-- buffer -->
+        <rect x="104" y="151.6" width="54" height="84" fill="url(#pat-granite)" class="ln" stroke-width="0.8"/>
+        <!-- B1 -->
+        <rect x="104" y="252.4" width="54" height="42" class="fill-panel ln" stroke-width="0.8"/>
+        <rect x="104" y="239.8" width="54" height="12.6" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="235.6" width="54" height="4.2" class="fill-ink"/>
+        <!-- B2 -->
+        <rect x="104" y="311.2" width="54" height="42" class="fill-panel ln" stroke-width="0.8"/>
+        <rect x="104" y="298.6" width="54" height="12.6" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="294.4" width="54" height="4.2" class="fill-ink"/>
+        <!-- B3 selected -->
+        <rect x="104" y="370" width="54" height="42" fill="var(--sepia-soft)" stroke="var(--sepia)" stroke-width="1.6"/>
+        <rect x="104" y="357.4" width="54" height="12.6" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="353.2" width="54" height="4.2" class="fill-ink"/>
+        <!-- B4 -->
+        <rect x="104" y="428.8" width="54" height="42" class="fill-panel ln" stroke-width="0.8"/>
+        <rect x="104" y="416.2" width="54" height="12.6" fill="url(#pat-plenum)" class="ln" stroke-width="0.8"/>
+        <rect x="104" y="412" width="54" height="4.2" class="fill-ink"/>
+        <rect x="104" y="470.8" width="54" height="4.2" class="fill-ink"/>
+        <!-- plan cut at FL+1.200 in B3 -->
+        <path d="M90 395.2H166" stroke="var(--flag)" stroke-width="2"/>
+        <path d="M90 395.2l-7-4.5v9z" fill="var(--flag)"/>
+        <g font-size="13">
+          <text x="174" y="72"><tspan class="lab">L2</tspan><tspan x="204">观测温室</tspan><tspan x="300" class="mono t-2" font-size="12">▽+4.200</tspan></text>
+          <text x="174" y="132"><tspan class="lab">L1</tspan><tspan x="204">入口车库</tspan><tspan x="300" class="mono t-2" font-size="12">▽±0.000</tspan></text>
+          <text x="174" y="198"><tspan class="t-2">防护岩层</tspan><tspan x="300" class="mono t-2" font-size="12">6.000 m</tspan></text>
+          <text x="174" y="277"><tspan class="lab">B1</tspan><tspan x="204">物流工坊</tspan><tspan x="300" class="mono t-2" font-size="12">▽−10.200</tspan></text>
+          <text x="174" y="336"><tspan class="lab">B2</tspan><tspan x="204">居住智控</tspan><tspan x="300" class="mono t-2" font-size="12">▽−14.400</tspan></text>
+          <text x="174" y="388" font-weight="700"><tspan class="lab t-sepia">B3</tspan><tspan x="204">生态水务</tspan><tspan x="300" class="mono" font-size="12">▽−18.600</tspan></text>
+          <text x="174" y="408" font-size="11.5" class="t-flag">平面剖切 FL+1.200 <tspan class="mono">▽−17.400</tspan></text>
+          <text x="174" y="454"><tspan class="lab">B4</tspan><tspan x="204">能源总站</tspan><tspan x="300" class="mono t-2" font-size="12">▽−22.800</tspan></text>
+          <text x="174" y="364" font-size="11" class="t-2">夹层 0.900 · 楼板 0.300</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>图 1-5</b><span>用真实比例的标高尺代替楼层按钮列表。尺上每毫米都对应真实米数：6 m 岩层就是比楼层厚，楼板按剖切惯例涂黑，夹层用斜线。点一层即选中；拖动红色游标就是平面剖切高度，默认在楼面以上 1.2 m（窗台以上，平面图的惯例剖切位置）。窄屏上它横过来放在底部。</span></figcaption>
+  </figure>
+
+  <h3>信息架构</h3>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>层级</th><th>内容</th><th>何时出现</th></tr></thead>
+    <tbody>
+      <tr><td>常驻</td><td>图签（站名与站号、当前图名、投影与镜头、基准标高、时间与情景）、标高尺、视图切换、比例尺与指北针</td><td>始终</td></tr>
+      <tr><td>情境</td><td>线型图例、选中对象的数据表、剖切盒控制</td><td>进入对应视图，或选中对象时</td></tr>
+      <tr><td>瞬时</td><td>光标处的坐标、标高与轴号，悬停位号标签，测量结果</td><td>光标停留时</td></tr>
+      <tr><td>隐藏</td><td>快捷键表、首次操作提示</td><td>按 ? 键，或第一次进入时</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>线、形与动效</h3>
+  <ul>
+    <li>线宽只有两种：1 px 细线、2 px 剖切线。圆角 0–2 px。不用投影、模糊和渐变。状态靠线宽、下划线和填充表达。</li>
+    <li>全屏出血：去掉顶栏和页脚两条实色带，3D 画面铺满，HUD 贴四边，边距统一 24 px（窄屏 16 px）加安全区。</li>
+    <li>悬停只改线宽和下划线，不铺色块。一次只开一个浮层，Esc 关闭。</li>
+  </ul>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>动作</th><th>时长</th><th>曲线</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>界面状态切换</td><td class="num">120 ms</td><td class="num">cubic-bezier(.2,0,0,1)</td><td>只变线宽、填充和透明度，不位移</td></tr>
+      <tr><td>楼层剥离</td><td class="num">每层 360 ms，错开 40 ms</td><td>同上</td><td>上部楼层原位淡出，保持真实标高；当前层切口用 2 px 剖切线勾出</td></tr>
+      <tr><td>相机移动</td><td class="num">700–1100 ms</td><td>临界阻尼</td><td>距离越远越久，但有上限；camera-controls 的 smoothTime 约 0.3 s</td></tr>
+      <tr><td>剖切线描绘</td><td class="num">600 ms</td><td>线性</td><td>进入图纸视图时，剖切线和轴网像绘图仪一样描出来</td></tr>
+      <tr><td>不用</td><td>—</td><td>—</td><td>呼吸灯、外发光、扫光、弹簧回弹、视差倾斜</td></tr>
+    </tbody>
+  </table></div>
+  <p>键盘优先：1–6 切层，V 切视图，X 光，W 漫游，F 聚焦选中，H 隐藏 HUD（出片用），? 显示快捷键。首次进入时，画面先用约 1.5 s 描出剖切线和轴网，再填入材质与光照，同时掩盖几何生成的时间。</p>
+</section>
+
+<!-- R-02 -->
+<section class="sheet" id="r02">
+  <header class="sheet-head"><span class="sheet-no">R-02</span><h2>山体、天空与材质</h2>
+    <p class="verdict">山不像山，首先是尺度错了。整座“山”约 39 m 高（−25.3 m 到 +13.6 m），比避难所本身高不了多少，站点其实坐在山顶平台上。真实的半山腰意味着上方还有几百米山体，下方是几百米深的山谷。尺度对了，等高线蛋糕就没有存在的理由。</p></header>
+
+  <figure class="fig">
+    <div class="triptych">
+      <div><img src="shots/m1-exterior.jpg" width="800" height="500" alt="M1 全山外观截图" loading="lazy"><p><b>全山外观</b>：等厚层叠、西侧直切、平底托盘、同色松树。</p></div>
+      <div><img src="shots/m1-section.jpg" width="800" height="500" alt="M1 地下剖面预设截图" loading="lazy"><p><b>地下剖面</b>：切口是挖掉一个直角块，6 m 岩层是一个贴了纹理的方块。</p></div>
+      <div><img src="shots/m1-b4.jpg" width="800" height="500" alt="M1 B4 单层视图截图" loading="lazy"><p><b>B4 单层</b>：白色空层悬在虚空里，切口没有表达。</p></div>
+    </div>
+    <figcaption><b>图 2-1</b><span>M1 实测截图，1440 × 900。</span></figcaption>
+  </figure>
+
+  <h3>现状诊断</h3>
+  <ul>
+    <li><b>形态。</b>山体是用扰动椭圆轮廓按固定间距挤出的：地下段 1.2 m 一层，地上段 0.85 m 一层，侧壁全部垂直。坡面没有连续法线，光照只剩“台面亮、侧壁暗”两种值。没有山脊线、冲沟和倒石堆，这些是流水和重力留下的地貌语法。</li>
+    <li><b>边界。</b>西侧被测区边界一刀直切，底部是平托盘加十字测量网格，这是沙盘底座的语汇。</li>
+    <li><b>剖切。</b>半剖是挖掉一个直角块，切面上看到层层台阶断面，而不是一块连续的岩体。</li>
+    <li><b>植被与石头。</b>圆锥松同色均布，石头是十二面体。</li>
+    <li><b>材质。</b>顶点色平涂加一张 128² 的灰度颗粒，所有表面的粗糙度几乎一样；没有法线细节、边缘磨损和雨痕。</li>
+    <li><b>光与空气。</b>正午单一太阳加半球光。没有天空、地平线、远山和空气透视，画面没有纵深，也读不出尺度。</li>
+  </ul>
+
+  <h3>方案一：多尺度的真实地形</h3>
+  <ol>
+    <li><b>四个尺度。</b>远景 10 km（低模剪影加空气透视，按郭熙“平远”的意思层层退远，5–7 层）；主山 2–3 km 的侵蚀高度场，站点上方约 600 m 山体、下方约 300 m 山谷（图 4-1 就是按这个比例生成的）；场地 300 m 的高精度块（平台、道路、挡墙）；以及避难所周围约 80 m 见方、可以剖开的剖切体。</li>
+    <li><b>生成。</b>ridged multifractal 加 domain warp 打底，再做水力侵蚀（雨滴粒子）和热侵蚀（倒石堆坡角约 35°）。输出高度、坡度、曲率、汇流量、坡向五张驱动图，之后的材质和植被全部由驱动图决定。构建期用 Node 脚本按固定种子预计算，产出 16 位高度图随包发布：仍然是纯代码生成，又不拖慢首屏。</li>
+    <li><b>场地整形。</b>用 SDF 把平台和道路“刻”进高度场。挖方面做喷射混凝土加岩钉阵列和泄水孔，填方用石笼挡墙；道路半挖半填，有边沟、护栏、会车点，回头弯加宽。</li>
+    <li><b>剖切面。</b>剖切面是一个真正的平面。地形是高度场，剖面轮廓沿剖切线采样就能得到，切面多边形可以解析生成，不需要模板缓冲；建筑部分用模板缓冲封口，做法同 three.js 官方的 clipping stencil 示例。切面按地质剖面图来画（图 2-2）：自上而下是表土、全风化、强风化、中风化、新鲜花岗岩；两组陡倾节理加一组缓倾节理；浅色细晶岩脉；地下水位虚线。规格书里的 6 m 防护缓冲层是“高强混凝土 + 花岗岩复合”，切面上要分层画：混凝土层用钢筋混凝土图例，岩层与周围花岗岩连续，而不是现在这样一个贴了纹理的方块。剖到的线 2 px，看到的线 1 px。</li>
+    <li><b>转场。</b>从现场切到剖面时，剖切平面前方的山体整体向南平移约 40 m 并淡出，像把模型从中间拉开，而不是瞬间消失。</li>
+  </ol>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="fig-pad" style="min-width:640px">
+      <svg class="drawing" viewBox="0 0 860 150" role="img" aria-label="剖切面图例：新鲜花岗岩、风化花岗岩、表土、钢筋混凝土、岩脉、地下水位">
+        <rect x="10" y="10" width="120" height="66" fill="url(#pat-granite)" class="ln"/>
+        <rect x="152" y="10" width="120" height="66" fill="url(#pat-weathered)" class="ln"/>
+        <rect x="294" y="10" width="120" height="66" fill="url(#pat-soil)" class="ln"/>
+        <rect x="436" y="10" width="120" height="66" fill="url(#pat-rc)" class="ln"/>
+        <rect x="578" y="10" width="120" height="66" fill="url(#pat-granite)" class="ln"/>
+        <path d="M600 76L640 10H668L628 76z" class="fill-panel"/><path d="M600 76L640 10H668L628 76z" fill="url(#pat-dike)" class="ln" stroke-width="0.8"/>
+        <rect x="578" y="10" width="120" height="66" fill="none" class="ln"/>
+        <rect x="720" y="10" width="120" height="66" fill="url(#pat-granite)" class="ln"/>
+        <path d="M720 44H840" stroke="var(--e-water)" stroke-width="2" stroke-dasharray="7 4"/>
+        <path d="M774 30h12l-6 10z" fill="var(--e-water)"/><path d="M772 46h16M775 50h10M778 54h4" stroke="var(--e-water)" stroke-width="1.2"/>
+        <g font-size="13.5"><text x="10" y="100">新鲜花岗岩</text><text x="152" y="100">风化花岗岩</text><text x="294" y="100">表土</text><text x="436" y="100">钢筋混凝土</text><text x="578" y="100">岩脉</text><text x="720" y="100">地下水位</text></g>
+        <g font-size="11.5" class="t-2"><text x="10" y="121">地质图例的 + 字纹</text><text x="152" y="121">+ 字纹混点</text><text x="294" y="121">斜短线</text><text x="436" y="121">三角点纹加 45° 线</text><text x="578" y="121">浅色细晶条带</text><text x="720" y="121">▽ 加虚线</text></g>
+      </svg>
+    </div></div>
+    <figcaption><b>图 2-2</b><span>剖切面图例。岩体沿用地质图的花岗岩 + 字纹，结构沿用建筑制图的材料图例。在 3D 里，这些图案以世界坐标投影到切面上，随剖切平面移动而保持比例不变。</span></figcaption>
+  </figure>
+
+  <h3>方案二：程序化 PBR 材质库</h3>
+  <p>先定两条通用规则。第一，所有方块都要有 5–20 mm 的倒角：完全锐利的棱边是 CG 感最强的信号，真实物体的棱都会接住一条高光。第二，每种材质都有三层：基础色与粗糙度、用曲率和 AO 驱动的边缘磨损与积灰、按朝向生成的雨痕或水渍。</p>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>材质</th><th>用在哪里</th><th>程序化做法</th><th>真实感来自</th></tr></thead>
+    <tbody>
+      <tr><td>新鲜花岗岩</td><td>剖切面、崖壁、挖方面</td><td>Worley 晶胞分三相（长石约 55%、石英 30%、黑云母 15%），叠低频色差和微法线</td><td>晶粒尺度要对：远看要“糊”成灰粉色</td></tr>
+      <tr><td>风化岩与地衣</td><td>露头、碎石坡</td><td>曲率与坡向驱动：凸处长黄绿、橙色地衣斑，凹处深色水渍</td><td>高山岩石上最有说服力的细节就是地衣</td></tr>
+      <tr><td>碎石坡与草甸</td><td>坡面</td><td>坡度大于 35° 为岩，30–35° 为碎石，小于 30° 为草甸；汇流量大的沟底更湿更绿</td><td>材质边界跟着地形走，不跟着高度线走</td></tr>
+      <tr><td>积雪</td><td>背阴坡、沟槽、屋面</td><td>按坡度、朝北、海拔和风向沉积；法线扰动做风蚀纹，镜面闪点</td><td>迎风面薄，背风面厚</td></tr>
+      <tr><td>清水混凝土</td><td>挡墙、平台、硐口</td><td>木模板条纹、对拉螺栓孔、浇筑分层色差</td><td>螺栓孔和模板缝的排布要有规律</td></tr>
+      <tr><td>喷射混凝土加岩钉</td><td>挖方边坡、平硐</td><td>凹凸高度噪声上叠规则的岩钉垫板阵列和泄水孔</td><td>规则阵列落在不规则表面上</td></tr>
+      <tr><td>耐候钢</td><td>门框、护栏、设备罩</td><td>锈色 fBm，竖向雨痕流挂，边缘更深</td><td>雨痕总在窗台和横梁下方</td></tr>
+      <tr><td>落叶松外挂板</td><td>地表站外墙</td><td>竖向木条、缝影、扭曲木纹；南立面风化成银灰</td><td>风化不均匀：檐下仍是新木色</td></tr>
+      <tr><td>低铁玻璃</td><td>幕墙、温室</td><td>物理材质、天空反射、极淡的绿色边缘</td><td>反射里要看得见天空和山</td></tr>
+      <tr><td>环氧地坪、钢格栅</td><td>地下机房</td><td>轻微橘皮纹，划痕方向沿 AGV 路径</td><td>磨损要沿着路径走</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure class="fig">
+    <div class="swatches">
+      <div class="swatch"><canvas data-mat="granite" width="320" height="192" aria-label="程序化花岗岩色样"></canvas><b>新鲜花岗岩</b><span>Worley 晶胞三相加低频色差</span></div>
+      <div class="swatch"><canvas data-mat="lichen" width="320" height="192" aria-label="程序化风化岩与地衣色样"></canvas><b>风化岩与地衣</b><span>两套噪声阈值长出黄绿与橙色斑块</span></div>
+      <div class="swatch"><canvas data-mat="concrete" width="320" height="192" aria-label="程序化清水混凝土色样"></canvas><b>清水混凝土</b><span>32 px 模板条、对拉孔、浇筑色差</span></div>
+      <div class="swatch"><canvas data-mat="corten" width="320" height="192" aria-label="程序化耐候钢色样"></canvas><b>耐候钢</b><span>锈色 fBm 加竖向雨痕</span></div>
+      <div class="swatch"><canvas data-mat="larch" width="320" height="192" aria-label="程序化风化落叶松色样"></canvas><b>落叶松外挂板</b><span>上部新木，下部风化银灰</span></div>
+      <div class="swatch"><canvas data-mat="snow" width="320" height="192" aria-label="程序化积雪色样"></canvas><b>积雪</b><span>风蚀纹、冷色阴影、零星闪点</span></div>
+    </div>
+    <figcaption><b>图 2-3</b><span>以上色样由本页脚本实时生成，只用了值噪声、fBm 和 Worley 三个函数。2D 画布尚且如此，放进着色器再加上法线和粗糙度，就不会再“素”。</span></figcaption>
+  </figure>
+
+  <h3>方案三：天空、大气与光</h3>
+  <ul>
+    <li><b>天空。</b>用物理天空，太阳位置按真实经纬度、日期和时刻计算。可以评估 Takram 开源的 <code>@takram/three-atmosphere</code>：基于 Bruneton 预计算散射，带 Sky、AerialPerspective 等 R3F 组件，MIT 授权，API 仍在变动。</li>
+    <li><b>空气透视。</b>距离雾加高度雾，雾色取天空色。远山的对比度和饱和度逐层降低，这是画面纵深的主要来源。</li>
+    <li><b>云海。</b>山谷逆温层里的云海是本项目最好的招牌画面：站点在云上，远山浮在云里。可以用 <code>@takram/three-clouds</code> 的体积云，或者几层噪声体积片。</li>
+    <li><b>山体调色。</b>遵循 Eduard Imhof 的瑞士地形晕渲原则：受光面偏暖黄，背光面偏冷蓝紫；高处对比强，低处对比弱且更雾。图 4-1 的地形底图就是按这个原则着色的。</li>
+    <li><b>光。</b>太阳用 CSM 级联阴影，近处锐利、远处覆盖整座山；天空环境光随时刻更新。室内用 RectAreaLight 面光源加烘焙 AO（在 Worker 里用 three-mesh-bvh 逐顶点计算）；每层实时投影灯最多 1 盏，其余靠自发光和光照探针。</li>
+  </ul>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>楼层</th><th>主光</th><th>点缀</th><th>情绪</th></tr></thead>
+    <tbody>
+      <tr><td>L2 观测温室</td><td><span class="chip" style="--c:#fff9fd"></span>天光，随时刻变化</td><td><span class="chip" style="--c:#ffa957"></span>夜间 2700 K 暖光点</td><td>开阔</td></tr>
+      <tr><td>L1 门厅车库</td><td><span class="chip" style="--c:#ffd1a3"></span>4000 K 中性</td><td><span class="chip" style="--c:#ffb000"></span>车库琥珀警示灯</td><td>公共，普通</td></tr>
+      <tr><td>B1 物流工坊</td><td><span class="chip" style="--c:#ffdbba"></span>4500 K 工业中性</td><td><span class="chip stripe"></span>黄黑警示线，<span class="chip" style="--c:#cfe3ff"></span>AGV 状态灯</td><td>有序，干活</td></tr>
+      <tr><td>B2 居住智控</td><td><span class="chip" style="--c:#ffa957"></span>2700–5000 K 节律光</td><td><span class="chip" style="--c:#d7261e"></span>中控室夜间红光模式</td><td>温暖，私密</td></tr>
+      <tr><td>B3 生态水务</td><td><span class="chip" style="--c:#f4d7ee"></span>全光谱补光，偏品红白</td><td><span class="chip" style="--c:#5fc0cc"></span>鱼池焦散，<span class="chip" style="--c:#fff9fd"></span>冷库 6500 K</td><td>生机</td></tr>
+      <tr><td>B4 能源总站</td><td><span class="chip" style="--c:#ffe4ce"></span>5000 K 冷白</td><td><span class="chip" style="--c:#ffb000"></span>旋转警示灯，设备状态灯</td><td>克制，警觉</td></tr>
+    </tbody>
+  </table></div>
+  <p>补光灯不要用“红蓝紫”的夜店色。现代垂直农场多用全光谱白光，只带一点品红，看起来更高级，也更真实。</p>
+
+  <h3>方案四：后处理与质量分级</h3>
+  <ul>
+    <li>色调映射用 AgX（three.js r160 起内置），比 ACES 更不容易把高光推成假橙色。</li>
+    <li>环境光遮蔽：WebGL 路线用 N8AO，WebGPU 路线用 three 自带的 GTAO 节点。</li>
+    <li>Bloom 只给灯具、屏幕、指示灯，不给整个画面。</li>
+    <li>抗锯齿用 SMAA，或 WebGPU 路线的 TRAA。</li>
+    <li>四种情景各一张 3D LUT（日常、极寒、生化、核封锁），只调色，不加滤镜感特效。</li>
+    <li>极轻的胶片颗粒，用来消除天空色带。景深和移轴只在照片模式里开。</li>
+    <li>用 drei 的 PerformanceMonitor 在四档质量间自动切换：阴影级联数、AO 分辨率、植被密度、DPR。目标仍是主流笔记本 60 FPS。</li>
+  </ul>
+
+  <h3>渲染路线：建议先走 WebGL2</h3>
+  <p>WebGPU 加 TSL 写程序化材质更顺手，自带 <code>triplanarTexture</code>、MaterialX 噪声函数和 GTAO、TRAA 节点。但 Takram 的大气与云、pmndrs postprocessing（N8AO、LUT、选择性 Bloom）、three-custom-shader-material 这些成熟的库都在 WebGL2 生态里。建议现在走 WebGL2，把材质噪声写成一套小的 GLSL 库，以后迁移 TSL 时逐个替换。植被用 <code>@three.ez/instanced-mesh</code> 的 InstancedMesh2，它有逐实例视锥裁剪、BVH 和 LOD。</p>
+
+  <h3>五个出片画面</h3>
+  <p>这五张图既是视觉目标，也是之后每个里程碑的验收机位（见 R-06）。</p>
+  <ol>
+    <li><b>蓝调时刻剖面。</b>外部是冷蓝天光，剖开的四层各亮各的颜色，像一盏切开的灯笼。</li>
+    <li><b>黎明云海。</b>站点在云海之上，远山七层剪影，雷达罩上一点高光。</li>
+    <li><b>极寒封锁。</b>横飞的雪，百叶闭合，光伏翼收拢结霜，只剩门厅一线暖光。</li>
+    <li><b>X 光夜景。</b>山体是淡灰线框，管网按系统亮起，竖井像一根脊柱。</li>
+    <li><b>B3 第一人称。</b>品红白补光下的立体农场，耳机里是水声和风机声，远处一个巡检的人。</li>
+  </ol>
+</section>
+
+<!-- R-03 -->
+<section class="sheet" id="r03">
+  <header class="sheet-head"><span class="sheet-no">R-03</span><h2>相机系统与第一人称漫游</h2>
+    <p class="verdict">正交相机适合画图，不适合“进去”。它没有眼睛的位置，缩放只是放大，所以既没有临场感，也进不了门。</p></header>
+
+  <h3>为什么正交看着别扭</h3>
+  <ul>
+    <li>远近一样大。一座山和一棵树都没有透视缩小，尺度感消失，读起来像策略游戏的等距视图。</li>
+    <li>缩放是放大镜，不是走近。没有视差，就没有“靠近”的感觉。</li>
+    <li>没有视点，相机放不进房间，第一人称无从谈起。</li>
+    <li>正交的正确用途是平面、立面、剖面和轴测这些图纸视图。</li>
+  </ul>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="fig-pad" style="min-width:680px">
+      <svg class="drawing" viewBox="0 0 920 440" role="img" aria-label="相机状态图：现场、剖面、剖切盒、平面、楼层俯瞰、漫游六种状态及其转场">
+        <path class="edge" d="M184 186C250 150 282 92 338 76" marker-end="url(#arr)"/>
+        <path class="edge" d="M184 200H338" marker-end="url(#arr)"/>
+        <path class="edge" d="M184 214C250 250 282 312 338 324" marker-end="url(#arr)"/>
+        <path class="edge" d="M500 70H658" marker-end="url(#arr)"/>
+        <path class="edge" d="M500 322H658" marker-end="url(#arr)"/>
+        <path class="edge" d="M660 342H502" marker-end="url(#arr)"/>
+        <path class="edge" d="M420 230V298" marker-end="url(#arr)"/>
+        <path class="edge key" d="M104 230V398Q104 410 116 410H728Q740 410 740 398V362" marker-end="url(#arr-key)"/>
+        <text class="e-lab" x="262" y="104" text-anchor="middle">山体前移 · 投影变形</text>
+        <text class="e-lab" x="262" y="191" text-anchor="middle">拖出剖切盒</text>
+        <text class="e-lab" x="226" y="300" text-anchor="middle">选层剥离</text>
+        <text class="e-lab" x="580" y="60" text-anchor="middle">绕水平轴转 90°</text>
+        <text class="e-lab" x="580" y="312" text-anchor="middle">掀顶落地</text>
+        <text class="e-lab" x="580" y="362" text-anchor="middle">Esc 拉出</text>
+        <text class="e-lab" x="428" y="268">收拢到单层</text>
+        <text class="e-lab key" x="420" y="400" text-anchor="middle">竖井下潜：标高 ±0.000 → −18.600，3–4 s</text>
+        <g class="node"><rect x="24" y="170" width="160" height="60"/><text class="n-name" x="104" y="196">现场</text><text class="n-lens" x="104" y="218">透视 · 50–85 mm</text></g>
+        <g class="node"><rect x="340" y="40" width="160" height="60"/><text class="n-name" x="420" y="66">剖面</text><text class="n-lens" x="420" y="88">正交 · 剖切线</text></g>
+        <g class="node"><rect x="340" y="170" width="160" height="60"/><text class="n-name" x="420" y="196">剖切盒</text><text class="n-lens" x="420" y="218">透视 · 35 mm</text></g>
+        <g class="node"><rect x="340" y="300" width="160" height="60"/><text class="n-name" x="420" y="326">楼层俯瞰</text><text class="n-lens" x="420" y="348">透视 · 俯角 45°</text></g>
+        <g class="node"><rect x="660" y="40" width="160" height="60"/><text class="n-name" x="740" y="66">平面</text><text class="n-lens" x="740" y="88">正交 · FL+1.200</text></g>
+        <g class="node key"><rect x="660" y="300" width="160" height="60"/><text class="n-name" x="740" y="326">漫游</text><text class="n-lens" x="740" y="348">垂直 60° · 眼高 1.65 m</text></g>
+      </svg>
+    </div></div>
+    <figcaption><b>图 3-1</b><span>相机状态图。每条边都是一段连续的镜头运动，用户永远知道自己从哪来、在哪里。褐色是招牌转场。</span></figcaption>
+  </figure>
+
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>状态</th><th>投影与镜头</th><th>机位</th><th>控制</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>现场</td><td>透视，等效 50–85 mm（垂直视角 16°–27°）</td><td>俯角 8°–25°，画面里有地平线</td><td>环绕、平移、推拉到光标</td><td>理解选址，出片</td></tr>
+      <tr><td>剖面</td><td>正交，可切换透视</td><td>垂直于剖切面</td><td>平移、缩放、拖动剖切位置</td><td>看层高、标高、竖井</td></tr>
+      <tr><td>剖切盒</td><td>透视 35 mm（垂直 38°）</td><td>自由</td><td>拖动六个面</td><td>任意切开一层或一间房</td></tr>
+      <tr><td>平面</td><td>正交</td><td>俯视 90°，剖切高度 FL+1.200</td><td>平移、缩放</td><td>读布局、轴网、房间编号</td></tr>
+      <tr><td>楼层俯瞰</td><td>透视 35 mm</td><td>俯角 35°–50°</td><td>环绕</td><td>选房间，落地前的中间态</td></tr>
+      <tr><td>漫游</td><td>透视，垂直 60°（约 21 mm），可调 50°–75°</td><td>眼高 1.65 m</td><td>键鼠或点地移动</td><td>住进去</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>五个招牌转场</h3>
+  <ol>
+    <li><b>竖井下潜</b>（现场 → 漫游）。相机飞到 L1 吊装口上方，沿货梯井垂直下潜，楼板边缘和超大层号从画面掠过，图签里的标高从 ±0.000 一路跳到目标层；到层后转身进入主走廊，停在目标房间门口。3–4 s，随时点击可跳过。它把“深”这件事直接演出来。</li>
+    <li><b>掀顶落地</b>（楼层俯瞰 → 漫游）。点击地面任意一点，相机下落，俯仰角逐渐放平，吊顶和夹层淡出，视角从 38° 放宽到 60°，落在 1.65 m 眼高，朝向该房间预设的最佳视角。</li>
+    <li><b>拉出</b>（漫游 → 楼层俯瞰 → 现场）。按 Esc，相机向后上方拉起，墙体和吊顶重新出现，带一点动量。</li>
+    <li><b>投影变形</b>（透视 ↔ 正交）。用变焦推拉：镜头越拉越长，同时后退，主体大小不变；到极长焦时换成真正的正交相机。方向感不会丢。</li>
+    <li><b>山体前移</b>（现场 → 剖面）。剖切平面前方的山体向南平移约 40 m 并淡出。</li>
+  </ol>
+
+  <h3>漫游的手感规格</h3>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>项目</th><th>设定</th></tr></thead>
+    <tbody>
+      <tr><td>输入</td><td>默认点地移动：悬停地面出现落点圆盘，点击后平滑滑行，类似 Matterport 的室内视图，对不玩游戏的人友好。键鼠用 WASD 加指针锁定；触屏用左摇杆加右手滑动。</td></tr>
+      <tr><td>速度</td><td>步行 1.4 m/s，快走 2.5 m/s，0.25 s 加减速。默认不晃头，设置里可以打开。</td></tr>
+      <tr><td>碰撞</td><td>胶囊半径 0.25 m、高 1.75 m，用 three-mesh-bvh 做胶囊碰撞和贴墙滑动；台阶上限 0.20 m，楼梯自动升降。</td></tr>
+      <tr><td>门与气闸</td><td>普通门靠近自动滑开。气闸门要长按 E：压差表指针移动，1.5 s 的泄压声，然后才开。三防压力梯度从此是身体经验。</td></tr>
+      <tr><td>竖线</td><td>相机保持水平时竖线不汇聚。照片模式提供移轴校正，用离轴投影保持竖线垂直，这是建筑摄影的标准做法。</td></tr>
+      <tr><td>曝光</td><td>明暗过渡时做 0.8–1.5 s 的人眼适应。从昏暗走廊走进农场，会有真实的“刺眼”。</td></tr>
+      <tr><td>叠加信息</td><td>屏幕中心一个小点；悬停设备显示位号，如“P-301A 净水提升泵 · 运行”；左下小地图（平面加视锥）；左上图签显示当前房间和标高。</td></tr>
+      <tr><td>性能</td><td>只渲染当前层和相邻层；房间之间按门洞做可见性裁剪；每层灯光预算固定。</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>让人想住进去的细节</h3>
+  <ul>
+    <li><b>X 光透镜。</b>漫游时按住 Alt，鼠标周围一个圆形区域透视墙体和吊顶，露出后面的管线。这是漫游模式的招牌交互。</li>
+    <li><b>抬头看夹层。</b>在走廊里抬头超过 30°，吊顶板自动半透明，露出 0.9 m 夹层里的桥架和管道。</li>
+    <li><b>机位锚点。</b>每个房间模板自带 1–3 个机位（位置、朝向、镜头），用于落地、缩略图、导览和截图验收。</li>
+    <li><b>导览。</b>M5 接入专家后，提供“晨间巡检”自动漫游：沿某位专家的巡检路线走一遍，字幕说明每处设备。</li>
+  </ul>
+
+  <h3>工具</h3>
+  <ul>
+    <li><b>剖切盒。</b>六个面各有一个拖拽手柄，切面实时封口；拖动时吸附轴线和墙线。</li>
+    <li><b>测量。</b>两点测距，吸附顶点和边，精确到毫米，结果标在场景里。建筑师会立刻爱上它，它也最能证明“尺度是真的”。</li>
+    <li><b>深链接。</b>每个机位都能生成 URL，打开即到该视角，方便分享和验收。</li>
+  </ul>
+  <p>实现上，用 drei 的 CameraControls（camera-controls 库）替换 OrbitControls：它自带平滑过渡、fitToBox、推拉到光标、边界和碰撞，正交和透视都支持。漫游用自定义控制器加 three-mesh-bvh。</p>
+</section>
+
+<!-- R-04 -->
+<section class="sheet" id="r04">
+  <header class="sheet-head"><span class="sheet-no">R-04</span><h2>外围地景、隐蔽安保与逃生体系</h2>
+    <p class="verdict">低调的关键，是每样东西都有一个说得通的明面用途。观测站本来就要测风、测震、测雪、测水，还要供电和通讯；这些设施天然就是安保和生命线最好的伪装。</p></header>
+
+  <h3>四条原则</h3>
+  <ul>
+    <li><b>藏于科研。</b>所有防护设施都对应高山科研站或山地工程里常见的东西，不出现任何军事语汇。</li>
+    <li><b>纵深交给地形。</b>道路、廊道、门厅、竖井层层收窄。屏障尽量用山地工程本来就有的东西：防雪崩廊道、落石网、挡墙、截水沟。</li>
+    <li><b>生命线多源、分向、可切换。</b>水、电、空气、通讯、物流都至少两路，来向不同，互为备份。</li>
+    <li><b>逃生口远离、换向、低可见。</b>至少一个出口远离站点两三百米，位于另一条冲沟，面朝另一个视线方向。</li>
+  </ul>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="plan-wrap">
+      <canvas id="plan-canvas" aria-label="程序化生成的地形晕渲与等高线"></canvas>
+      <svg class="map" viewBox="0 0 1600 1100" role="img" aria-label="外围地景、安保与生命线示意平面，编号见下方图例">
+        <g>
+          <circle class="sensor" cx="1040" cy="640" r="5"/><circle class="sensor" cx="993.7" cy="693.3" r="5"/><circle class="sensor" cx="949.8" cy="787.7" r="5"/><circle class="sensor" cx="849.5" cy="816.4" r="5"/><circle class="sensor" cx="747.6" cy="829.1" r="5"/><circle class="sensor" cx="668.9" cy="764.2" r="5"/><circle class="sensor" cx="579.3" cy="706.3" r="5"/><circle class="sensor" cx="575" cy="600" r="5"/><circle class="sensor" cx="591" cy="499.3" r="5"/><circle class="sensor" cx="664" cy="429.5" r="5"/><circle class="sensor" cx="746.9" cy="368" r="5"/><circle class="sensor" cx="850.8" cy="377.7" r="5"/><circle class="sensor" cx="918.6" cy="451.4" r="5"/><circle class="sensor" cx="1018" cy="495" r="5"/>
+        </g>
+        <path class="water-line" d="M450 380C560 400 740 470 796 590"/>
+        <path class="drain-line" d="M814 608C930 680 1060 760 1150 830"/>
+        <path class="duct" d="M700 430L796 590M960 395L806 590"/>
+        <path class="radio" d="M1380 115L812 592"/>
+        <path class="rope" d="M960 1090L812 612"/>
+        <path class="rope" d="M914.6 973.2l17.2-5.4M877.6 853.7l17.2-5.4M840.6 734.2l17.2-5.4"/>
+        <path class="road-casing" d="M30 868L470 792C520 783 530 752 488 748L95 712C52 708 50 680 92 676L780 614"/>
+        <path class="road-fill" d="M30 868L470 792C520 783 530 752 488 748L95 712C52 708 50 680 92 676L780 614"/>
+        <path class="gallery" d="M350 652.8L440 644.6"/>
+        <path class="sym-open" d="M22 850L38 886"/>
+        <rect class="pv" x="700" y="690" width="70" height="26"/>
+        <ellipse class="pond" cx="740" cy="596" rx="11" ry="7"/>
+        <circle class="sym" cx="872" cy="640" r="11"/><text class="pad-t" x="872" y="640">H</text>
+        <rect class="ug" x="786" y="590" width="28" height="20"/>
+        <rect class="bldg" x="786" y="592" width="26" height="16"/>
+        <path class="tunnel" d="M786 596C772 606 766 626 768 645"/><path class="sym-open" d="M761 658V652A7 7 0 0 1 775 652V658"/>
+        <path class="tunnel" d="M814 603L1086 578"/>
+        <rect class="sym" x="944" y="584" width="12" height="12"/>
+        <path class="sym-open" d="M1080 586V580A7 7 0 0 1 1094 580V586"/>
+        <circle class="sym" cx="905" cy="690" r="6"/><path class="sym-open" d="M905 684V670"/>
+        <path class="sym" d="M700 418L711 437H689Z"/><circle class="bldg" cx="700" cy="431" r="2.5"/>
+        <path class="sym" d="M960 383L971 402H949Z"/><circle class="bldg" cx="960" cy="396" r="2.5"/>
+        <rect class="sym" x="444" y="374" width="12" height="12"/>
+        <path class="sym-open" d="M1140 822L1150 834L1160 822"/>
+        <path class="sym-open" d="M1380 92V126M1372 126H1388M1380 100L1370 110M1380 100L1390 110"/>
+        <g>
+          <path class="lead" d="M48 905L33 873M395 619V641M260 843V834M812 557V590M740 659L759 655M880 569V597M950 609V598M1111 560L1091 577M674 410L693 424M988 374L968 389M930 698L912 692M428 355L442 372M1176 830L1162 829M735 733V717M872 659V652M946 960H922M1346 82L1374 101M1022 712L1000 698M708 584L729 592"/>
+          <circle class="lab-c" cx="60" cy="922" r="19"/><text class="lab-t" x="60" y="922">1</text>
+          <circle class="lab-c" cx="395" cy="600" r="19"/><text class="lab-t" x="395" y="600">2</text>
+          <circle class="lab-c" cx="260" cy="862" r="19"/><text class="lab-t" x="260" y="862">3</text>
+          <circle class="lab-c" cx="812" cy="538" r="19"/><text class="lab-t" x="812" y="538">4</text>
+          <circle class="lab-c" cx="722" cy="664" r="19"/><text class="lab-t" x="722" y="664">5</text>
+          <circle class="lab-c" cx="880" cy="550" r="19"/><text class="lab-t" x="880" y="550">6</text>
+          <circle class="lab-c" cx="950" cy="628" r="19"/><text class="lab-t" x="950" y="628">7</text>
+          <circle class="lab-c" cx="1125" cy="545" r="19"/><text class="lab-t" x="1125" y="545">8</text>
+          <circle class="lab-c" cx="660" cy="395" r="19"/><text class="lab-t" x="660" y="395">9</text>
+          <circle class="lab-c" cx="1000" cy="360" r="19"/><text class="lab-t" x="1000" y="360">10</text>
+          <circle class="lab-c" cx="948" cy="700" r="19"/><text class="lab-t" x="948" y="700">11</text>
+          <circle class="lab-c" cx="410" cy="340" r="19"/><text class="lab-t" x="410" y="340">12</text>
+          <circle class="lab-c" cx="1195" cy="830" r="19"/><text class="lab-t" x="1195" y="830">13</text>
+          <circle class="lab-c" cx="735" cy="752" r="19"/><text class="lab-t" x="735" y="752">14</text>
+          <circle class="lab-c" cx="872" cy="678" r="19"/><text class="lab-t" x="872" y="678">15</text>
+          <circle class="lab-c" cx="965" cy="960" r="19"/><text class="lab-t" x="965" y="960">16</text>
+          <circle class="lab-c" cx="1330" cy="66" r="19"/><text class="lab-t" x="1330" y="66">17</text>
+          <circle class="lab-c" cx="1040" cy="722" r="19"/><text class="lab-t" x="1040" y="722">18</text>
+          <circle class="lab-c" cx="690" cy="578" r="19"/><text class="lab-t" x="690" y="578">19</text>
+        </g>
+        <g>
+          <path class="bldg" d="M1530 52L1542 104L1530 94L1518 104Z"/>
+          <text class="lab-t" x="1530" y="34">N</text>
+          <rect class="bldg" x="1200" y="1036" width="100" height="9"/><rect class="sym" x="1300" y="1036" width="100" height="9"/><rect class="bldg" x="1400" y="1036" width="100" height="9"/>
+          <text class="note-t" x="1196" y="1070">0</text><text class="note-t" x="1288" y="1070">100</text><text class="note-t" x="1388" y="1070">200</text><text class="note-t" x="1478" y="1070">300 m</text>
+          <text class="note-t" x="40" y="1070">等高距 25 m · 晕渲光源西北 45° · 示意，非选址</text>
+        </g>
+      </svg>
+    </div></div>
+    <div class="legend-cols">
+      <div><b>1</b><span>山谷入口闸口</span></div>
+      <div><b>2</b><span>防雪崩廊道（内藏闸门）</span></div>
+      <div><b>3</b><span>之字形进站路</span></div>
+      <div><b>4</b><span>科研站（平台 ▽1,450 m）；地下综合体在其正下方</span></div>
+      <div><b>5</b><span>西侧平硐（B1 洗消间直出，出口在平台西南挡墙）</span></div>
+      <div><b>6</b><span>远端逃生平硐（B2 → 东侧冲沟）</span></div>
+      <div><b>7</b><span>避难硐室</span></div>
+      <div><b>8</b><span>逃生口，伪装为水文监测平硐</span></div>
+      <div><b>9</b><span>进风口 A，伪装为测量标墩</span></div>
+      <div><b>10</b><span>进风口 B，伪装为岩堆气象站</span></div>
+      <div><b>11</b><span>排风口，伪装为融雪锅炉房烟囱</span></div>
+      <div><b>12</b><span>山泉集水房，重力供水</span></div>
+      <div><b>13</b><span>排水出口，冲沟涵洞</span></div>
+      <div><b>14</b><span>光伏试验场</span></div>
+      <div><b>15</b><span>直升机坪（融雪加热）</span></div>
+      <div><b>16</b><span>货运索道</span></div>
+      <div><b>17</b><span>邻峰通讯中继</span></div>
+      <div><b>18</b><span>周界传感点（红点）</span></div>
+      <div><b>19</b><span>消防水池兼景观水面</span></div>
+    </div>
+    <figcaption><b>图 4-1</b><span>外围地景、安保与生命线示意平面。底图地形由本页脚本程序化生成：脊线、两条冲沟、站点平台整形，西北光源晕渲，低处空气透视更淡，浅绿为林地。它也是 R-02 地形方法的二维演示。虚线：褐为逃生平硐，绿为进风，蓝为供水，紫为排水，点线为无线链路。</span></figcaption>
+  </figure>
+
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>#</th><th>设施</th><th>明面用途</th><th>实际作用</th><th>视觉要点</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>山谷入口闸口</td><td>科研保护区访客登记，展示实时气象数据</td><td>访客分流，车牌识别，称重</td><td>木构小亭加普通道闸，不要岗亭和铁丝网</td></tr>
+      <tr><td>2</td><td>防雪崩廊道</td><td>高山公路常见的混凝土廊道，设在道路穿过冲沟处（雪崩走沟）</td><td>内藏可落下的钢闸门，成为唯一车行闸口</td><td>廊道顶覆土种草，开口朝下坡</td></tr>
+      <tr><td>3</td><td>之字形进站路</td><td>进站道路</td><td>视线开阔，来车可提前看见；回头弯可设升降柱</td><td>半挖半填，石笼挡墙，边沟，波形护栏</td></tr>
+      <tr><td>4</td><td>科研站</td><td>观测站，带科普展陈的门厅</td><td>公众面孔；门厅之后才是员工区；装甲门藏在幕墙后</td><td>外观保持一座普通的公共建筑</td></tr>
+      <tr><td>5</td><td>西侧平硐</td><td>平台挡墙上的检修门</td><td>B1 洗消间西侧直出，三防洗消后的对外通道</td><td>小钢门嵌在挡墙里，与泄水孔排在同一行</td></tr>
+      <tr><td>6–8</td><td>远端逃生平硐与出口</td><td>水文监测平硐或旧探矿洞，挂“地质灾害监测点”牌子，旁边一台雨量计</td><td>第三出口，隐蔽进出</td><td>洞口铁栅门，位于冲沟侧壁、高于洪水位、开口朝下游，外接林间小路</td></tr>
+      <tr><td>9–10</td><td>进风口</td><td>大地测量标墩、岩堆上的气象自动站</td><td>三防进风，两处分在山脊两侧</td><td>混凝土标墩加防雪罩，格栅加热防冰</td></tr>
+      <tr><td>11</td><td>排风口</td><td>融雪锅炉房烟囱</td><td>排风与废热</td><td>位于低处，远离两处进风口</td></tr>
+      <tr><td>12–13</td><td>山泉集水房、排水出口</td><td>水文观测堰、冲沟涵洞</td><td>重力供水、重力排水</td><td>小石屋加量水堰；出口下方铺消能块石</td></tr>
+      <tr><td>14</td><td>光伏试验场</td><td>高海拔组件衰减试验</td><td>主电源之一，可折叠收拢</td><td>支架整齐，挂测试标牌</td></tr>
+      <tr><td>15</td><td>直升机坪</td><td>高山站常见的救援坪，地面融雪加热</td><td>撤离点；地暖也解释了热信号</td><td>白色 H 标，风向袋</td></tr>
+      <tr><td>16</td><td>货运索道</td><td>高山站常见的物资索道</td><td>冬季补给，第二条物流通道</td><td>细钢索，小吊斗</td></tr>
+      <tr><td>17</td><td>通讯中继</td><td>邻峰气象、地震中继站</td><td>视距无线链路，另有埋地光纤沿逃生平硐敷设</td><td>小机柜加风速仪</td></tr>
+      <tr><td>18</td><td>周界传感</td><td>地震台网检波器、野生动物相机、物候相机</td><td>入侵检测，周界监控</td><td>散布，不排成直线</td></tr>
+      <tr><td>19</td><td>消防水池</td><td>景观水面、消防储水</td><td>应急水源，热沉</td><td>自然驳岸，不做规则水池</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>六个让人拍案的点</h3>
+  <ul>
+    <li><b>热信号掩护。</b>两台微堆和整个地下综合体的废热，冬季送去给道路和直升机坪融雪、给温室供暖，夏季随处理后的排水和地源回路排出。红外影像上看到的，全是高山科研站本来就有的热源。上一轮算过，地下总产热约 170–240 kWth，地源热泵额定只有 120 kWth；这样正好给多出来的那部分热找到去处。</li>
+    <li><b>按风向选进风。</b>气象站本来就测风。中控根据实时风向和排风羽流，自动选用受影响最小的那个进风口。安保和科研数据天然合一。</li>
+    <li><b>廊道即闸口。</b>防雪崩廊道里藏着钢闸门，平时只是一段普通的高山公路。</li>
+    <li><b>检波器即围栏。</b>地震台网的检波器同时听得到脚步和车辆。</li>
+    <li><b>旧探矿洞即逃生口。</b>花岗岩山区常有废弃探矿洞，铁栅门和警示牌让人自觉绕开。</li>
+    <li><b>索道即第二物流。</b>大雪封路时仍能补给，也是大件设备的另一条进山路线。</li>
+  </ul>
+
+  <h3>三条出路</h3>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>出口</th><th>起点</th><th>去向</th><th>距离</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>主出口</td><td>L1 门厅、车库</td><td>进站路</td><td>—</td><td>日常</td></tr>
+      <tr><td>西侧平硐</td><td>B1 洗消间西侧</td><td>转向坡下，出口在平台西南挡墙</td><td>约 60 m</td><td>洗消与检修</td></tr>
+      <tr><td>远端平硐</td><td>B2 主走廊东端（居住层，夜间撤离不用上下楼）</td><td>东侧冲沟：另一条汇水线、另一个视线方向</td><td>约 270 m</td><td>远端逃生，隐蔽进出</td></tr>
+    </tbody>
+  </table></div>
+  <p>按图中地形，东侧冲沟在约 270 m 外下切到约 1,435 m，正好与 B2 楼面（▽−14.400，即海拔 1,435.6 m）齐平：平硐只要 3‰ 的自流坡度就能出露，沿线岩层覆盖 14–29 m。西侧平硐同理：B1 楼面比平台低 10.2 m，向坡下走约 60 m，就到了平台西南挡墙的同一高度。</p>
+  <p>远端平硐断面约 2.5 × 2.8 m，向出口方向 3‰ 下坡以便自流排水，可通行轨道电瓶车；中段设避难硐室（氧气、水、通讯、照明、担架）；两端各有防爆门和气闸。原来位于 (13, 4) 的东侧逃生井，改为通往这条平硐的竖向联络井，顶部不再直通地表。这也解决了上一轮指出的“逃生井出口紧贴 L1 东墙”的问题。</p>
+
+  <div class="note">
+    <span class="note-k">附注 2 · 方位要随地形重写</span>
+    <p>规格书里的“西侧平硐”和“西侧深埋暗沟”是按 M1 那座锥形山写的，在那里西侧恰好是低侧。换成真实山坡以后，低侧变成南面和两条冲沟。规格真正要守住的是两条原则：B1 标高的平硐向山坡低侧出露；排水全程重力自流。具体方位应该随新地形重写。本图把重力排水接到东侧冲沟（13 号）：出口海拔约 1,240 m，比 B4 楼面还低约 185 m。</p>
+  </div>
+
+  <h3>封锁编排：30 秒</h3>
+  <ol class="timeline">
+    <li><span class="num">0 s</span><span>道路升降柱升起，廊道闸门落下。</span></li>
+    <li><span class="num">5 s</span><span>门厅灯熄灭，幕墙后的装甲门滑出。</span></li>
+    <li><span class="num">10 s</span><span>外立面百叶旋转闭合，内侧是防护板。</span></li>
+    <li><span class="num">15 s</span><span>温室屋面盖上保温防护板，光伏翼收拢。</span></li>
+    <li><span class="num">20 s</span><span>雷达罩继续转动，科研仍在工作；站点像是睡着了。</span></li>
+    <li><span class="num">25 s</span><span>镜头下潜到 B1，洗消间红灯亮起，压差表指针升到设定值。</span></li>
+    <li><span class="num">30 s</span><span>图签里的情景栏变为“封锁 · 第 1 天”。</span></li>
+  </ol>
+  <p>画面里永远不出现：铁丝网、岗楼、迷彩、橄榄绿、射击孔、探照灯、军用雷达阵列、“军事禁区”字样。可参考的低调先例：斯瓦尔巴全球种子库只露出一道窄窄的混凝土门脸，门上是 Dyveke Sanne 的光艺术装置；少女峰的斯芬克斯观测站和楚格峰的 Schneefernerhaus 环境研究站，都是贴着山体、经由隧道或岩内电梯进出的科研站。</p>
+</section>
+
+<!-- R-05 -->
+<section class="sheet" id="r05">
+  <header class="sheet-head"><span class="sheet-no">R-05</span><h2>加分巧思</h2>
+    <p class="verdict">真实感来自“有人在这里生活和维护”的证据，高级感来自克制：只放对的东西。</p></header>
+
+  <h3>空间</h3>
+  <ul>
+    <li><b>两层通高的“村口”。</b>B2 公共餐厅（gx 6–9）的正下方，横跨 B3 的水培与水产两区。把两者之间约 4 × 6 m 的一块楼板换成防火玻璃楼面，或者开成四周用防火玻璃围合的通高中庭：视线贯通，气流和防火分区仍然隔开。坐在餐桌边就能俯看下面的绿色农场。地下空间最缺的是远景和绿色，这一处同时给到；它也符合 Appleton 的“眺望—庇护”理论：人偏好既能看得远、背后又有遮蔽的位置。</li>
+    <li><b>走廊尽端要有东西看。</b>26 m 长的主走廊是全楼最长的视线，在尽端墙上放一块大尺寸的“天空窗”（外部实景摄像，或按时刻模拟的人工天空），给这条视线一个终点。</li>
+    <li><b>一束真阳光。</b>从地表温室用光纤导光系统（例如 Parans、Himawari 这类产品）把一束太阳光引到 B2 餐厅。哪怕只有一束，它也是整座避难所最奢侈的东西。</li>
+    <li><b>层高变化。</b>大部分房间净高 3.0 m；餐厅和图书馆让出局部夹层，吊顶抬到 3.6 m。重要的地方更高。</li>
+    <li><b>材质随深度变化。</b>B4 最工业（钢格栅、环氧地坪），B3 是湿区（防滑砖、不锈钢），B2 最温暖（木地板、织物、吸音木条）。从上到下的材质梯度本身就是导视。</li>
+    <li><b>超大层号。</b>每层在竖井墙面喷涂 1.2 m 高的层号，配一种识别色，像停车库那样。竖井下潜时一闪而过，非常出片。</li>
+  </ul>
+
+  <h3>人因与心理</h3>
+  <ul>
+    <li><b>节律照明。</b>B2 居住区色温随时间在 2200–5000 K 之间变化，夜间走廊只留低位琥珀夜灯；中控室夜间切换红光，这是潜艇保护暗适应的做法。用一条 24 小时时间轴控制，3D 里实时可见（图 5-1）。</li>
+    <li><b>错峰光周期。</b>B3 补光安排在 20:00 到次日 12:00，以夜间为主，避开白天的人员用电高峰，平衡核堆负荷。农场因此在夜里成为最亮的地方。</li>
+    <li><b>虚拟窗与潜望镜。</b>居住舱的节律天窗显示外部实景或按时刻模拟的天空；餐厅里放一具真正的光学潜望镜，通向地表岩缝，能看到真实的山。由导弹发射井改造的 Survival Condo 就在房间里用 LED 屏做“窗户”。</li>
+    <li><b>领地感。</b>10 间居住舱各不相同：书、乐器、照片、盆栽，门牌写名字。长期封闭环境的通行做法是允许个人布置。</li>
+    <li><b>隐私梯度。</b>公共（餐厅）、半公共（图书馆、健身房）、私密（居住舱），用门、材质和照度区分。</li>
+    <li><b>声景。</b>每层有自己的底噪：B4 是变压器的 100 Hz 嗡声（国内电网 50 Hz，铁芯磁致伸缩发出二倍频），B3 是水流和风机，B2 是安静的环境音。漫游时用 WebAudio 程序化合成，戴上耳机，深度感立刻不同。</li>
+    <li><b>时间的叙事。</b>长期隔离任务的中后段士气低落，在研究里叫“第三季度现象”。图签里可以显示“封锁第 N 天”，节日时餐厅里出现灯串和手写日历。这只是叙事，不做数值。</li>
+  </ul>
+
+  <figure class="fig">
+    <div class="fig-scroll"><div class="fig-pad" style="min-width:640px">
+      <svg class="drawing" viewBox="0 0 760 320" role="img" aria-label="24 小时照明时间轴：B2 主照明色温曲线、夜灯、B3 补光时段与中控室红光时段">
+        <g class="ln-rule" stroke-width="1"><path d="M64 220H736M64 180H736M64 140H736M64 100H736M64 60H736"/></g>
+        <path class="ln" d="M64 240H736" stroke-width="1"/>
+        <g class="ln-2" stroke-width="1"><path d="M64 240v5M148 240v5M232 240v5M316 240v5M400 240v5M484 240v5M568 240v5M652 240v5M736 240v5"/></g>
+        <g class="mono t-2" font-size="11" text-anchor="middle"><text x="64" y="258">00</text><text x="148" y="258">03</text><text x="232" y="258">06</text><text x="316" y="258">09</text><text x="400" y="258">12</text><text x="484" y="258">15</text><text x="568" y="258">18</text><text x="652" y="258">21</text><text x="736" y="258">24</text></g>
+        <g class="mono t-2" font-size="11" text-anchor="end"><text x="56" y="224">2000 K</text><text x="56" y="184">3000</text><text x="56" y="144">4000</text><text x="56" y="104">5000</text><text x="56" y="64">6000</text></g>
+        <path d="M246 192L288 140L344 100L512 100L568 160L624 192L666 212L708 212" fill="none" stroke="var(--sepia)" stroke-width="2.6" stroke-linejoin="round"/>
+        <path d="M708 228H736M64 228H246" fill="none" stroke="var(--ink-2)" stroke-width="2" stroke-dasharray="2 4"/>
+        <text x="428" y="90" font-size="12.5" text-anchor="middle">日间 5000 K</text>
+        <text x="72" y="215" font-size="12" class="t-2">夜灯 1800 K，低位琥珀</text>
+        <text x="604" y="226" font-size="12" text-anchor="end">睡前 2200 K</text>
+        <text x="236" y="186" font-size="12" text-anchor="end">06:30 唤醒</text>
+        <rect x="624" y="268" width="112" height="14" fill="var(--grow)"/><rect x="64" y="268" width="336" height="14" fill="var(--grow)"/>
+        <text x="410" y="279.5" font-size="12">B3 补光 16 h（20:00–12:00）</text>
+        <rect x="708" y="290" width="28" height="14" fill="var(--night-red)"/><rect x="64" y="290" width="182" height="14" fill="var(--night-red)"/>
+        <text x="256" y="301.5" font-size="12">中控室红光模式（23:00–06:30）</text>
+        <text x="64" y="30" font-size="12" class="t-2">B2 主照明色温</text>
+      </svg>
+    </div></div>
+    <figcaption><b>图 5-1</b><span>24 小时照明时间轴。褐线是 B2 主照明色温，虚线是夜灯，色块是 B3 补光和中控室红光时段。在 3D 里拖动这条时间轴，日照、节律灯、补光周期会一起变化。</span></figcaption>
+  </figure>
+
+  <h3>工程图形：真实感最快的来源</h3>
+  <ul>
+    <li>管道按 GB 7231 贴识别色环、介质名和流向箭头。</li>
+    <li>每个阀门挂位号牌，如 <code>V-B3-012</code>，与检修模拟里的编号一致。</li>
+    <li>每道气闸门边一块压差表，读数与情景联动，三防压力梯度从此看得见。</li>
+    <li>ISO 7010 安全标志、蓄光疏散地标、防火门标签、楼面荷载标识（如 5.0 kN/m²）、吊装区黄黑斑马线和“SWL 2t”。</li>
+    <li>灭火器箱、洗眼器、AED、应急照明、自救器柜，放在规范要求的位置。</li>
+  </ul>
+
+  <h3>生活痕迹</h3>
+  <ul>
+    <li>门框和走廊转角的擦痕，AGV 轨迹上被磨亮的地坪，楼梯踏步前缘的磨光。</li>
+    <li>中控台上的保温杯，白板上的检修排班，餐桌上下到一半的棋，图书馆的还书车。</li>
+    <li>每层只放 3–5 处，宁少勿滥。</li>
+  </ul>
+
+  <h3>微交互</h3>
+  <ul>
+    <li><b>顺着水走。</b>点任意一段水管，水从水源一路流到用水点，再回到净水站；路径高亮，其他系统淡出。</li>
+    <li><b>点阀门看影响。</b>悬停阀门，下游受影响的房间自动描红。这是 M4 检修模拟的轻量预告。</li>
+    <li><b>时间轴。</b>拖动 24 小时滑块，日照、节律灯、补光、人员分布一起变化；按住可以做延时。</li>
+    <li><b>照片模式。</b>隐藏 HUD，开景深与移轴校正，选画幅（16:9、4:5、2.39:1），一键导出高分辨率截图。</li>
+  </ul>
+</section>
+
+<!-- R-06 -->
+<section class="sheet" id="r06">
+  <header class="sheet-head"><span class="sheet-no">R-06</span><h2>落地顺序</h2>
+    <p class="verdict">建议在 M2 之前插入一个“M1.5 视觉重定调”。M2 的房间会建在新的材质、灯光和相机之上，晚改的代价会成倍增加。</p></header>
+  <ol>
+    <li><b>文档。</b>重写 <code>docs/02</code>：双语域、地形管线、材质库、灯光与后处理、HUD 设计系统、色板来源。新增 <code>docs/05</code>（相机与漫游）和 <code>docs/06</code>（外围与生命线）。</li>
+    <li><b>渲染管线与天空。</b>选定 WebGL2 路线，接入物理天空、空气透视、AgX、N8AO、SMAA、LUT 和质量分级。</li>
+    <li><b>地形 v2。</b>构建期侵蚀高度场、场地整形、远景层、解析剖切面与地质剖面着色器。</li>
+    <li><b>材质库。</b>8–10 种程序化材质，加上全局倒角规范。</li>
+    <li><b>相机状态机。</b>CameraControls、投影变形、剖切盒、楼层俯瞰；在空壳里先把漫游原型跑起来（BVH 碰撞、楼梯、门）。</li>
+    <li><b>HUD 设计系统。</b>设计令牌、字体子集、图签、标高尺、图例、比例尺与坐标读数。</li>
+  </ol>
+  <p>然后再进入 M2：房间按新材质库建，每个房间写好机位锚点。</p>
+
+  <h3>视觉验收画廊</h3>
+  <p>把 R-02 的五个出片画面定为固定机位，每张都有固定的时刻、天气和镜头参数。每个里程碑结束时，agent 用 Playwright 自动截这五张图，放进 <code>docs/PROGRESS.md</code> 的验收画廊，由你逐张签收后才算完成。现在 PROGRESS 里 M1 的“浏览器交互通过”，是 agent 自己写下的结论；这样做，就把视觉验收的签字权交回给你。</p>
+
+  <h3>运行时预算（建议）</h3>
+  <div class="table-scroll"><table class="wide">
+    <thead><tr><th>项目</th><th>上限（1440p，M1/M2 级笔记本）</th></tr></thead>
+    <tbody>
+      <tr><td>帧率</td><td>60 FPS，DPR 上限 1.5</td></tr>
+      <tr><td>绘制调用</td><td>约 400 次以内</td></tr>
+      <tr><td>三角形</td><td>3–4 M 以内，远景地形和植被走 LOD</td></tr>
+      <tr><td>实时阴影</td><td>太阳 CSM 3 级，每层最多 1 盏局部投影灯</td></tr>
+      <tr><td>纹理显存</td><td>约 400 MB 以内</td></tr>
+      <tr><td>首屏</td><td>3 s 内出现绘图仪描线，8 s 内材质与光照就绪</td></tr>
+    </tbody>
+  </table></div>
+  <p>预算充足意味着可以把工夫花在管线和工具上：地形预计算、材质库、相机状态机、验收截图。运行时预算不会因此变宽。</p>
+
+  <h3>参考</h3>
+  <ul class="refs">
+    <li><a href="https://github.com/TrionesType/zhuque" target="_blank" rel="noopener">朱雀仿宋（TrionesType，OFL）</a></li>
+    <li><a href="https://github.com/takram-design-engineering/three-geospatial" target="_blank" rel="noopener">Takram three-geospatial：大气、体积云</a></li>
+    <li><a href="https://agargaro.github.io/instanced-mesh/" target="_blank" rel="noopener">@three.ez/instanced-mesh（InstancedMesh2）</a></li>
+    <li><a href="https://threejs.org/manual/en/webgpu-postprocessing" target="_blank" rel="noopener">three.js：WebGPU 后处理</a></li>
+    <li><a href="https://threejs.org/docs/pages/GTAONode.html" target="_blank" rel="noopener">three.js：GTAONode</a></li>
+    <li><a href="https://threejs.org/docs/TSL.html" target="_blank" rel="noopener">three.js：TSL</a></li>
+    <li><a href="https://threejs.org/examples/webgl_clipping_stencil.html" target="_blank" rel="noopener">three.js：clipping stencil 示例</a></li>
+    <li><a href="https://github.com/yomotsu/camera-controls" target="_blank" rel="noopener">camera-controls</a></li>
+    <li><a href="https://github.com/gkjohnson/three-mesh-bvh" target="_blank" rel="noopener">three-mesh-bvh</a></li>
+    <li><a href="https://github.com/N8python/n8ao" target="_blank" rel="noopener">N8AO</a></li>
+    <li>Eduard Imhof，《Cartographic Relief Presentation》</li>
+    <li>GB/T 14691《技术制图 字体》；GB/T 50001《房屋建筑制图统一标准》；GB 7231《工业管道的基本识别色》</li>
+  </ul>
+
+  <p class="foot">本页只是评审与提案，没有修改仓库。底图截图来自 M1（<code>1fcd52c</code>）在浏览器中的实测。</p>
+</section>
+
+</main>
+</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const root = document.documentElement;
+  const token = (name) => getComputedStyle(root).getPropertyValue(name).trim();
+  const rgb = (hex) => {
+    const h = hex.replace("#", "");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mixc = (p, q, t) => [lerp(p[0], q[0], t), lerp(p[1], q[1], t), lerp(p[2], q[2], t)];
+  const scale = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+
+  /* Noise: value noise, fBm and Worley. */
+  function hash(x, y, s) {
+    let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul((s | 0) + 1013, 1442695041);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  const fade = (t) => t * t * (3 - 2 * t);
+  function vnoise(x, y, s) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const u = fade(x - xi), v = fade(y - yi);
+    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y, s, oct) {
+    let f = 0, amp = 0.5, fr = 1, norm = 0;
+    for (let i = 0; i < oct; i++) {
+      f += amp * vnoise(x * fr, y * fr, s + i * 31);
+      norm += amp; fr *= 2.03; amp *= 0.5;
+    }
+    return f / norm;
+  }
+  function worley(x, y, s) {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    let d1 = 9, d2 = 9, id = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const cx = xi + i, cy = yi + j;
+      const dx = cx + hash(cx, cy, s) - x, dy = cy + hash(cx, cy, s + 7) - y;
+      const d = dx * dx + dy * dy;
+      if (d < d1) { d2 = d1; d1 = d; id = hash(cx, cy, s + 13); } else if (d < d2) d2 = d;
+    }
+    return [Math.sqrt(d1), Math.sqrt(d2), id];
+  }
+
+  /* Material swatches. */
+  const MATERIALS = {
+    granite(x, y) {
+      const [d1, d2, id] = worley(x * 0.085, y * 0.085, 3);
+      let c = id < 0.14 ? rgb("#2d2b2a") : id < 0.44 ? rgb("#d3d3cd") : id < 0.74 ? rgb("#c2a99c") : rgb("#ad9184");
+      c = mixc(c, scale(c, 0.62), clamp(1 - (d2 - d1) * 7, 0, 1) * 0.55);
+      c = scale(c, 0.86 + 0.26 * fbm(x * 0.018, y * 0.018, 5, 4));
+      return scale(c, 0.93 + 0.13 * hash(x, y, 9));
+    },
+    lichen(x, y) {
+      let c = mixc(rgb("#4d504d"), rgb("#8d8f88"), clamp(fbm(x * 0.011, y * 0.011, 11, 5) * 1.7 - 0.25, 0, 1));
+      const l = fbm(x * 0.05, y * 0.05, 21, 4);
+      if (l > 0.58) c = mixc(c, rgb("#b8b36a"), clamp((l - 0.58) * 6, 0, 1) * 0.9);
+      const o = fbm(x * 0.07 + 40, y * 0.07, 33, 3);
+      if (o > 0.66) c = mixc(c, rgb("#c47b35"), clamp((o - 0.66) * 8, 0, 1) * 0.85);
+      if (Math.abs(fbm(x * 0.006, y * 0.028, 41, 4) - 0.5) < 0.01) c = mixc(c, rgb("#262726"), 0.55);
+      return scale(c, 0.92 + 0.16 * hash(x, y, 2));
+    },
+    concrete(x, y) {
+      const board = Math.floor(y / 32);
+      let c = scale(rgb("#b6b2a9"), (0.94 + 0.08 * hash(board, 1, 5)) * (0.94 + 0.1 * fbm(x * 0.012, y * 0.3 + board * 13, 7, 3)));
+      if (y % 32 < 1.3) c = scale(c, 0.8);
+      const gx = (x % 64) - 32, gy = ((y + 16) % 64) - 32;
+      const r = Math.hypot(gx, gy);
+      if (r < 4.4) c = rgb("#6b675f"); else if (r < 6.2) c = scale(c, 1.05);
+      if (hash(x, y, 77) > 0.986) c = scale(c, 0.72);
+      return c;
+    },
+    corten(x, y) {
+      const n = fbm(x * 0.02, y * 0.02, 51, 5);
+      let c = n < 0.5 ? mixc(rgb("#55301e"), rgb("#8b4d26"), n * 2) : mixc(rgb("#8b4d26"), rgb("#a9652f"), (n - 0.5) * 2);
+      c = scale(c, 0.84 + 0.3 * fbm(x * 0.16, y * 0.007, 61, 3));
+      if (hash(x, y, 4) > 0.972) c = mixc(c, rgb("#38200f"), 0.6);
+      return c;
+    },
+    larch(x, y) {
+      const w = 24, plank = Math.floor(x / w), px = x - plank * w;
+      if (px < 1.6) return rgb("#2a2622");
+      const weather = clamp(0.25 + 0.7 * (y / 192) + 0.25 * (hash(plank, 3, 8) - 0.5), 0, 1);
+      const c = mixc(rgb("#b9895a"), rgb("#a4a29a"), weather);
+      const warp = fbm(x * 0.05, y * 0.012, 71 + plank, 3);
+      return scale(c, 0.9 + 0.12 * (0.5 + 0.5 * Math.sin((px + warp * 20) * 1.05 + plank)));
+    },
+    snow(x, y) {
+      const ripple = 0.5 + 0.5 * Math.sin(x * 0.085 + fbm(x * 0.01, y * 0.03, 81, 4) * 9 + y * 0.02);
+      const c = mixc(rgb("#c1ccdb"), rgb("#f2f5f8"), clamp(0.3 + 0.5 * fbm(x * 0.008, y * 0.008, 91, 4) + 0.25 * ripple, 0, 1));
+      return hash(x, y, 13) > 0.996 ? [255, 255, 255] : c;
+    },
+  };
+  function paintSwatch(canvas) {
+    const fn = MATERIALS[canvas.dataset.mat];
+    if (!fn) return;
+    const w = canvas.width, h = canvas.height, ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = fn(x, y), i = (y * w + x) * 4;
+      img.data[i] = clamp(c[0], 0, 255);
+      img.data[i + 1] = clamp(c[1], 0, 255);
+      img.data[i + 2] = clamp(c[2], 0, 255);
+      img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  /* Site plan: a procedural heightfield with Imhof-style relief shading and 25 m contours. */
+  const W = 1600, H = 1100, STEP = 5, NX = W / STEP + 1, NY = H / STEP + 1;
+  const g2 = (x, y, cx, cy, r) => Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (r * r));
+  const sstep = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const gullyW = (y) => 430 + 45 * Math.sin(y / 140);
+  const gullyE = (y) => 1160 + 55 * Math.sin(y / 165 + 1.2);
+  function height(x, y) {
+    let h = 1150 + (1100 - y) * 0.6;
+    h += 140 * Math.exp(-(((y - 170) / 230) ** 2)) * (0.8 + 0.2 * Math.sin(x / 210 + 0.6));
+    h += 170 * g2(x, y, 330, 140, 260) + 240 * g2(x, y, 1380, 120, 240) + 60 * g2(x, y, 860, 220, 160);
+    const depth = sstep(200, 1100, y);
+    h -= 85 * depth * Math.exp(-(((x - gullyW(y)) / 70) ** 2));
+    h -= 95 * depth * Math.exp(-(((x - gullyE(y)) / 80) ** 2));
+    h += 25 * depth * Math.exp(-(((x - 800) / 220) ** 2));
+    h += 14 * (fbm(x / 150, y / 150, 7, 4) - 0.5);
+    const bench = 1 - sstep(45, 95, Math.hypot(x - 800, (y - 600) * 1.25));
+    return lerp(h, 1450, bench);
+  }
+  let field = null, lo = 0, hi = 1;
+  function buildField() {
+    field = new Float32Array(NX * NY);
+    lo = Infinity; hi = -Infinity;
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const v = height(i * STEP, j * STEP);
+      field[j * NX + i] = v;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+  }
+  const at = (i, j) => field[clamp(j, 0, NY - 1) * NX + clamp(i, 0, NX - 1)];
+  function marching(level, emit) {
+    for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) {
+      const a = field[j * NX + i], b = field[j * NX + i + 1], c = field[(j + 1) * NX + i + 1], d = field[(j + 1) * NX + i];
+      let idx = 0;
+      if (a > level) idx |= 8;
+      if (b > level) idx |= 4;
+      if (c > level) idx |= 2;
+      if (d > level) idx |= 1;
+      if (idx === 0 || idx === 15) continue;
+      const t = (p, q) => (level - p) / (q - p);
+      const top = [i + t(a, b), j], right = [i + 1, j + t(b, c)], bottom = [i + t(d, c), j + 1], left = [i, j + t(a, d)];
+      switch (idx) {
+        case 1: case 14: emit(left, bottom); break;
+        case 2: case 13: emit(bottom, right); break;
+        case 3: case 12: emit(left, right); break;
+        case 4: case 11: emit(top, right); break;
+        case 5: emit(top, right); emit(left, bottom); break;
+        case 6: case 9: emit(top, bottom); break;
+        case 7: case 8: emit(left, top); break;
+        case 10: emit(left, top); emit(bottom, right); break;
+      }
+    }
+  }
+  function drawPlan() {
+    const canvas = document.getElementById("plan-canvas");
+    if (!canvas) return;
+    if (!field) buildField();
+    const cssW = canvas.parentElement.clientWidth || 900;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssW * dpr * H / W);
+    const ctx = canvas.getContext("2d");
+    const light = rgb(token("--map-light")), shadow = rgb(token("--map-shadow")), haze = rgb(token("--map-haze")), forest = rgb(token("--map-forest"));
+    const off = document.createElement("canvas");
+    off.width = NX; off.height = NY;
+    const octx = off.getContext("2d");
+    const img = octx.createImageData(NX, NY);
+    const L = [-0.5, -0.5, 0.7071], ex = 1.6;
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+      const dzdx = (at(i + 1, j) - at(i - 1, j)) / (2 * STEP) * ex;
+      const dzdy = (at(i, j + 1) - at(i, j - 1)) / (2 * STEP) * ex;
+      // Shade the local relief: removing most of the regional 0.6 gradient lets the main slope read as a mid-tone.
+      const dzdyLocal = dzdy + 0.6 * ex * 0.7;
+      const len = Math.hypot(dzdx, dzdyLocal, 1);
+      const shade = clamp((-dzdx * L[0] - dzdyLocal * L[1] + L[2]) / len, 0, 1);
+      const h = at(i, j), e = (h - lo) / (hi - lo);
+      let c = mixc(shadow, light, shade);
+      c = mixc(haze, c, 0.5 + 0.5 * e);
+      const slope = Math.hypot(dzdx, dzdy) / ex;
+      const woods = h > 1180 && h < 1780 && slope < 0.95 ? sstep(0.42, 0.56, fbm(i * 0.09, j * 0.09, 17, 4)) : 0;
+      c = mixc(c, forest, woods * 0.3);
+      const k = (j * NX + i) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    const sx = canvas.width / W, sy = canvas.height / H;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = token("--e-water");
+    ctx.lineWidth = 1.6 * dpr;
+    ctx.globalAlpha = 0.8;
+    for (const g of [gullyW, gullyE]) {
+      ctx.beginPath();
+      for (let y = 330; y <= H; y += 10) {
+        if (y === 330) ctx.moveTo(g(y) * sx, y * sy); else ctx.lineTo(g(y) * sx, y * sy);
+      }
+      ctx.stroke();
+    }
+    const sepia = token("--sepia");
+    for (let level = Math.ceil(lo / 25) * 25; level <= hi; level += 25) {
+      const index = level % 100 === 0;
+      ctx.beginPath();
+      marching(level, (p, q) => {
+        ctx.moveTo(p[0] * STEP * sx, p[1] * STEP * sy);
+        ctx.lineTo(q[0] * STEP * sx, q[1] * STEP * sy);
+      });
+      ctx.strokeStyle = sepia;
+      ctx.globalAlpha = index ? 0.72 : 0.36;
+      ctx.lineWidth = (index ? 1.25 : 0.7) * dpr;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = token("--ink");
+    ctx.font = 11 * dpr + "px " + token("--font-mono");
+    ctx.strokeStyle = token("--map-haze");
+    ctx.lineWidth = 3 * dpr;
+    ctx.lineJoin = "round";
+    for (const [cx, cy, r] of [[330, 140, 160], [1380, 120, 160]]) {
+      let best = -Infinity, bx = cx, by = cy;
+      for (let y = Math.max(0, cy - r); y <= Math.min(H, cy + r); y += STEP)
+        for (let x = Math.max(0, cx - r); x <= Math.min(W, cx + r); x += STEP) {
+          const v = field[(y / STEP) * NX + x / STEP];
+          if (v > best) { best = v; bx = x; by = y; }
+        }
+      const label = "▲ " + Math.round(best).toLocaleString("en-US"), tx = (bx + 12) * sx, ty = (by + 5) * sy;
+      ctx.strokeText(label, tx, ty);
+      ctx.fillText(label, tx, ty);
+    }
+  }
+
+  /* Paint after first layout; keep the main thread responsive. */
+  const queue = [...document.querySelectorAll("canvas[data-mat]")];
+  const next = () => { const c = queue.shift(); if (!c) return; paintSwatch(c); setTimeout(next, 16); };
+  const start = () => { drawPlan(); setTimeout(next, 40); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawPlan);
+
+  let raf = 0;
+  const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawPlan); };
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  const wrap = document.querySelector(".plan-wrap");
+  if (wrap && "ResizeObserver" in window) new ResizeObserver(redraw).observe(wrap);
+
+  /* Sheet index follows the reader. */
+  const links = new Map([...document.querySelectorAll(".index a")].map((a) => [a.getAttribute("href").slice(1), a]));
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        links.forEach((a) => a.removeAttribute("aria-current"));
+        const a = links.get(e.target.id);
+        if (a) a.setAttribute("aria-current", "true");
+      }
+    }, { rootMargin: "-35% 0px -60% 0px" });
+    document.querySelectorAll("section.sheet").forEach((s) => io.observe(s));
+  }
+})();
+</script>
+
+</body></html>

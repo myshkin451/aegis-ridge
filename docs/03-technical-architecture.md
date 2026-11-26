@@ -1,183 +1,193 @@
-# 03. 前端技术架构与数据模型（Technical Architecture）
+# 03. 前端技术架构与数据模型（v2.0）
 
-> **架构目标**：清晰分层、数据驱动、零隐式耦合。既保证 Codex 在 Phase 1 各个里程碑能够低心智负担、高稳定度地并行/递进编码，也为未来 Phase 2 引入“实时运行模拟、人员 AI 行为或自由砌墙建造”留下平滑演进接口。
+> **架构目标**：以 WebGL2 成熟生态为基座，做到**数据、几何、物理引擎、渲染、HUD 五层严格解耦**；同时确保构建期地形预计算、程序化 PBR 材质库、6 状态相机与 BVH 碰撞、Playwright 五机位截图画廊全部可验证、可回归、稳跑 60 FPS。
 
 ---
 
-## 1. 技术栈选型
+## 1. 技术栈选型（v2.0 精简与升级）
 
-| 层级 | 选型 | 理由 |
+| 层级 | 选型 | 理由与 v2.0 调整 |
 | --- | --- | --- |
-| 构建与开发服务 | **Vite 6 + TypeScript 5 (strict)** | 毫秒级热更新，强类型锁死坐标、管网拓扑与工程单位 |
-| UI 框架 | **React 19 + Tailwind CSS v4** | 工程控制台 HUD 开发极快，状态与 3D 视口解耦 |
-| 3D 渲染引擎 | **Three.js + `@react-three/fiber` + `@react-three/drei`** | 声明式组织楼层、房间、管网与相机控制，Codex 生成代码稳定度最高 |
-| 后处理（可选轻量化） | `@react-three/postprocessing`（仅按需开轻度 Bloom/ToneMapping） | 增强管网微光与建筑层次，同时提供一键画质降级保障流畅 |
-| 状态管理 | **Zustand** | 轻量、无 boilerplate，非常适合在 React HUD 与 R3F `useFrame` 循环间共享状态而不触发无谓重渲染 |
-| 单元测试 | **Vitest** | 专门验证 `src/engine/` 中的热/电/水/粮/检修可达性与合规算法 |
-| 图标库 | `lucide-react` | 线条干净锐利，天然契合工程数字孪生审美 |
+| 构建与运行 | **Vite 6 + TypeScript 5 (strict)** | 零容忍类型锁死网格坐标、管网拓扑与工程单位 |
+| UI 框架与样式 | **React 19 + 纯 CSS 设计令牌（移除 Tailwind）** | 经 M1 审计 Tailwind 几乎未被使用；图纸仪器 HUD 依赖精确 1px 细线、SVG 标高尺与双语域令牌，纯模块化 CSS 更干净轻快 |
+| 3D 渲染底座 | **Three.js（WebGL2）+ `@react-three/fiber` + `@react-three/drei`** | WebGL2 生态成熟稳定（AgX、`postprocessing`、`n8ao`、`camera-controls`、`three-mesh-bvh` 全线就绪），避免实验性云包 API 变动拖垮构建 |
+| 相机与碰撞 | **`camera-controls` + `three-mesh-bvh`** | 取代基础 OrbitControls，支持平滑拟合、光标缩放、透视/正交切换；`three-mesh-bvh` 负责第一人称胶囊碰撞、楼梯自动升降与快速射线拾取 |
+| 后处理与光影 | **`postprocessing` + `n8ao` + `three-csm`（或内置级联阴影）** | 提供 AgX 色调映射、N8AO 环境光遮蔽、选择性 Bloom、SMAA 与 4 情景 3D LUT |
+| 状态管理 | **Zustand** | 原子选择器隔离 React HUD 与 R3F `useFrame`，禁止帧循环触发 React 重渲染 |
+| 测试与视觉验收 | **Vitest + Playwright（可选 headless 验收脚本）** | `vite.config.ts` 统一包含 `tests/**/*.test.ts` 与 `src/**/*.test.ts`；Playwright 固化 5 机位截图签收 |
+| 声音（M5） | **原生 WebAudio API** | 零音频文件体积，纯程序化合成各层真实底噪（含 B4 100Hz 变压器嗡声）与气闸泄压声 |
 
 ---
 
-## 2. 推荐目录结构
+## 2. 目录结构（v2.0 规范）
 
 ```text
 /
 ├── AGENTS.md
 ├── README.md
+├── scripts/
+│   ├── generate-terrain.mjs        # 构建期确定性侵蚀高度场与 5 张驱动图预计算脚本
+│   └── capture-shots.mjs           # M1.5b 起：Playwright 自动截取 5 个固定机位图
+├── public/
+│   ├── terrain/                    # 预计算 16-bit 高度图与坡度/曲率/汇流/坡向驱动图
+│   ├── fonts/                      # 按需子集化图纸长仿宋（缺失时回退系统仿宋）
+│   └── assets/crew/                # 可选 10 位专家立绘（缺失时自动矢量工程徽章降级）
 ├── docs/
+│   ├── PROGRESS.md
 │   ├── 01-shelter-engineering-spec.md
 │   ├── 02-visual-and-ux-spec.md
 │   ├── 03-technical-architecture.md
-│   └── 04-codex-execution-roadmap.md
-├── public/
-│   └── assets/
-│       └── crew/                  # 可选 AI 生图专家立绘（缺失时自动矢量降级）
+│   ├── 04-codex-execution-roadmap.md
+│   ├── 05-camera-and-walkthrough-spec.md
+│   ├── 06-site-security-and-lifelines-spec.md
+│   ├── shots/                      # 按里程碑存档的 5 机位签收画廊（M1.5b+）
+│   └── archive/visual-review-m1/   # M1 视觉评审与实测截图历史归档
 ├── src/
 │   ├── main.tsx
 │   ├── App.tsx
+│   ├── styles/
+│   │   ├── tokens.css              # 双语域色板、4 字体角色、4 级字号、线宽与动效令牌
+│   │   ├── hud.css                 # 全屏图签、标高尺、图例、比例尺与坐标读数
+│   │   └── panels.css              # 按需数据表、体检报告、检修与漫游小地图
 │   ├── types/
-│   │   └── shelter.ts             # 全项目唯一权威 TypeScript 类型定义
+│   │   └── shelter.ts              # 全项目唯一权威 TypeScript 类型定义
+│   ├── geometry/                   # 中立纯 TS 几何层（零 React/Three 渲染副作用）
+│   │   ├── coords.ts               # 16×12 网格与标高唯一换算源（供 engine 与 scene 共享）
+│   │   ├── planGeometry.ts         # 二维布尔运算、楼板开孔与多边形辅助
+│   │   └── siteElevations.ts       # 山体基准高程采样与 19 处外围/双平硐几何校验
 │   ├── data/
-│   │   ├── floors.ts              # L2..B4 标高、层高、夹层与骨干竖井常量
-│   │   ├── defaultBlueprint.ts    # 标杆预设完整避难所 JSON 蓝图
-│   │   ├── roomTemplates.ts       # 可替换/扩展房间模块模板库
-│   │   ├── mepNetwork.ts          # 6 大管网与物流拓扑生成/定义数据
-│   │   ├── scenarios.ts           # 4 种外部情景工况参数
-│   │   └── crew.ts                # 10 位专家主副职与责任区映射
-│   ├── engine/                    # 纯 TypeScript，零 React / Three 依赖
-│   │   ├── feasibility.ts         # 电/热/水/粮/新风 5 大定量自持力计算
-│   │   ├── compliance.ts          # 通道可达性、强弱电隔离、N+1 冗余、双逃生校验
-│   │   ├── maintenance.ts         # 单节点隔离检修、备用回路接管与维修路径求解
-│   │   └── __tests__/             # Vitest 工程规则单元测试
+│   │   ├── floors.ts               # L2..B4 标高、16×12 网格、扩容核心筒与双平硐定义
+│   │   ├── defaultBlueprint.ts     # v2.0 垂直干湿对齐完整避难所蓝图（含机位锚点）
+│   │   ├── siteFacilities.ts       # 19 处“藏于科研”外围设施与三条出路元数据
+│   │   ├── roomTemplates.ts        # 可替换房间模块库
+│   │   ├── mepNetwork.ts           # 6 大管网拓扑与 GB 7231 识别信息
+│   │   ├── scenarios.ts            # 4 种情景参数、3D LUT 配置与 30 秒封锁时间线
+│   │   └── crew.ts                 # 10 位专家主副职、居住舱与巡检路线
+│   ├── engine/                     # 纯 TypeScript 工程与物理引擎（零 React/Three 依赖）
+│   │   ├── feasibility.ts          # 电、核堆堆侧废热/岩体温升、水、分层农学、氧气、新风
+│   │   ├── compliance.ts           # 干湿垂直对齐、核心筒/楼梯合规、储能排烟、CHP 联锁、大件可达
+│   │   ├── maintenance.ts          # 模拟隔离检修、备用回路接管、阀门下游影响与搬运路径
+│   │   └── __tests__/              # 完整引擎物理与违规检测 Vitest 单测
 │   ├── store/
-│   │   └── useShelterStore.ts     # 视图模式、选中楼层、MEP 图层、检修隔离态、蓝图编辑态
+│   │   └── useShelterStore.ts      # 相机状态、剖切面/盒、楼层、时间轴、工况、MEP、检修、编辑态
 │   ├── scene/
-│   │   ├── ShelterCanvas.tsx      # Canvas、光照、阴影、环境与相机控制器
-│   │   ├── TerrainMountain.tsx    # 半山腰等高线阶梯地形 + 剖切/X光支持
-│   │   ├── SurfaceStation.tsx     # L1/L2 科研观测站外观、光伏翼与装甲封锁动画
-│   │   ├── UndergroundShell.tsx   # B1-B4 岩层缓冲带、结构柱网、外围防渗沟、核心竖井
-│   │   ├── FloorSliceGroup.tsx    # 单层楼板、隔墙、走廊、夹层显隐控制
-│   │   ├── rooms/                 # 按功能拆分的精致程序化 3D 房间与设备组件
-│   │   │   ├── RoomRenderer.tsx   # 根据 room.kind 分发渲染 + 悬停/选中/报错高亮
-│   │   │   ├── PowerRooms.tsx     # B4 微核堆、储能配电、地热、三防新风、排水
-│   │   │   ├── BioWaterRooms.tsx  # B3 水培、鱼菜菌菇、冷库、食品加工、净水站
-│   │   │   ├── LivingRooms.tsx    # B2 居住舱、餐厅、图书、健身、医务、中控
-│   │   │   └── LogisticsRooms.tsx # B1 洗消、物流 AGV、装备库、立体仓库、CNC 工坊
-│   │   ├── mep/
-│   │   │   ├── MepOverlay.tsx     # 6 大管网 3D 渲染、法兰/桥架与微流光动画
-│   │   │   └── MaintenancePath.tsx# 隔离检修高亮 + B1 仓库至故障点搬运路径可视化
-│   │   ├── ambiance/
-│   │   │   ├── WeatherEffects.tsx # 暴雪、生化孢子、核沉降尘粒与天光过渡
-│   │   │   └── CrewPawns.tsx      # 10 位专家极简比例尺小人与慢速巡视动画
-│   │   └── utils/
-│   │       └── coords.ts          # 网格 (gx, gz, floorId) <-> Three.js (x, y, z) 唯一换算源
+│   │   ├── ShelterCanvas.tsx       # WebGL2 Canvas、AgX、N8AO、CSM、4 档质量分级、PMREM(0.04)
+│   │   ├── materials/
+│   │   │   ├── pbrLibrary.ts       # 10 种程序化 PBR 材质 + 全局倒角工具与 GLSL 噪声库
+│   │   │   └── sectionShader.ts    # 世界坐标地质剖切图例着色器（岩性/混凝土/节理/水位）
+│   │   ├── terrain/
+│   │   │   ├── MultiScaleMountain.tsx  # 远景 10km / 主山 2-3km / 场地 300m / 剖切体 80m
+│   │   │   ├── SiteFacilities.tsx      # 19 处外围设施、进站路、防雪崩廊道、双平硐与索道
+│   │   │   └── Vegetation.tsx          # 五驱动图分带高山植被与倒石堆（InstancedMesh + LOD）
+│   │   ├── atmosphere/
+│   │   │   ├── PhysicalSky.tsx         # 24h 物理天空、空气透视雾与山谷逆温云海
+│   │   │   └── WeatherAndLockdown.tsx  # 暴雪/孢子/核尘粒子与 30 秒封锁编排驱动
+│   │   ├── camera/
+│   │   │   ├── CameraStateMachine.tsx  # 6 状态相机、投影变形、竖井下潜、掀顶落地与深链接
+│   │   │   ├── WalkthroughRig.tsx      # three-mesh-bvh 胶囊碰撞、点地移动、气闸长按压差
+│   │   │   ├── SectionBoxTool.tsx      # 6 面拖拽剖切盒（吸附轴线与墙线）
+│   │   │   └── MeasureTool.tsx         # M6：两点顶点吸附毫米级测距
+│   │   ├── building/
+│   │   │   ├── SurfaceStation.tsx      # L1/L2 科研站、可闭合装甲百叶、光伏翼与光纤采光器
+│   │   │   ├── UndergroundShell.tsx    # 6m 复合分层防护层、扩容核心筒、双平硐、超大层号
+│   │   │   └── FloorSliceGroup.tsx     # 单层楼板、隔墙、B2↔B3 挑空洞口、3.6m 局部抬高
+│   │   ├── rooms/                  # M2：6 层高精细倒角程序化房间与设备库
+│   │   ├── mep/                    # M3：6 大管网、GB 7231 色环、Alt X 光透镜、水流/阀门追踪
+│   │   └── ambiance/               # M5：10 人巡视小人、AGV、24h 节律照明与 WebAudio 声景
 │   └── ui/
-│       ├── TopBar.tsx             # 情景切换、人数调节、视图/相机预设、编辑模式
-│       ├── FloorSlicer.tsx        # 左侧楼层剥离条 + 夹层开关
-│       ├── MepLayerDock.tsx       # 左下 6 大工程图层开关
-│       ├── InspectorDrawer.tsx    # 右侧 3 标签抽屉（体检 / 详情检修 / 专家团）
-│       └── BlueprintModal.tsx     # 蓝图 JSON 导出、导入与恢复默认预设
-└── package.json
+│       ├── TitleBlock.tsx          # 左上工程图签（站名 ARS-01、图名、投影焦距、基准标高、时刻）
+│       ├── ViewTabs.tsx            # 右上纯文字视图切换（2px 下划线 + 键位）
+│       ├── ElevationRuler.tsx      # 左侧真实比例标高尺（6m 岩层填充 + FL+1.200 红游标）
+│       ├── SystemLegend.tsx        # 左下情境线型图例与夹层勾选（M）
+│       ├── ReadoutFooter.tsx       # 右下光标坐标/标高/轴号、分段比例尺与极简指北针
+│       ├── DataSheetDrawer.tsx     # 右侧按需 1px 细线数据表（房间/体检/专家/检修）
+│       └── TimeAndScenarioBar.tsx  # 紧凑 24h 时间轴与 4 工况切换（嵌套于图签/次级条）
+└── tests/                          # 几何、坐标、高程与蓝图不变量测试
 ```
 
 ---
 
-## 3. 核心数据模型（`src/types/shelter.ts` 概要）
+## 3. 核心 TypeScript 数据模型要点（`src/types/shelter.ts`）
 
-M1 的 `defaultBlueprint.rooms` 包含工程清单中的 26 个房间，设备实例在 M2 填充。所有网格换算、平面边界、标高和剖面尺寸均从 `src/scene/utils/coords.ts` 取得。地形生成位于 `src/scene/terrainGeometry.ts`，按各高度的平面轮廓做布尔裁切，生成房体空腔、平硐、道路路槽与剖面。相同的平面运算用于楼板和缓冲层的竖井开孔。
-
-场景按部件批量实例化，`src/scene/utils/Model.tsx` 管理可见性过渡和 GPU 资源释放。视口按需渲染，轨道控制器或场景过渡驱动后续帧。相机、标注、指北针和比例尺均读取实际正交投影。回归测试位于 `tests/`，运行 `npm run verify` 可执行与 CI 相同的类型检查、测试与生产构建。
-
-为确保 Phase 1 展示与 Phase 2 模拟无缝衔接，所有状态与蓝图均基于可序列化的纯数据接口：
+在 `v1.0` 基础上扩充以下关键字段，确保 `M1.5a` 至 `M6` 类型一次成型：
 
 ```ts
-export type FloorId = 'L2' | 'L1' | 'B1' | 'B2' | 'B3' | 'B4';
+export type CameraStateId =
+  | 'site'        // 现场透视 50-85mm
+  | 'section'     // 正交剖面（可切透视）
+  | 'sectionBox'  // 透视 35mm 六面剖切盒
+  | 'plan'        // 正交平面 FL+1.200
+  | 'floorOrbit'  // 单层透视 35mm 俯瞰
+  | 'walkthrough' // 漫游 60° FOV / 1.65m 眼高
 
-export type MepLayerId =
-  | 'power_hv'
-  | 'comms_lv'
-  | 'water'
-  | 'hvac'
-  | 'logistics'
-  | 'structure';
+export type WetDryZone = 'wet' | 'semi_wet' | 'dry' | 'strict_dry_electrical'
 
-export type ScenarioId = 'normal' | 'cryo' | 'bio' | 'fallout';
-
-export type ViewMode = 'exterior' | 'cutaway' | 'xray';
-
-export interface GridBounds {
-  gx0: number;
-  gz0: number;
-  gx1: number;
-  gz1: number;
+export interface RoomCameraAnchor {
+  id: string
+  label: string
+  position: [number, number, number] // 相对房间地板原点的眼位偏移
+  lookAt: [number, number, number]
+  fov?: number
 }
 
 export interface EquipmentUnit {
-  id: string;
-  name: string;
-  category: 'power' | 'thermal' | 'water' | 'hvac' | 'agriculture' | 'manufacturing' | 'medical' | 'comms' | 'storage';
-  redundantGroup?: string;        // 同组设备构成 N+1 并联冗余
-  powerKw: number;                // 正为耗电，负为发电
-  heatKw: number;                 // 产热（正）或散热能力（负）
-  moduleSizeM: [number, number, number]; // [宽, 高, 深]，用于校验能否过走廊与货梯
-  weightKg: number;               // 单模块最大拆换重量（需 <= 3000kg 货梯额定值）
-  serviceIntervalDays: number;
-  requiredSpareType: 'structural' | 'precision_filter' | 'electronic' | 'consumable';
-  primaryRoleId: string;
-  backupRoleId: string;
+  id: string
+  tagCode: string                    // 位号牌，如 "P-301A" / "V-B3-012"
+  name: string
+  category:
+    | 'power' | 'thermal' | 'water' | 'oxygen'
+    | 'hvac' | 'agriculture' | 'manufacturing'
+    | 'medical' | 'comms' | 'storage' | 'security'
+  redundantGroup?: string
+  powerKw: number                    // 正耗电，负发电
+  thermalEfficiency?: number         // 发电机组热电效率（如 0.30），用于真实推导堆侧废热
+  heatRejectionKw?: number           // 散热设备额定排热能力（kWth）
+  o2RateKgPerDay?: number            // 正产氧（电解/光合），负耗氧
+  requiresExternalExhaust?: boolean  // 如备用 CHP，在密闭工况下自动闭锁
+  hasRunawayVent?: boolean           // 储能电池柜独立热失控排烟校验标志
+  moduleSizeM: [number, number, number]
+  weightKg: number
+  serviceIntervalDays: number
+  requiredSpareType: 'structural' | 'precision_filter' | 'electronic' | 'consumable'
+  primaryRoleId: string
+  backupRoleId: string
 }
 
 export interface RoomInstance {
-  id: string;
-  templateId: string;
-  name: string;
-  floorId: FloorId;
-  bounds: GridBounds;
-  replaceable: boolean;           // 是否允许在 Phase 1 编辑态中替换
-  zonePressure: 'high_pos' | 'normal_pos' | 'neutral' | 'neg_isolation';
-  isDryElectricalZone?: boolean;  // true 时严禁给排水管线正上方穿越
-  requiresHoistRail?: boolean;    // true 时校验顶部单轨吊与货梯直通
-  equipment: EquipmentUnit[];
-}
-
-export interface MepSegment {
-  id: string;
-  layer: MepLayerId;
-  floorId: FloorId | 'SHAFT';
-  from: [number, number, number]; // 精确世界坐标（走竖井或夹层 Y 标高）
-  to: [number, number, number];
-  radius: number;
-  flowDirection: 1 | -1 | 0;
-  isBackupBus?: boolean;          // 标识 A/B 冗余或备用回路
-  linkedRoomIds: string[];
-  isolatableValveOrBreakerId?: string;
-}
-
-export interface DiagnosticIssue {
-  id: string;
-  severity: 'pass' | 'warn' | 'fail';
-  category: 'power' | 'thermal' | 'water' | 'food' | 'hvac' | 'maintainability' | 'safety';
-  title: string;
-  detail: string;
-  targetFloorId?: FloorId;
-  targetRoomId?: string;
-  targetSegmentId?: string;
+  id: string
+  templateId: string
+  code: string                       // 图纸编号，如 "B3-04"
+  name: string
+  floorId: FloorId
+  bounds: GridBounds
+  clearHeightOverride?: number       // 如 b2_commons 与 b2_library 局部抬高至 3.6m
+  wetDryZone: WetDryZone
+  replaceable: boolean
+  adjustable?: boolean
+  zonePressure: 'high_pos' | 'normal_pos' | 'neutral' | 'neg_isolation'
+  isDryElectricalZone?: boolean
+  requiresHoistRail?: boolean
+  atriumVoidToBelow?: GridBounds     // 如 b2_commons 4×6m 防火玻璃通高洞口
+  cameraAnchors: RoomCameraAnchor[]
+  equipment: EquipmentUnit[]
 }
 ```
 
 ---
 
-## 4. 关键工程实现要点（给 Codex 的防坑备忘）
+## 4. 运行时性能预算与工程防坑清单
 
-1. **单一坐标换算源（`src/scene/utils/coords.ts`）**：
-   - 严禁在各个组件里手算 `(gx - 7) * 2` 或写死 Y 高度；所有房间、走廊、竖井、设备、管网点位必须调用统一的 `gridToWorld()` 和 `getFloorElevation(floorId)` 工具函数，杜绝楼层错位或管道悬浮。
-2. **管网拓扑自动适配房间替换**：
-   - 6 大主干管网（竖井立管 + 走廊顶部主干环网）相对固定；房间支管根据 `RoomInstance` 的 `bounds` 与属性（需电/需水/需风/需吊轨）程序化接入最近主干接口。这样当用户在编辑态替换了某个可替换房间时，新房间的支管与体检结论会自动更新，不需要手工重画整张管网图。
-3. **相机平滑聚焦与楼层联动**：
-   - 当用户点击体检报告里的某条警告、或点击某位专家、或点击“模拟隔离检修”时，如果目标在 B4 而当前只显示 B1，系统应自动将楼层切片切到对应楼层（或切入 X 光视图），并用阻尼插值平滑移动 `OrbitControls` 的 `target` 与相机位置。
-4. **帧率与交互流畅度护栏**：
-   - 使用 Zustand 的原子选择器（`useShelterStore(s => s.activeLayers)`）避免全场景重渲染；
-   - 动画（管网光点、风轮、AGV、小人巡视、暴雪粒子）全部在 R3F `useFrame` 中直接更新 `ref` 或 `InstancedMesh` 矩阵，**严禁在 `useFrame` 中调用 `setState`**。
-   - 室内照明优先用材质自发光 + 烘焙感柔和环境光，全场景实时投影灯严格控制在 1–2 盏主光源以内。
-5. **Phase 2 演进预留**：
-   - 蓝图全部以可导出/导入的纯 JSON 存储；设备参数已预留 `serviceIntervalDays`、`requiredSpareType`、`primaryRoleId`、`backupRoleId`——将来引入时间轴推进、真实磨损、库存消耗和专家自主寻路抢修时，无需改动建筑与 3D 渲染底座。
+### 4.1 性能预算（1440p，M1/M2 级笔记本）
+- **帧率**：稳定 `60 FPS`，`DPR` 上限 `1.5`；
+- **绘制调用**：`≤ 400`（重复构件强制 `InstancedMesh` / `ModelBuilder` 合批）；
+- **三角形总量**：`≤ 3–4 M`（远景山体与植被按距离做 LOD 与视锥裁剪）；
+- **实时阴影**：太阳 CSM `3` 级 + 每层实时局部投影灯 `≤ 1` 盏（其余室内靠自发光、面光近似与顶点烘焙 AO）；
+- **纹理显存**：`≤ 400 MB`；
+- **首屏体验**：`3 s` 内出现绘图仪描线与图签，`8 s` 内材质与完整光照就绪。
+
+### 4.2 强制修复清单（自 M1.5a 立即生效）
+1. **`vite.config.ts` 测试包含路径**：改为 `test: { include: ['tests/**/*.test.ts', 'src/**/*.test.ts'] }`，彻底杜绝引擎测试被静默跳过。
+2. **中立坐标层**：`coords.ts` 迁出 `src/scene/utils/` 至 `src/geometry/coords.ts`，确保 `src/engine/` 零 Three.js 渲染依赖。
+3. **消除 PMREM 控制台警告**：`PMREMGenerator.fromScene(studio, 0.04)`（将 `0.06` 修正为 `0.04`）。
+4. **清理冗余依赖**：从 `package.json` 与 `vite.config.ts` 移除未使用的 `@tailwindcss/vite` / `tailwindcss`，全面采用 `src/styles/` 精密令牌样式。
+5. **GPU 资源释放与零 `useFrame setState`**：严禁在 `useFrame` 中触发 React state 更新；所有材质、贴图、BVH、Geometry 卸载时严格 `dispose()`。
