@@ -2,11 +2,13 @@ import { OrbitControls } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
 import type { ComponentRef, RefObject } from 'react'
-import { MathUtils, OrthographicCamera, Vector3 } from 'three'
+import { MathUtils, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three'
 import { FLOORS, UNDERGROUND } from '../data/floors'
 import type { Point3 } from '../types/shelter'
 import { useShelterStore } from '../store/useShelterStore'
-import { buffer, footprint, getFloorElevation, undergroundPlan } from './utils/coords'
+import { buffer, footprint, getFloorElevation, undergroundPlan } from '../geometry/coords'
+import { siteFacilities, facilityAnchor } from '../data/siteFacilities'
+import type { TerrainAtlas } from '../geometry/siteElevations'
 import { reduceMotion } from './utils/Model'
 
 export interface Instruments {
@@ -19,9 +21,9 @@ export interface Instruments {
 }
 
 const views = {
-  panorama: { target: [0, -6.9, -2], offset: [-48, 32, 70], width: 78, height: 58.5 },
-  surface: { target: [-1, 4, -1], offset: [-31, 19, 50], width: 47, height: 30 },
-  section: { target: [0, -10, -1], offset: [-22, 12, 56], width: 52, height: 36 },
+  panorama: { target: [65, -60, 152], offset: [-0.38, 0.63, 1], width: 780, height: 490 },
+  surface: { target: [0, 13, 0], offset: [-120, 16, -40], width: 77, height: 47 },
+  section: { target: [0, -10, -2], offset: [0, 0.0001, 1], width: 71, height: 45 },
 } satisfies Record<string, { target: Point3; offset: Point3; width: number; height: number }>
 const station = footprint(FLOORS.L2.bounds)
 const stationAnchor = new Vector3(station.x1 - 0.8, getFloorElevation('L2') + FLOORS.L2.pitch, station.z1 - 1)
@@ -31,13 +33,14 @@ const floorAnchors = UNDERGROUND.map(
 )
 const projected = new Vector3()
 
-export function CameraRig({ instruments }: { instruments: Instruments }) {
-  const camera = useThree((s) => s.camera) as OrthographicCamera
+export function CameraRig({ instruments, atlas }: { instruments: Instruments; atlas: TerrainAtlas }) {
+  const camera = useThree((s) => s.camera) as OrthographicCamera | PerspectiveCamera
   const size = useThree((s) => s.size),
     invalidate = useThree((s) => s.invalidate)
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const flight = useRef<{ position: Vector3; target: Vector3; zoom: number } | null>(null)
-  const first = useRef(true)
+  const lastCamera = useRef<typeof camera | null>(null)
+  const facilityId = useShelterStore((s) => s.facilityId)
   const floor = useShelterStore((s) => s.floor),
     preset = useShelterStore((s) => s.preset)
   const revision = useShelterStore((s) => s.cameraRevision),
@@ -46,23 +49,50 @@ export function CameraRig({ instruments }: { instruments: Instruments }) {
   useLayoutEffect(() => {
     const c = controls.current
     if (!c || !size.width || !size.height) return
-    const v =
+    let v =
       floor === 'ALL'
         ? views[preset]
         : {
             target: [-0.5, getFloorElevation(floor) + 0.4, -0.3] as Point3,
             offset: [-18, 40, 41] as Point3,
             width: 43,
-            height: 34,
+            height: 38,
           }
+    const facility = siteFacilities.find((f) => f.id === facilityId)
+    if (facility) {
+      const anchor = facilityAnchor(facility, atlas)
+      const span =
+        facility.kind === 'eastBore'
+          ? 330
+          : facility.kind === 'station'
+            ? 70
+            : facility.kind === 'road'
+              ? 205
+              : facility.kind === 'solar' || facility.kind === 'helipad'
+                ? 49
+                : 30
+      v = {
+        target: [anchor[0], anchor[1] + 1.4, anchor[2]],
+        offset: facility.kind === 'eastPortal' ? [1, 0.32, 0.45] : [-0.62, 0.54, 0.92],
+        width: span,
+        height: span * 0.6,
+      }
+    } else if (mode === 'xray' && floor === 'ALL' && preset === 'panorama') {
+      v = { target: [109, -13, 0], offset: [0.23, 0.69, 1], width: 390, height: 130 }
+    }
     const mobile = size.width < 700
-    const rail = mobile ? 24 : size.width < 1000 ? 145 : 205
-    const zoom = Math.max(
-      1.5,
-      Math.min((size.width - rail) / v.width, (size.height - (mobile ? 120 : 62)) / v.height),
+    const rail = mobile ? 28 : size.width < 1000 ? 150 : 190
+    const pixelsPerMetre = Math.min(
+      (size.width - rail) / v.width,
+      (size.height - (mobile ? 145 : 75)) / v.height,
     )
-    const target = new Vector3(...v.target),
-      position = new Vector3(...v.offset).add(target)
+    const perspective = camera instanceof PerspectiveCamera
+    const zoom = perspective ? 1 : Math.max(0.075, pixelsPerMetre)
+    const distance = perspective
+      ? size.height / (2 * pixelsPerMetre * Math.tan(MathUtils.degToRad(camera.fov / 2)))
+      : Math.max(100, v.width * 1.45)
+    const target = new Vector3(...v.target)
+    const position = new Vector3(...v.offset).normalize().multiplyScalar(distance).add(target)
     camera.setViewOffset(
       size.width,
       size.height,
@@ -71,7 +101,7 @@ export function CameraRig({ instruments }: { instruments: Instruments }) {
       size.width,
       size.height,
     )
-    if (first.current || reduceMotion()) {
+    if (lastCamera.current !== camera || reduceMotion()) {
       camera.position.copy(position)
       c.target.copy(target)
       camera.zoom = zoom
@@ -79,9 +109,9 @@ export function CameraRig({ instruments }: { instruments: Instruments }) {
       c.update()
       flight.current = null
     } else flight.current = { target, position, zoom }
-    first.current = false
+    lastCamera.current = camera
     invalidate()
-  }, [camera, invalidate, size.width, size.height, floor, preset, revision])
+  }, [camera, invalidate, size.width, size.height, floor, preset, revision, facilityId, atlas, mode])
 
   useFrame((_, delta) => {
     const c = controls.current
@@ -139,23 +169,30 @@ export function CameraRig({ instruments }: { instruments: Instruments }) {
       'transform',
       'rotate(' + MathUtils.radToDeg(c.getAzimuthalAngle()) + ' 18 18)',
     )
-    const length = camera.zoom * 5 < 85 ? 5 : 2
-    if (instruments.ruler.current)
-      instruments.ruler.current.style.width = (length * camera.zoom).toFixed(1) + 'px'
+    const px =
+      camera instanceof PerspectiveCamera
+        ? (size.height * camera.zoom) /
+          (2 * camera.position.distanceTo(c.target) * Math.tan(MathUtils.degToRad(camera.fov / 2)))
+        : camera.zoom
+    const length = [1, 2, 5, 10, 20, 50, 100, 200, 500].filter((v) => v * px < 100).at(-1) ?? 1
+    if (instruments.ruler.current) instruments.ruler.current.style.width = (length * px).toFixed(1) + 'px'
     if (instruments.rulerText.current) instruments.rulerText.current.textContent = length + ' m'
   })
   return (
     <OrbitControls
       ref={controls}
+      camera={camera}
       makeDefault
       enableDamping
       dampingFactor={0.13}
       rotateSpeed={0.68}
       zoomSpeed={0.88}
-      minZoom={1.5}
+      minZoom={0.06}
+      minDistance={3}
+      maxDistance={10000}
       maxZoom={95}
       minPolarAngle={0.11}
-      maxPolarAngle={Math.PI * 0.495}
+      maxPolarAngle={Math.PI * 0.5}
       onStart={() => {
         flight.current = null
       }}

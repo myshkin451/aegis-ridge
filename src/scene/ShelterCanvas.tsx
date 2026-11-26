@@ -1,4 +1,4 @@
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useLoader, useThree } from '@react-three/fiber'
 import { Component, useLayoutEffect } from 'react'
 import type { ReactNode } from 'react'
 import { ACESFilmicToneMapping, PCFSoftShadowMap, PMREMGenerator } from 'three'
@@ -7,23 +7,33 @@ import { CameraRig } from './CameraRig'
 import type { Instruments } from './CameraRig'
 import { SurfaceStation } from './SurfaceStation'
 import { UndergroundShell } from './UndergroundShell'
-import { TerrainMountain } from './TerrainMountain'
-import { BED } from './terrainGeometry'
-import { ModelBuilder } from './utils/modelBuilder'
-import { Model } from './utils/Model'
+import { MultiScaleMountain } from './terrain/MultiScaleMountain'
+import { SiteFacilities, TunnelModels } from './terrain/SiteFacilities'
+import { AtlasLoader } from './terrain/loadAtlas'
+import { BuildingSection } from './BuildingSection'
+import { useShelterStore } from '../store/useShelterStore'
+import { PerspectiveCamera } from '@react-three/drei'
 
-function surveyGrid() {
-  const m = new ModelBuilder(),
-    y = BED - 0.28
-  for (let i = -65; i <= 65; i += 5)
-    for (let k = -65; k <= 65; k += 5) {
-      const dist = Math.hypot(i / 67, k / 53)
-      if (dist > 1) continue
-      const length = 0.14 + 0.18 * (1 - dist)
-      m.line([i - length, y, k], [i + length, y, k], '#394650')
-      m.line([i, y, k - length], [i, y, k + length], '#394650')
-    }
-  return m
+function SurveyScene({ instruments }: { instruments: Instruments }) {
+  const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
+  const mode = useShelterStore((s) => s.mode),
+    floor = useShelterStore((s) => s.floor)
+  const exterior = mode === 'exterior' && floor === 'ALL'
+  return (
+    <>
+      <color attach="background" args={[exterior ? '#c7d4da' : mode === 'xray' ? '#263438' : '#e5e8e1']} />
+      {exterior && <fogExp2 attach="fog" args={['#c2ced5', 0.00039]} />}
+      {exterior && <PerspectiveCamera makeDefault fov={25} near={0.35} far={15000} />}
+      <MultiScaleMountain atlas={atlas} />
+      <BuildingSection>
+        <UndergroundShell />
+        <SurfaceStation />
+        <TunnelModels />
+      </BuildingSection>
+      <SiteFacilities atlas={atlas} />
+      <CameraRig instruments={instruments} atlas={atlas} />
+    </>
+  )
 }
 
 function GraphicsMessage() {
@@ -42,7 +52,7 @@ function StudioReflections() {
   useLayoutEffect(() => {
     const studio = new RoomEnvironment(),
       generator = new PMREMGenerator(gl)
-    const target = generator.fromScene(studio, 0.06)
+    const target = generator.fromScene(studio, 0.04)
     studio.dispose()
     generator.dispose()
     const previous = scene.environment,
@@ -75,16 +85,18 @@ export function ShelterCanvas({ instruments }: { instruments: Instruments }) {
       <Canvas
         orthographic
         frameloop="demand"
-        dpr={[1, 1.65]}
+        dpr={[1, 1.5]}
         shadows={{ type: PCFSoftShadowMap }}
         onCreated={({ gl }) => {
+          gl.localClippingEnabled = true
           gl.shadowMap.autoUpdate = false
           gl.shadowMap.needsUpdate = true
         }}
-        camera={{ position: [-48, 26, 68], near: 0.1, far: 330, zoom: 10 }}
+        camera={{ position: [-48, 26, 68], near: 0.1, far: 15000, zoom: 10 }}
         gl={{
           antialias: true,
-          alpha: true,
+          alpha: false,
+          stencil: true,
           powerPreference: 'high-performance',
           toneMapping: ACESFilmicToneMapping,
           toneMappingExposure: 1.06,
@@ -92,11 +104,11 @@ export function ShelterCanvas({ instruments }: { instruments: Instruments }) {
         fallback={<GraphicsMessage />}
       >
         <StudioReflections />
-        <hemisphereLight args={['#d6e5f4', '#767977', 1.1]} />
+        <hemisphereLight args={['#d6e5f4', '#6b716b', 0.86]} />
         <directionalLight
           position={[-39, 52, 32]}
           color="#fff1db"
-          intensity={2.4}
+          intensity={2.05}
           castShadow
           shadow-mapSize={[2048, 2048]}
           shadow-camera-left={-48}
@@ -108,16 +120,8 @@ export function ShelterCanvas({ instruments }: { instruments: Instruments }) {
           shadow-normalBias={0.035}
           shadow-bias={-0.00018}
         />
-        <directionalLight position={[24, 20, -34]} intensity={0.95} color="#c9e0f2" />
-        <mesh rotation-x={-Math.PI / 2} position-y={BED - 0.3} receiveShadow>
-          <planeGeometry args={[300, 300]} />
-          <shadowMaterial transparent opacity={0.27} depthWrite={false} />
-        </mesh>
-        <Model build={surveyGrid} />
-        <TerrainMountain />
-        <UndergroundShell />
-        <SurfaceStation />
-        <CameraRig instruments={instruments} />
+        <directionalLight position={[24, 20, -34]} intensity={0.5} color="#c9e0f2" />
+        <SurveyScene instruments={instruments} />
       </Canvas>
     </GraphicsBoundary>
   )

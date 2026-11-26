@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Group, MathUtils } from 'three'
+import { attachCut, useBuildingCut } from '../BuildingSection'
+import type { CutMaterial } from '../materials/sectionShader'
 import type { BuiltModel, ModelBuilder } from './modelBuilder'
 
 export function reduceMotion() {
@@ -31,7 +33,16 @@ function setOpacity(model: BuiltModel, amount: number) {
   return shadowChanged
 }
 
-export function Model({ build, opacity = 1 }: { build: () => ModelBuilder; opacity?: number }) {
+export function Model({
+  build,
+  opacity = 1,
+  cutMaterial = 'structure',
+}: {
+  build: () => ModelBuilder
+  opacity?: number
+  cutMaterial?: CutMaterial
+}) {
+  const cut = useBuildingCut()
   const mount = useRef<Group>(null)
   const model = useRef<BuiltModel | null>(null)
   const amount = useRef(opacity)
@@ -53,6 +64,9 @@ export function Model({ build, opacity = 1 }: { build: () => ModelBuilder; opaci
       gl.shadowMap.needsUpdate = true
     }
   }, [build, invalidate, gl])
+  useLayoutEffect(() => {
+    if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
+  }, [cut, cutMaterial, build])
   useLayoutEffect(() => {
     invalidate()
   }, [opacity, invalidate])

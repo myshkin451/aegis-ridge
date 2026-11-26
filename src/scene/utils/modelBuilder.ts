@@ -19,15 +19,17 @@ import {
 } from 'three'
 import type { Material, MeshStandardMaterialParameters, Object3D } from 'three'
 import type { Point3 } from '../../types/shelter'
+import { firGeometry, needleMaterial } from '../terrain/firGeometry'
 import { graniteMaterial } from './granite'
 
-type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud'
-type Finish = 'stone' | 'steel' | 'wood' | 'glass' | 'foliage' | 'lamp' | 'solar'
+type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud' | 'fir' | 'distantFir'
+type Finish = 'stone' | 'steel' | 'wood' | 'glass' | 'foliage' | 'needles' | 'lamp' | 'solar'
 const finishes: Record<Finish, MeshStandardMaterialParameters> = {
   stone: { roughness: 0.92, metalness: 0.05 },
   steel: { roughness: 0.48, metalness: 0.49 },
   wood: { roughness: 0.83 },
   glass: { roughness: 0.12, metalness: 0.18, transparent: true, opacity: 0.28, depthWrite: false },
+  needles: { roughness: 1 },
   foliage: { roughness: 1, flatShading: true },
   lamp: { roughness: 0.35, emissive: '#ffdc9a', emissiveIntensity: 0.6 },
   solar: { roughness: 0.29, metalness: 0.46 },
@@ -143,6 +145,10 @@ export class ModelBuilder {
           case 'rock':
             geom = new DodecahedronGeometry(0.5)
             break
+          case 'fir':
+          case 'distantFir':
+            geom = firGeometry(shape === 'distantFir')
+            break
           case 'bud':
             geom = new IcosahedronGeometry(0.5, 0)
             break
@@ -152,7 +158,11 @@ export class ModelBuilder {
       }
       let mat = paints.get(finish)
       if (!mat) {
-        mat = new MeshStandardMaterial(finishes[finish])
+        if (finish === 'needles') {
+          const needles = needleMaterial()
+          textures.push(needles.map)
+          mat = needles.material
+        } else mat = new MeshStandardMaterial(finishes[finish])
         paints.set(finish, mat)
         materials.add(mat)
       }

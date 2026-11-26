@@ -27,10 +27,14 @@
 ## 本地运行与校验
 
 ```bash
-npm install
-npm run dev       # 本地开发预览
+npm ci
+npm run dev       # 生成地形并启动本地开发预览
 npm run verify    # 一键执行 typecheck + Vitest 单元测试 + 生产构建
 ```
+
+在“视角”菜单中选择“场址总览”可看盘山公路，选择外围设施可定位到各自的测点。“地质半剖”中的滑杆沿南北方向移动切面，“X 光透视”可追踪从 B1、B2 出发的两条平硐。楼层按钮可以单独查看 B2 的布局与夹层。
+
+地形由固定种子在构建期生成。`npm run terrain` 可单独重建测区与五个驱动通道。工程坐标以 `src/geometry/coords.ts` 为准，19 项设施登记在 `src/data/siteFacilities.ts`。M1.5a 的浏览器实测图和签收状态见[进度账本](./docs/PROGRESS.md)。
 
 ---
 

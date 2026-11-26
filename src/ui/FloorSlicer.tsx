@@ -1,4 +1,3 @@
-import { Layers3, PanelTop } from 'lucide-react'
 import { FLOORS, FLOOR_ORDER } from '../data/floors'
 import { useShelterStore } from '../store/useShelterStore'
 
@@ -10,15 +9,10 @@ export function FloorSlicer() {
   return (
     <aside className="slicer" aria-label="楼层剥离">
       <div className="rail-caption">
-        <Layers3 size={14} />
         <h2>楼层剥离</h2>
       </div>
       <div className="floor-buttons">
-        <button
-          className="floor-row all-floors"
-          aria-pressed={selected === 'ALL'}
-          onClick={() => select('ALL')}
-        >
+        <button className="floor-row" aria-pressed={selected === 'ALL'} onClick={() => select('ALL')}>
           <b>ALL</b>
           <span>全部楼层</span>
         </button>
@@ -35,19 +29,10 @@ export function FloorSlicer() {
           </button>
         ))}
       </div>
-      <button
-        className="plenum-control"
-        role="switch"
-        aria-checked={plenum}
-        aria-label="显示机电夹层"
-        onClick={toggle}
-      >
-        <PanelTop size={14} />
-        <span>机电夹层</span>
-        <i className="switch-track">
-          <i />
-        </i>
-      </button>
+      <label className="plenum-control">
+        <input type="checkbox" checked={plenum} onChange={toggle} aria-label="显示机电夹层" />
+        机电夹层
+      </label>
     </aside>
   )
 }

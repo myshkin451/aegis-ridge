@@ -1,21 +1,6 @@
-import polygonClipping from 'polygon-clipping'
-import type { MultiPolygon, Polygon, Ring } from 'polygon-clipping'
+import type { MultiPolygon } from 'polygon-clipping'
 import { ShapeUtils, Vector2 } from 'three'
 import type { ModelBuilder, Tint } from './modelBuilder'
-
-export type { MultiPolygon, Polygon, Ring }
-export const { difference, intersection, union } = polygonClipping
-export function rectangle(x0: number, x1: number, z0: number, z1: number): Polygon {
-  return [
-    [
-      [x0, z0],
-      [x1, z0],
-      [x1, z1],
-      [x0, z1],
-      [x0, z0],
-    ],
-  ]
-}
 
 export function lid(m: ModelBuilder, polygons: MultiPolygon, y: number, color: Tint, underside = false) {
   for (const polygon of polygons) {
@@ -60,14 +45,4 @@ export function plate(
   lid(m, plan, top, face)
   lid(m, plan, bottom, edge, true)
   walls(m, plan, bottom, top, edge)
-}
-
-export function contains(ring: Ring, x: number, z: number) {
-  let inside = false
-  for (let i = 1; i < ring.length; i++) {
-    const [ax, az] = ring[i - 1],
-      [bx, bz] = ring[i]
-    if (az > z !== bz > z && x < ((bx - ax) * (z - az)) / (bz - az) + ax) inside = !inside
-  }
-  return inside
 }

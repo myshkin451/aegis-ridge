@@ -1,23 +1,20 @@
 import { FLOORS, SLAB } from '../../data/floors'
+import { eastTransfer } from '../../data/siteFacilities'
 import { roomsOn } from '../../data/defaultBlueprint'
-import type { FloorId, GridBounds, Point3, UndergroundId } from '../../types/shelter'
-import { footprint, shaftPlans, undergroundPlan } from './coords'
+import type { FloorId, Point3, UndergroundId } from '../../types/shelter'
+import { footprint, shaftsAt, undergroundPlan } from '../../geometry/coords'
+import { stairRun } from '../../geometry/stairs'
 import type { ModelBuilder } from './modelBuilder'
-import { difference, plate, rectangle } from './planGeometry'
+import { slabPlan } from '../../geometry/planGeometry'
+import { plate } from './planGeometry'
 
 export const steel = '#343e46',
   trim = '#859098',
   stone = '#b8bdba',
   warm = '#c5a988'
-const holes = shaftPlans.map((s) => rectangle(s.x0, s.x1, s.z0, s.z1))
-
-export function slabPlan(bounds: GridBounds) {
-  const a = footprint(bounds)
-  return difference(rectangle(a.x0, a.x1, a.z0, a.z1), ...holes)
-}
 
 export function addSlab(m: ModelBuilder, id: FloorId, y = 0) {
-  plate(m, slabPlan(FLOORS[id].bounds), y - SLAB, y, '#aeb7b7', '#c3c6bf')
+  plate(m, slabPlan(FLOORS[id].bounds, FLOORS[id].elevation), y - SLAB, y, '#aeb7b7', '#c3c6bf')
 }
 
 export function iBeam(
@@ -41,10 +38,10 @@ export function iBeam(
   m.box('#596369', [x, y, z], alongX ? [length, depth, flange] : [flange, depth, length], 'steel')
 }
 
-export function shaftFrames(m: ModelBuilder, bottom: number, top: number) {
+export function shaftFrames(m: ModelBuilder, bottom: number, top: number, arrival: FloorId) {
   const h = top - bottom,
     cy = (bottom + top) / 2
-  for (const s of shaftPlans) {
+  for (const s of shaftsAt(FLOORS[arrival].elevation)) {
     const finish = {
       freight: '#ad9875',
       personnel: '#7c9095',
@@ -65,31 +62,17 @@ export function shaftFrames(m: ModelBuilder, bottom: number, top: number) {
         m.box('#aeb4b2', [s.x0 + 0.04, cy, s.z], [0.15, h, s.d])
       }
     }
-    if (s.id === 'escape') {
-      for (const dx of [-0.33, 0.33]) m.box(trim, [s.x + dx, cy, s.z0 + 0.25], [0.07, h, 0.09], 'steel')
-      for (let y = bottom + 0.2; y < top; y += 0.35)
-        m.box('#bba985', [s.x, y, s.z0 + 0.27], [0.68, 0.06, 0.09], 'steel')
-    }
     if (s.id === 'personnel') {
-      const count = Math.ceil(h / 0.22),
-        half = Math.ceil(count / 2)
-      for (let i = 0; i < count; i++) {
-        const returning = i >= half,
-          run = returning ? count - half : half,
-          step = returning ? i - half : i
-        const f = (step + 0.5) / run
-        m.box(
-          '#a2aca9',
-          [
-            s.x + (returning ? 0.39 : -0.39),
-            bottom + ((i + 1) * h) / count,
-            s.z + (returning ? 0.5 - f : f - 0.5) * 1.62,
-          ],
-          [0.7, 0.074, 1.68 / run],
-          'steel',
-        )
+      const cx = s.x1 - 0.84
+      m.box('#929b97', [cx - 0.84, cy, s.z], [0.08, h, 2.1])
+      for (const dx of [-0.78, 0.78]) m.box(steel, [cx + dx, cy, s.z], [0.04, h, 0.08], 'steel')
+      if (arrival === 'B1') {
+        m.box('#9da7a4', [cx, bottom + 0.08, s.z], [1.6, 0.16, 2.0], 'steel')
+        m.box('#899695', [cx, bottom + 1.11, s.z - 0.96], [1.6, 2.22, 0.08], 'steel')
+        for (const dx of [-0.77, 0.77])
+          m.box('#99a6a6', [cx + dx, bottom + 1.11, s.z], [0.06, 2.22, 2.0], 'steel')
+        m.box(steel, [cx, bottom + 2.25, s.z], [1.6, 0.09, 2.0], 'steel')
       }
-      m.box(trim, [s.x, bottom + (h * half) / count, s.z + 0.83], [1.65, 0.1, 0.24], 'steel')
     }
     if (s.id === 'freight') {
       for (const x of [s.x0 + 0.18, s.x1 - 0.18]) m.box('#a49276', [x, cy, s.z], [0.075, h, 0.13], 'steel')
@@ -106,6 +89,7 @@ function partition(
   end: number,
   h: number,
   glazing: boolean,
+  doorAt = (begin + end) / 2,
 ) {
   const p = (along: number, y: number): Point3 => (axis === 'x' ? [along, y, fixed] : [fixed, y, along])
   const box = (
@@ -117,7 +101,7 @@ function partition(
     tint: string,
     finish: 'stone' | 'steel' | 'glass' = 'stone',
   ) => m.box(tint, p(at, y), axis === 'x' ? [length, height, thickness] : [thickness, height, length], finish)
-  const centre = (begin + end) / 2,
+  const centre = doorAt,
     door = 2.04,
     head = 2.4
   for (const [a, b] of [
@@ -130,7 +114,7 @@ function partition(
     if (glazing && len > 1) {
       box(at, 0.53, len, 1.06, 0.15, '#9fa9a9')
       box(at, 1.83, len, 1.54, 0.07, '#8fb9bf', 'glass')
-      box(at, 2.8, len, 0.4, 0.15, stone)
+      box(at, (h + 2.6) / 2, len, h - 2.6, 0.15, stone)
       box(at, 1.08, len, 0.075, 0.16, steel, 'steel')
       box(at, 1.83, 0.065, 1.53, 0.11, steel, 'steel')
     } else {
@@ -143,13 +127,42 @@ function partition(
   box(centre, head, door + 0.1, 0.12, 0.21, steel, 'steel')
 }
 
+export function stairStructure(
+  m: ModelBuilder,
+  floor: FloorId,
+  origin = 0,
+  low = -Infinity,
+  high = Infinity,
+) {
+  for (const kind of ['personnel', 'escape'] as const) {
+    const run = stairRun(kind, floor)
+    if (!run) continue
+    for (const plate of run.plates) {
+      const [x, localY, z] = plate.centre
+      if (floor !== 'B4' && plate.landing && localY < 0) continue
+      const y = origin + localY
+      if (y < low || y >= high) continue
+      m.box(plate.landing ? '#788781' : '#b0b9b4', [x, y, z], plate.size, 'steel')
+    }
+  }
+}
+
 export function roomStructure(m: ModelBuilder, id: UndergroundId) {
-  const h = FLOORS[id].clearHeight
   for (const room of roomsOn(id)) {
+    const h = room.clearHeightOverride ?? FLOORS[id].clearHeight
     const r = footprint(room.bounds)
     const north = room.bounds.gz0 === 0
     const front = north ? r.z1 - 0.085 : r.z0 + 0.085
-    partition(m, 'x', front, r.x0, r.x1, h, id === 'B2' || id === 'B3')
+    partition(
+      m,
+      'x',
+      front,
+      r.x0,
+      r.x1,
+      h,
+      id === 'B2' || id === 'B3',
+      room.id === 'b2_quarters' ? eastTransfer[0][0] : undefined,
+    )
     if (r.x1 < undergroundPlan.x1) partition(m, 'z', r.x1, r.z0, r.z1, h, false)
     for (const x of [r.x0 + 0.28, r.x1 - 0.28])
       for (const z of [r.z0 + 0.29, r.z1 - 0.29]) {

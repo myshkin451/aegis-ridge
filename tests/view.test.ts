@@ -25,3 +25,14 @@ it('keeps plenum preference through slicing and returning to the overview', () =
   store.getState().selectFloor('ALL')
   expect(store.getState()).toMatchObject({ floor: 'ALL', plenum: false, preset: 'panorama' })
 })
+
+it('opens a distant refuge in X-ray and restores the section or surface framing on demand', () => {
+  store.getState().focusFacility(7)
+  expect(store.getState()).toMatchObject({ mode: 'xray', floor: 'ALL', facilityId: 7 })
+  store.getState().frame('section')
+  expect(store.getState()).toMatchObject({ mode: 'cutaway', facilityId: null, preset: 'section' })
+  store.getState().setSectionZ(42)
+  expect(store.getState().sectionZ).toBe(8)
+  store.getState().focusFacility(8)
+  expect(store.getState()).toMatchObject({ mode: 'exterior', facilityId: 8 })
+})

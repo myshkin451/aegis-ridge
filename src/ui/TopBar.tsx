@@ -1,23 +1,26 @@
-import { Aperture, Blocks, Box, Camera, Check, ChevronDown, Layers2, Mountain, ScanLine } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { siteFacilities } from '../data/siteFacilities'
 import { useShelterStore } from '../store/useShelterStore'
 import type { CameraPreset, ViewMode } from '../types/shelter'
 
 const modes = [
-  { id: 'exterior', label: '全山外观', icon: Mountain },
-  { id: 'cutaway', label: '地质半剖', icon: Layers2 },
-  { id: 'xray', label: 'X 光透视', icon: ScanLine },
+  { id: 'exterior', label: '全山外观' },
+  { id: 'cutaway', label: '地质半剖' },
+  { id: 'xray', label: 'X 光透视' },
 ] as const
 const cameras = [
-  { id: 'panorama', label: '全景', icon: Box },
-  { id: 'surface', label: '地表', icon: Aperture },
-  { id: 'section', label: '地下剖面', icon: Blocks },
+  { id: 'panorama', label: '场址总览' },
+  { id: 'surface', label: '站房近景' },
+  { id: 'section', label: '地下剖面' },
 ] as const
 
 export function TopBar() {
   const mode = useShelterStore((s) => s.mode),
     preset = useShelterStore((s) => s.preset),
     floor = useShelterStore((s) => s.floor)
+  const facilityId = useShelterStore((s) => s.facilityId),
+    focus = useShelterStore((s) => s.focusFacility)
   const setMode = useShelterStore((s) => s.setMode),
     frame = useShelterStore((s) => s.frame)
   const [open, setOpen] = useState(false),
@@ -49,21 +52,17 @@ export function TopBar() {
   return (
     <header className="top-bar">
       <div className="brand">
-        <img src="/ridge.svg" width="40" height="40" alt="" />
-        <div>
-          <h1>AEGIS RIDGE</h1>
-          <span>磐石山脊观测站</span>
-        </div>
+        <h1>磐石山脊观测站</h1>
+        <span>ARS-01　±0.000 = 1,450.000 m</span>
       </div>
       <nav className="mode-strip" aria-label="山体视图">
-        {modes.map(({ id, label, icon: Icon }) => (
+        {modes.map(({ id, label }) => (
           <button
             type="button"
             key={id}
             aria-pressed={mode === id}
             onClick={() => setMode(id satisfies ViewMode)}
           >
-            <Icon size={16} strokeWidth={1.65} />
             <span>{label}</span>
           </button>
         ))}
@@ -76,20 +75,46 @@ export function TopBar() {
           ref={trigger}
           onClick={() => setOpen((v) => !v)}
         >
-          <Camera size={16} />
           <span className="prefix">视角</span>
-          <strong>{floor === 'ALL' ? cameras.find((c) => c.id === preset)!.label : floor + ' 楼层'}</strong>
+          <strong>
+            {siteFacilities.find((f) => f.id === facilityId)?.name ??
+              (floor === 'ALL' ? cameras.find((c) => c.id === preset)!.label : floor + ' 楼层')}
+          </strong>
           <ChevronDown size={14} />
         </button>
         {open && (
           <div id="camera-options" className="camera-options" role="group" aria-label="相机预设">
-            {cameras.map(({ id, label, icon: Icon }) => (
-              <button type="button" key={id} onClick={() => choose(id)}>
-                <Icon size={15} />
+            {cameras.map(({ id, label }) => (
+              <button
+                type="button"
+                key={id}
+                aria-pressed={floor === 'ALL' && preset === id && !facilityId}
+                onClick={() => choose(id)}
+              >
                 {label}
-                {floor === 'ALL' && preset === id && <Check size={15} className="chosen" />}
               </button>
             ))}
+            <label className="facility-picker">
+              定位外围设施
+              <select
+                aria-label="定位外围设施"
+                value={facilityId ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    focus(Number(e.target.value))
+                    setOpen(false)
+                    trigger.current?.focus()
+                  }
+                }}
+              >
+                <option value="">选择设施</option>
+                {siteFacilities.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {String(f.id).padStart(2, '0')}　{f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
       </div>

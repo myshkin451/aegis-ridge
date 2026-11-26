@@ -1,9 +1,9 @@
 import { lazy, Suspense, useRef } from 'react'
-import { Hand, Move, Mouse, MountainSnow, Ruler } from 'lucide-react'
 import { TopBar } from './ui/TopBar'
 import { FloorSlicer } from './ui/FloorSlicer'
 import { BUFFER_DEPTH, FLOORS, FLOOR_ORDER, UNDERGROUND } from './data/floors'
-import { footprint } from './scene/utils/coords'
+import { siteFacilities } from './data/siteFacilities'
+import { footprint } from './geometry/coords'
 import { useShelterStore } from './store/useShelterStore'
 
 const total = FLOOR_ORDER.reduce((sum, id) => sum + footprint(FLOORS[id].bounds).area, 0)
@@ -17,10 +17,14 @@ export default function App() {
     ruler = useRef<HTMLSpanElement>(null),
     rulerText = useRef<HTMLSpanElement>(null)
   const selected = useShelterStore((s) => s.floor)
+  const mode = useShelterStore((s) => s.mode),
+    sectionZ = useShelterStore((s) => s.sectionZ),
+    setZ = useShelterStore((s) => s.setSectionZ)
+  const focus = useShelterStore((s) => s.facilityId)
   const f = selected === 'ALL' ? null : FLOORS[selected]
   const elevation = f ? (f.elevation > 0 ? '+' : f.elevation === 0 ? '±' : '') + f.elevation.toFixed(1) : null
   return (
-    <div className="console flex flex-col">
+    <div className="console">
       <TopBar />
       <main className="viewport" aria-label="可交互的避难所建筑沙盘">
         <div className="canvas-wrap">
@@ -34,13 +38,6 @@ export default function App() {
             <ShelterCanvas instruments={{ station, rock, floorMarks, needle, ruler, rulerText }} />
           </Suspense>
         </div>
-        <div className="site-datum">
-          <MountainSnow size={15} strokeWidth={1.6} />
-          <span>场址海拔</span>
-          <b>
-            1,450 <small>m</small>
-          </b>
-        </div>
         <div ref={station} className="world-note station-note" aria-hidden="true">
           <i />
           <span>
@@ -51,7 +48,7 @@ export default function App() {
         <div ref={rock} className="world-note rock-note" aria-hidden="true">
           <i />
           <span>
-            <b>花岗岩缓冲层</b>
+            <b>复合防护层</b>
             <small>{BUFFER_DEPTH.toFixed(1)} m</small>
           </span>
         </div>
@@ -65,10 +62,39 @@ export default function App() {
           ))}
         </div>
         <FloorSlicer />
+        {mode === 'cutaway' && selected === 'ALL' && (
+          <aside className="section-key" aria-label="地质剖面图例">
+            <label>
+              剖面位置 <output>Z {sectionZ.toFixed(2)} m</output>
+              <input
+                aria-label="剖面位置"
+                type="range"
+                min="-9"
+                max="8"
+                step=".25"
+                value={sectionZ}
+                onChange={(e) => setZ(Number(e.target.value))}
+              />
+            </label>
+            <div>╱ 表土　⁺· 风化岩　＋ 花岗岩</div>
+            <div>
+              △ 钢筋混凝土　<span>▽ 地下水位</span>
+            </div>
+          </aside>
+        )}
+
         <div className="drawing-info" aria-live="polite">
           <span className="drawing-mark" aria-hidden="true" />
           <div>
-            <h2>{f ? f.name : '山体建筑总览'}</h2>
+            <h2>
+              {f?.name ??
+                siteFacilities.find((site) => site.id === focus)?.name ??
+                (mode === 'cutaway'
+                  ? '南向地质剖面'
+                  : mode === 'xray'
+                    ? '平硐与垂直交通'
+                    : '观测站与山地场址')}
+            </h2>
             <p>
               {f ? (
                 <>
@@ -92,41 +118,19 @@ export default function App() {
           <svg viewBox="-5 -5 46 46" width="46" height="46" aria-hidden="true">
             <circle cx="18" cy="18" r="16" fill="none" stroke="currentColor" strokeWidth=".65" opacity=".4" />
             <g ref={needle}>
-              <text x="18" y="0" textAnchor="middle" fill="#d9c3a1" fontSize="6">
+              <text x="18" y="0" textAnchor="middle" fill="#343a38" fontSize="6">
                 N
               </text>
-              <path d="m18 4 4 17-4-3-4 3z" fill="#d9c3a1" />
+              <path d="m18 4 4 17-4-3-4 3z" fill="#343a38" />
               <path d="m18 31-4-11 4 2 4-2z" fill="#65717a" />
             </g>
           </svg>
         </div>
       </main>
-      <footer className="status-bar">
-        <div className="status-context">
-          <span className="live-dot" />
-          建筑沙盘
-        </div>
-        <div className="gestures">
-          <span>
-            <Hand />
-            拖动旋转
-          </span>
-          <span>
-            <Mouse />
-            滚轮缩放
-          </span>
-          <span>
-            <Move />
-            右键平移
-          </span>
-        </div>
-        <span className="touch-gestures">单指旋转 · 双指缩放与平移</span>
-        <div className="scale">
-          <Ruler size={14} />
-          <span ref={ruler} className="scale-rule" />
-          <span ref={rulerText}>5 m</span>
-        </div>
-      </footer>
+      <div className="scale">
+        <span ref={ruler} className="scale-rule" />
+        <span ref={rulerText}>5 m</span>
+      </div>
     </div>
   )
 }

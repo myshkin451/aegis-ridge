@@ -55,6 +55,11 @@ export interface RoomInstance {
   replaceable: boolean
   adjustable: boolean
   zonePressure: 'high_pos' | 'normal_pos' | 'neutral' | 'neg_isolation'
+  wetDryZone: 'dry' | 'wet' | 'semi_wet' | 'strict_dry_electrical'
+  /** Optional wetted subzone inside a mixed-use gross room. */
+  wetBounds?: GridBounds
+  clearHeightOverride?: number
+  atriumVoidToBelow?: GridBounds
   isDryElectricalZone: boolean
   requiresHoistRail: boolean
   equipment: EquipmentUnit[]
@@ -65,6 +70,6 @@ export type ShaftId = 'freight' | 'personnel' | 'wet' | 'electrical' | 'escape'
 export interface Shaft {
   id: ShaftId
   name: string
-  gx: number
-  gz: number
+  bounds: GridBounds
+  topFloor: FloorId
 }

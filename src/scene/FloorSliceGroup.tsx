@@ -1,17 +1,27 @@
 import { useMemo } from 'react'
-import { ADIT, CORRIDOR, FLOORS, FLOOR_ORDER, SLAB } from '../data/floors'
+import { ADIT, CORRIDOR, FLOORS, FLOOR_ORDER } from '../data/floors'
+import { adits } from '../data/siteFacilities'
 import { useShelterStore } from '../store/useShelterStore'
 import type { UndergroundId } from '../types/shelter'
 import {
   aditCentreZ,
   floorSection,
   footprint,
+  shaftsAt,
   getFloorElevation,
   undergroundPlan as plan,
-} from './utils/coords'
+} from '../geometry/coords'
 import { ModelBuilder } from './utils/modelBuilder'
 import { Model } from './utils/Model'
-import { addSlab, iBeam, roomStructure, shaftFrames, steel, trim } from './utils/shellGeometry'
+import {
+  addSlab,
+  iBeam,
+  roomStructure,
+  shaftFrames,
+  stairStructure,
+  steel,
+  trim,
+} from './utils/shellGeometry'
 
 function structure(id: UndergroundId) {
   const m = new ModelBuilder(),
@@ -38,7 +48,15 @@ function structure(id: UndergroundId) {
 
 function verticalCore(id: UndergroundId) {
   const m = new ModelBuilder()
-  shaftFrames(m, -SLAB, FLOORS[id].pitch - SLAB)
+  shaftFrames(m, 0, FLOORS[id].pitch, id === 'B4' ? 'B3' : id === 'B3' ? 'B2' : id === 'B2' ? 'B1' : 'L1')
+  stairStructure(m, id, 0, -Infinity, FLOORS[id].pitch)
+  if (id === 'B4') {
+    const s = shaftsAt(FLOORS.B4.elevation).find((shaft) => shaft.id === 'freight')!
+    m.box('#677477', [s.x, 0.09, s.z], [1.8, 0.18, 1.8], 'steel')
+    m.box('#8f9997', [s.x, 1.25, s.z0 + 1.12], [1.8, 2.5, 0.09], 'steel')
+    for (const dx of [-0.87, 0.87]) m.box('#a5aeaa', [s.x + dx, 1.25, s.z], [0.06, 2.5, 1.8], 'steel')
+    m.box(steel, [s.x1 - 0.34, 2.2, s.z], [0.3, 2.5, 1.1], 'steel')
+  }
   return m
 }
 
@@ -61,9 +79,14 @@ function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
   }
   if (side !== 'front') {
     wall(plan.x0, plan.z0 + 0.1, plan.x1, plan.z0 + 0.1)
-    const route = footprint(CORRIDOR)
-    wall(plan.x1 - 0.1, plan.z0, plan.x1 - 0.1, route.z0)
-    wall(plan.x1 - 0.1, route.z1, plan.x1 - 0.1, plan.z1)
+    const x = plan.x1 - 0.1
+    if (id === 'B2') {
+      const z = adits.east.points[0][2],
+        half = adits.east.width / 2
+      wall(x, plan.z0, x, z - half)
+      wall(x, z + half, x, plan.z1)
+      wall(x, z - half, x, z + half, adits.east.height)
+    } else wall(x, plan.z0, x, plan.z1)
   }
   if (side !== 'rear') {
     wall(plan.x0, plan.z1 - 0.1, plan.x1, plan.z1 - 0.1)
@@ -120,7 +143,7 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
     }),
     [id],
   )
-  const closed = mode === 'exterior' && floor === 'ALL'
+  const closed = mode !== 'xray' && floor === 'ALL'
   return (
     <group name={id} position-y={getFloorElevation(id)}>
       <Model build={builders.frame} opacity={seen ? (mode === 'xray' ? 0.22 : 1) : 0} />

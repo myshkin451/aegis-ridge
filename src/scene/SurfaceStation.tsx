@@ -1,13 +1,15 @@
+import { slabPlan } from '../geometry/planGeometry'
 import { Color } from 'three'
 import { roomsOn } from '../data/defaultBlueprint'
 import { FLOORS, SLAB } from '../data/floors'
 import { useShelterStore } from '../store/useShelterStore'
 import type { Point3 } from '../types/shelter'
-import { footprint, getFloorElevation, shaftPlans } from './utils/coords'
+import { footprint, getFloorElevation, shaftPlans } from '../geometry/coords'
+import { lid, outline } from './utils/planGeometry'
 import { Model } from './utils/Model'
 import { ModelBuilder } from './utils/modelBuilder'
-import { addSlab, iBeam, steel, warm } from './utils/shellGeometry'
-import { randomSource } from './terrainGeometry'
+import { addSlab, iBeam, shaftFrames, stairStructure, steel, warm } from './utils/shellGeometry'
+import { randomSource } from '../geometry/random'
 
 const l1 = footprint(FLOORS.L1.bounds),
   l2 = footprint(FLOORS.L2.bounds)
@@ -43,17 +45,15 @@ function groundFloor() {
   m.box('#8b9290', [garage.x, 0.095, l1.z1 + 0.85], [garage.w - 0.4, 0.07, 1.67])
   for (let x = garage.x0 + 0.75; x < garage.x1; x += 1.3)
     m.box('#d0b58a', [x, 0.138, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
-  // The garage crane spans the vestibule boundary and centres on the freight hatch.
+  // The garage crane centres on the freight hatch within the garage footprint.
   const freight = shaftPlans.find((s) => s.id === 'freight')!
   iBeam(m, (garage.x0 + freight.x + 0.8) / 2, l1h + 0.12, freight.z, freight.x + 0.8 - garage.x0, true, 0.32)
   m.box('#bca177', [freight.x, l1h - 0.1, freight.z], [0.7, 0.3, 0.45], 'steel')
   for (const x of [freight.x - 0.91, freight.x + 0.91])
     for (const z of [freight.z - 0.91, freight.z + 0.91])
       m.box('#b6a382', [x, 0.53, z], [0.11, 1.06, 0.11], 'steel')
-  const escape = shaftPlans.find((s) => s.id === 'escape')!
-  for (const z of [escape.z0, escape.z1]) m.box('#757e78', [escape.x, 0.32, z], [escape.w, 0.64, 0.15])
-  for (let x = escape.x0 + 0.1; x < escape.x1; x += 0.21)
-    m.box('#747e77', [x, 0.68, escape.z], [0.14, 0.12, escape.d], 'steel', [0, 0, 0.24])
+  shaftFrames(m, 0, FLOORS.L1.pitch, 'L2')
+  stairStructure(m, 'L1')
   return m
 }
 
@@ -115,19 +115,21 @@ function lowerCeiling() {
 function observationFloor() {
   const m = new ModelBuilder(),
     random = randomSource(305)
-  m.box(ivory, [l2.x, -SLAB / 2, l2.z], [l2.w, SLAB, l2.d])
-  m.box('#bca688', [hall.x, 0.035, hall.z], [hall.w - 0.15, 0.07, hall.d - 0.15], 'wood')
-  for (let z = hall.z0 + 0.5; z < hall.z1; z += 0.6)
-    m.line([hall.x0 + 0.18, 0.076, z], [hall.x1 - 0.1, 0.076, z], '#a18d73')
+  addSlab(m, 'L2')
+  const hallPlan = slabPlan(roomsOn('L2')[0].bounds, FLOORS.L2.elevation)
+  lid(m, hallPlan, 0.012, '#bca688')
+  outline(m, hallPlan, 0.015, '#8e8372')
   for (const x of [l2.x0 + 0.16, garden.x0, l2.x1 - 0.16])
     for (const z of [l2.z0 + 0.15, l2.z1 - 0.15]) {
       m.box(mullion, [x, l2h / 2, z], [0.23, l2h, 0.2], 'steel')
       m.box(ivory, [x, 0.1, z], [0.35, 0.2, 0.36])
     }
-  for (const x of [garden.x0 + 1.6, garden.x + 0.2, garden.x1 - 1.5]) {
-    m.box('#999b89', [x, 0.21, garden.z], [1.38, 0.42, garden.d - 2.2])
-    m.box('#655e4c', [x, 0.43, garden.z], [1.2, 0.035, garden.d - 2.4], 'wood')
-    for (let z = garden.z0 + 1.7; z < garden.z1 - 0.8; z += 1.1) {
+  const beds = footprint(roomsOn('L2').find((r) => r.wetBounds)!.wetBounds!)
+  m.box(glass, [garden.x, l2h / 2, beds.z0], [garden.w, l2h, 0.09], 'glass')
+  for (const x of [beds.x0 + 1.6, beds.x + 0.2, beds.x1 - 1.5]) {
+    m.box('#999b89', [x, 0.21, beds.z], [1.38, 0.42, beds.d - 2.2])
+    m.box('#655e4c', [x, 0.43, beds.z], [1.2, 0.035, beds.d - 2.4], 'wood')
+    for (let z = beds.z0 + 1.7; z < beds.z1 - 0.8; z += 1.1) {
       const h = 0.7 + random() * 0.92
       m.part('bud', 'foliage', '#829067', [x, 0.46 + h * 0.42, z], [1.14, h, 1.04], [0, random() * 4, 0.24])
       m.part('bud', 'foliage', '#657a5b', [x + 0.27, 0.52 + h * 0.29, z + 0.22], [0.88, h * 0.68, 0.7])

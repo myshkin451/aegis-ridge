@@ -1,6 +1,7 @@
-import { ADIT, BUFFER_DEPTH, FLOORS, GRID, SHAFTS, SLAB } from '../../data/floors'
-import type { FloorId, GridBounds, Point3 } from '../../types/shelter'
+import { ADIT, BUFFER_DEPTH, DATUM, FLOORS, GRID, SHAFTS, SLAB } from '../data/floors'
+import type { FloorId, GridBounds, Point3 } from '../types/shelter'
 
+export const altitude = (y: number) => DATUM + y
 export const getFloorElevation = (id: FloorId) => FLOORS[id].elevation
 
 /** Grid indices refer to cell centres; fractional indices also locate boundaries. */
@@ -44,10 +45,11 @@ export function floorSection(id: FloorId) {
   }
 }
 
-export const buffer = { bottom: getFloorElevation('L1') - BUFFER_DEPTH, top: getFloorElevation('L1') }
-export const shaftPlans = SHAFTS.map((shaft) => ({
-  ...shaft,
-  ...footprint({ gx0: shaft.gx, gx1: shaft.gx, gz0: shaft.gz, gz1: shaft.gz }),
-}))
+export const buffer = { bottom: -BUFFER_DEPTH, interfaceY: -SLAB - 1.5, top: -SLAB }
+export const shaftPlans = SHAFTS.map((shaft) => ({ ...shaft, ...footprint(shaft.bounds) }))
+export const shaftsAt = (elevation: number) =>
+  shaftPlans.filter(
+    (s) => elevation >= getFloorElevation('B4') - 1e-6 && elevation <= getFloorElevation(s.topFloor) + 1e-6,
+  )
 export const undergroundPlan = footprint(FLOORS.B1.bounds)
 export const aditCentreZ = gridToWorld(0, ADIT.gz, ADIT.floorId)[2]
