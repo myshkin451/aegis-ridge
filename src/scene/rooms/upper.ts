@@ -1,3 +1,4 @@
+import { drawGym } from './residential'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import type { ModelBuilder } from '../utils/modelBuilder'
 import type { Finish } from '../materials/pbrLibrary'
@@ -502,11 +503,12 @@ function solder(m: ModelBuilder) {
   m.box(paper, [-0.43, 1.715, 0.08], [0.54, 0.084, 0.21], 'lamp')
   book(m, -1.15, 0.88, 0)
 }
-function rail(m: ModelBuilder) {
-  for (const y of [0.167, 0.38]) m.box(bronze, [0, y, 0], [13.33, 0.055, 0.21], 'steel')
-  m.box(dark, [0, 0.277, 0], [13.28, 0.19, 0.065], 'steel')
-  m.box(yellow, [3.8, 0.16, 0], [0.53, 0.21, 0.3], 'steel')
-  m.box(inox, [3.8, 0.054, 0], [0.065, 0.103, 0.07], 'steel')
+function rail(m: ModelBuilder, length: number) {
+  const trolley = length * 0.28
+  for (const y of [0.167, 0.38]) m.box(bronze, [0, y, 0], [length - 0.07, 0.055, 0.21], 'steel')
+  m.box(dark, [0, 0.277, 0], [length - 0.12, 0.19, 0.065], 'steel')
+  m.box(yellow, [trolley, 0.16, 0], [0.53, 0.21, 0.3], 'steel')
+  m.box(inox, [trolley, 0.054, 0], [0.065, 0.103, 0.07], 'steel')
 }
 
 export function drawUpper(m: ModelBuilder, e: EquipmentUnit) {
@@ -542,6 +544,10 @@ export function drawUpper(m: ModelBuilder, e: EquipmentUnit) {
       return windVane(m)
     case 'VIS':
       return visitor(m)
+    case 'GYM':
+    case 'ROW':
+    case 'PHY':
+      return drawGym(m, e.tagCode.split('-')[0])
     case 'DEC':
       return shower(m)
     case 'SUM':
@@ -567,7 +573,7 @@ export function drawUpper(m: ModelBuilder, e: EquipmentUnit) {
     case 'PCB':
       return solder(m)
     case 'RAI':
-      return rail(m)
+      return rail(m, e.moduleSizeM[0])
     default:
       throw new Error('未识别的地表/B1 设备位号 ' + e.tagCode)
   }

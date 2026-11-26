@@ -172,7 +172,7 @@ function bore(m: ModelBuilder, adit: Adit) {
   }
   return m
 }
-function eastBore() {
+export function eastBore() {
   const m = bore(new ModelBuilder('shotcrete'), adits.east),
     [x, y, z] = refuge
   m.box('#a7aea3', [x, y - 0.08, z], [7, 0.16, 5])
@@ -387,8 +387,10 @@ function tunnelSoffits() {
 export function TunnelModels() {
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough')
   const floor = useShelterStore((s) => s.floor)
+  // Both exterior portals have closed leaves. The rock hides the bore beyond them.
+  const exposed = useShelterStore((s) => s.mode !== 'exterior')
   return (
-    <group name="检修与疏散平硐">
+    <group name="检修与疏散平硐" visible={exposed}>
       <group visible={walk}>
         <Model build={tunnelSoffits} />
       </group>

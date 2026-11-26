@@ -1,70 +1,231 @@
-import { expect, it } from 'vitest'
+import { afterAll, beforeAll, expect, it } from 'vitest'
 import { Vector3 } from 'three'
-import { FLOORS, FLOOR_ORDER, UNDERGROUND } from '../src/data/floors'
+import { FLOORS, UNDERGROUND } from '../src/data/floors'
 import { roomsOn } from '../src/data/defaultBlueprint'
+import { adits, eastTransfer } from '../src/data/siteFacilities'
 import { equipmentSolids } from '../src/geometry/equipment'
-import { shaftPlans } from '../src/geometry/coords'
-import { surveyRoomRoutes, routeKey } from '../src/scene/camera/roomRoutes'
+import { footprint, shaftPlans } from '../src/geometry/coords'
+import { doors, roomDoor } from '../src/geometry/doors'
+import {
+  bedrooms,
+  eastLinkDoorX,
+  escapeLobby,
+  laundry,
+  publicBath,
+  quietHall,
+  westVestibule,
+} from '../src/geometry/residentialPlan'
+import { routeKey, routeToWalkPosition, surveyRoomRoutes } from '../src/scene/camera/roomRoutes'
 import { WalkCollision, WALK } from '../src/scene/camera/walkCollision'
+import { enclosure, structure, verticalCore } from '../src/scene/FloorSliceGroup'
+import { eastBore } from '../src/scene/terrain/SiteFacilities'
 import { ModelBuilder } from '../src/scene/utils/modelBuilder'
-import { addSlab, roomStructure, shaftFrames, stairStructure } from '../src/scene/utils/shellGeometry'
 import { appendSolids, positionGeometry } from '../src/scene/utils/solidGeometry'
 
 function undergroundWorld() {
   const vertices: number[] = []
-  for (const id of UNDERGROUND) {
-    const floor = FLOORS[id],
-      m = new ModelBuilder()
-    addSlab(m, id)
-    roomStructure(m, id)
-    shaftFrames(m, 0, floor.pitch, FLOOR_ORDER[FLOOR_ORDER.indexOf(id) - 1])
-    stairStructure(m, id, 0, -Infinity, floor.pitch)
-    for (const room of roomsOn(id))
-      for (const unit of room.equipment)
-        for (const solid of equipmentSolids(unit)) m.box('#999999', solid.center, solid.size, 'steel')
-    const model = m.build()
-    model.object.position.y = floor.elevation
+  function append(builder: ModelBuilder, elevation = 0) {
+    const model = builder.build()
+    model.object.position.y = elevation
     appendSolids(model.object, vertices, (mesh) => mesh.userData.finish !== 'lamp')
     model.dispose()
   }
+  for (const id of UNDERGROUND) {
+    for (const builder of [structure(id), verticalCore(id), enclosure(id, 'rear'), enclosure(id, 'front')])
+      append(builder, FLOORS[id].elevation)
+    const equipment = new ModelBuilder()
+    for (const room of roomsOn(id))
+      for (const unit of room.equipment)
+        for (const solid of equipmentSolids(unit)) equipment.box('#999999', solid.center, solid.size)
+    append(equipment, FLOORS[id].elevation)
+  }
+  append(eastBore())
   return new WalkCollision(positionGeometry(vertices))
 }
 
-it('finds a supported capsule route from the freight landing to every underground camera anchor', () => {
-  const world = undergroundWorld()
-  try {
-    const routes = surveyRoomRoutes(world),
+let world: WalkCollision
+let routes: Map<string, Vector3[]>
+beforeAll(() => {
+  world = undergroundWorld()
+  routes = surveyRoomRoutes(world)
+}, 20000)
+afterAll(() => world?.dispose())
+
+function sample(path: Vector3[], visit: (pos: Vector3) => void) {
+  visit(path[0])
+  const p = new Vector3()
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1],
+      b = path[i]
+    const steps = Math.ceil(a.distanceTo(b) / 0.06)
+    for (let k = 1; k <= steps; k++) visit(p.lerpVectors(a, b, k / steps))
+  }
+}
+
+type Bounds = Pick<ReturnType<typeof footprint>, 'x0' | 'x1' | 'z0' | 'z1'>
+const indoors = (r: Bounds, x: number, z: number) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1
+it.each(UNDERGROUND)(
+  '%s reaches every camera from the main corridor without crossing another room or shaft',
+  (id) => {
+    const y = FLOORS[id].elevation,
       freight = shaftPlans.find((s) => s.id === 'freight')!
-    for (const id of UNDERGROUND) {
-      const y = FLOORS[id].elevation
-      for (const room of roomsOn(id))
-        for (const anchor of room.cameraAnchors) {
-          const [x, height, z] = anchor.position
-          const label = room.id + ' / ' + anchor.name
-          const path = routes.get(id + routeKey(x, z))
+    for (const room of roomsOn(id)) {
+      for (const anchor of room.cameraAnchors) {
+        const [x, height, z] = anchor.position,
+          eye = new Vector3(x, y + height, z)
+        const toLaundry = room.id === 'b2_bath_laundry' && indoors(laundry, x, z)
+        const forbidden = [
+          ...roomsOn(id)
+            .filter((r) => r !== room && !(toLaundry && r.id === 'b2_quarters'))
+            .map((r) => ({ id: r.id, ...footprint(r.bounds) })),
+          ...shaftPlans,
+        ]
+        const label = room.id + ' / ' + anchor.name
+        // The guided arrival and the manual walker's return use different reconnection/simplification paths.
+        for (const path of [routes.get(id + routeKey(x, z)), routeToWalkPosition(world, id, eye)]) {
           expect.soft(path, label).toBeDefined()
           if (!path) continue
           expect(path[0].distanceTo(new Vector3(freight.x, y + WALK.eye, -1)), label).toBeLessThan(0.001)
-          expect(path.at(-1)!.distanceTo(new Vector3(x, y + height, z)), label).toBeLessThan(0.001)
-          const feet = new Vector3(x, y, z)
-          expect(world.landing(feet), label).toBe(true)
-          expect(feet.distanceTo(new Vector3(x, y, z)), label).toBeLessThan(0.001)
-          for (let i = 1; i < path.length; i++) {
-            const a = path[i - 1],
-              b = path[i]
-            const steps = Math.ceil(a.distanceTo(b) / 0.06)
-            for (let k = 1; k <= steps; k++) {
-              const t = k / steps
-              const px = a.x + t * (b.x - a.x),
-                pz = a.z + t * (b.z - a.z)
-              expect(world.stands(px, y, pz), label + ' at ' + px.toFixed(2) + ', ' + pz.toFixed(2)).toBe(
-                true,
-              )
+          expect(path.at(-1)!.distanceTo(eye), label).toBeLessThan(0.001)
+          sample(path, (p) => {
+            const where = label + ' at ' + p.x.toFixed(2) + ', ' + p.z.toFixed(2)
+            expect(world.stands(p.x, y, p.z), where).toBe(true)
+            expect(forbidden.find((r) => indoors(r, p.x, p.z))?.id, where).toBeUndefined()
+            if (id === 'B2') {
+              const otherBedroom = bedrooms.find((b) => !indoors(b, x, z) && indoors(b, p.x, p.z))
+              expect(otherBedroom?.id, where).toBeUndefined()
             }
-          }
+            if (toLaundry) {
+              // Only the shared vestibule and the first two metres of its connecting hall serve this door.
+              if (p.z > 0 && p.x > laundry.x1)
+                expect(p.x <= westVestibule.x1 && p.z <= quietHall.z1, where).toBe(true)
+              expect(indoors(publicBath, p.x, p.z), where + ' via public WC').toBe(false)
+            }
+          })
+          walkPath(
+            path.map((p) => new Vector3(p.x, y, p.z)),
+            allOpen,
+            label,
+          )
         }
+      }
     }
-  } finally {
-    world.dispose()
+  },
+)
+
+// Exercise the same incremental capsule movement and leaf opening fractions as a manual visitor.
+const allOpen = new Map(doors.map((d) => [d.id, 1]))
+function walkPath(path: Vector3[], opening: ReadonlyMap<string, number>, label: string) {
+  const feet = path[0].clone()
+  for (const target of path.slice(1)) {
+    world.move(feet, target.x - feet.x, target.z - feet.z, doors, opening)
+    expect(Math.hypot(feet.x - target.x, feet.z - target.z), label + ' to ' + target.toArray()).toBeLessThan(
+      0.035,
+    )
+    expect(Math.abs(feet.y - target.y), label + ' floor support').toBeLessThan(WALK.step)
   }
-}, 20000)
+}
+
+it.each(UNDERGROUND)(
+  '%s crosses each room’s actual entrance when open and stops at the shut leaves',
+  (floor) => {
+    for (const room of roomsOn(floor)) {
+      const door = roomDoor(room)
+      const normal = new Vector3(Math.sin(door.yaw), 0, Math.cos(door.yaw))
+      const centre = new Vector3(...door.base).addScaledVector(normal, door.trackOffset ?? 0)
+      const a = centre.clone().addScaledVector(normal, -0.57)
+      const b = centre.clone().addScaledVector(normal, 0.57)
+      for (const p of [a, b])
+        expect(world.stands(p.x, p.y, p.z), room.id + ' jamb approach ' + p.toArray()).toBe(true)
+      walkPath([a, b], allOpen, room.id)
+      const closed = new Map(allOpen)
+      closed.set(door.id, 0)
+      const stopped = world.move(a.clone(), b.x - a.x, b.z - a.z, doors, closed)
+      expect(stopped.clone().sub(centre).dot(normal), room.id + ' closed').toBeLessThan(0)
+    }
+  },
+)
+
+const b2Y = FLOORS.B2.elevation
+const b2 = (x: number, z: number) => new Vector3(x, b2Y, z)
+const tunnel = adits.east.points[0]
+function safeEgress(path: Vector3[], label: string, closed?: string) {
+  const opening = new Map(allOpen)
+  if (closed) opening.set(closed, 0)
+  sample(path, (p) => {
+    expect(world.stands(p.x, p.y, p.z), label + ' at ' + p.toArray()).toBe(true)
+    expect(bedrooms.find((r) => indoors(r, p.x, p.z))?.id, label).toBeUndefined()
+  })
+  walkPath(path, opening, label)
+}
+
+it('takes the B2 stair landing to the main corridor and through the fire lobby into the east passage', () => {
+  const path = eastTransfer.map((p) => new Vector3(...p))
+  const [landing, corridor, lobby] = path
+  expect(landing.x).toBeGreaterThan(12)
+  expect(landing.x).toBeLessThan(12.92)
+  expect(corridor.x).toBeCloseTo(11.3)
+  expect(corridor.z).toBeLessThan(0)
+  expect(lobby.x).toBe(corridor.x)
+  expect(indoors(escapeLobby, lobby.x, lobby.z)).toBe(true)
+  expect(path.at(-1)!.toArray()).toEqual(tunnel)
+  safeEgress([...path, b2(tunnel[0] + 1, tunnel[2])], 'stair to east passage')
+})
+
+it('allows independent west and east escape from the quiet hall with the opposite exit shut', () => {
+  const midHall = b2((quietHall.x0 + quietHall.x1) / 2, (quietHall.z0 + quietHall.z1) / 2)
+  const westX = (westVestibule.x0 + westVestibule.x1) / 2
+  const westDoor = doors.find((d) => d.id === 'hall-west')!
+  const eastDoor = doors.find((d) => d.id === 'hall-east')!
+  expect(westDoor?.kind).toBe('acoustic')
+  expect(eastDoor?.kind).toBe('fire')
+  safeEgress([midHall, b2(westX, midHall.z), b2(westX, -1)], 'west exit', eastDoor.id)
+  safeEgress(
+    [midHall, b2(eastLinkDoorX, midHall.z), b2(eastLinkDoorX, tunnel[2]), b2(tunnel[0] + 1, tunnel[2])],
+    'east exit',
+    westDoor.id,
+  )
+})
+
+it('reaches the reserve dorm directly from the vestibule and the separate laundry entrance from the quiet hall', () => {
+  const start = b2(-1, -1)
+  const reserveEntry = doors.find((d) => d.id === 'b2-reserve')!
+  const threshold = new Vector3(...reserveEntry.base)
+  const dormPath = [start, b2(start.x, threshold.z), b2(threshold.x + 0.6, threshold.z)]
+  sample(dormPath, (p) => {
+    expect(indoors(quietHall, p.x, p.z)).toBe(false)
+    expect(bedrooms.some((r) => !r.onCall && indoors(r, p.x, p.z))).toBe(false)
+  })
+  walkPath(dormPath, allOpen, 'reserve dorm')
+  const laundryDoor = doors.find((d) => d.id === 'laundry-access')!
+  const laundryPath = [
+    start,
+    b2(start.x, laundryDoor.base[2]),
+    b2(laundryDoor.base[0] - 0.6, laundryDoor.base[2]),
+  ]
+  safeEgress(laundryPath, 'quiet hall to laundry', 'b2_bath_laundry')
+})
+
+it('guides the private laundry camera through the west vestibule and the laundry doorway in order', () => {
+  const suite = roomsOn('B2').find((r) => r.id === 'b2_bath_laundry')!
+  const camera = suite.cameraAnchors.find(({ position: [x, , z] }) => indoors(laundry, x, z))
+  expect(camera, 'laundry inspection anchor').toBeDefined()
+  const [x, height, z] = camera!.position
+  const compartments = [
+    ['vestibule', westVestibule],
+    ['hall', quietHall],
+    ['laundry', laundry],
+    ['public WC', publicBath],
+    ['east lobby', escapeLobby],
+  ] as const
+  const eye = new Vector3(x, b2Y + height, z)
+  for (const path of [routes.get('B2' + routeKey(x, z)), routeToWalkPosition(world, 'B2', eye)]) {
+    expect(path).toBeDefined()
+    const zones: string[] = []
+    sample(path!, (p) => {
+      const occupied = compartments.find(([, r]) => indoors(r, p.x, p.z))?.[0]
+      if (occupied && occupied !== zones.at(-1)) zones.push(occupied)
+    })
+    expect(zones).toEqual(['vestibule', 'hall', 'laundry'])
+  }
+})

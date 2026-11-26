@@ -1,46 +1,41 @@
+import { bedrooms } from '../../geometry/residentialPlan'
 import { atriumFootprint } from '../../geometry/atrium'
 import { unit, type EquipmentUnit, type RoomLayout } from './schema'
 import type { Point3 } from '../../types/shelter'
 
 const obstacle = (center: Point3, size: Point3) => ({ center, size })
 const windowBay = atriumFootprint
-const cabinInteriors = [
-  '地质图册',
-  '原声吉他',
-  '蕨类盆栽',
-  '植物标本',
-  '折页琴谱',
-  '高山摄影',
-  '旅行书架',
-  '陶杯工坊',
-  '羽毛球拍',
-  '绘图桌',
-]
+type Bedroom = (typeof bedrooms)[number]
 
-export const cabinDepth = 3.45
-export const cabinWidth = 2.32
-function cabin(i: number): EquipmentUnit {
-  const side = i < 5 ? 1 : -1
-  const x = 3.67 + (i % 5) * cabinWidth
-  const front = side * (cabinDepth / 2 - 0.075)
+/** Furniture in bedroom-local coordinates, shared by instance placement and capsule solids. */
+export function bedroomFurniture(b: Bedroom) {
+  const beds = b.onCall
+    ? [-1.11, 1.11].map((z) => ({ x: 1.18, z, tiers: 2 }))
+    : b.beds === 2
+      ? [-0.96, 0.96].map((x) => ({ x, z: -0.71, tiers: 1 }))
+      : [{ x: -0.78, z: 0.63, tiers: 1 }]
+  const desk = b.onCall ? { x: -0.85, z: -1.83 } : b.beds === 2 ? { x: 0, z: -1.97 } : { x: 0.63, z: 1.82 }
+  return { beds, desk }
+}
+
+function sleepFitout(b: Bedroom, i: number): EquipmentUnit {
+  const { beds, desk } = bedroomFurniture(b)
   return unit(
-    'CAB-2' + String(i + 1).padStart(2, '0'),
-    '独立居住舱 ' + String(i + 1).padStart(2, '0') + ' · ' + cabinInteriors[i],
+    'CAB-' + (201 + i),
+    b.onCall ? '备勤宿舍 · 两组双层床' : (b.beds === 2 ? '双人卧室' : '单人卧室') + ' ' + (i + 1),
     'storage',
-    [x, 0, i < 5 ? 4.78 : 9.98],
-    [cabinWidth, 2.55, cabinDepth],
-    875,
-    0.095,
+    [(b.x0 + b.x1) / 2, 0, (b.z0 + b.z1) / 2],
+    [b.x1 - b.x0 - 0.2, 2.55, b.z1 - b.z0 - 0.2],
+    115 + b.beds * 85,
+    b.beds * 0.095,
     {
-      notes: '含床位、独立书桌、天空窗与照明的预制内装。重量为不含私人物品的估算。',
+      sleepingRoomId: b.id,
+      notes: '按床位计个人照明与插座概念额定输入。板底隔声墙属于建筑结构。',
       collisionBoxes: [
-        obstacle([-1.12, 1.275, 0], [0.08, 2.55, 3.45]),
-        obstacle([1.12, 1.275, 0], [0.08, 2.55, 3.45]),
-        obstacle([0, 1.275, -front], [2.16, 2.55, 0.09]),
-        obstacle([-0.54, 1.275, front], [1.08, 2.55, 0.09]),
-        obstacle([0.54, 2.36, front], [1.08, 0.38, 0.09]),
-        obstacle([-0.56, 0.29, -side * 0.44], [0.95, 0.58, 2.04]),
-        obstacle([0.58, 0.43, -side * 1.24], [0.93, 0.86, 0.52]),
+        ...beds.map(({ x, z, tiers }) =>
+          obstacle([x, tiers === 2 ? 1.0 : 0.33, z], [0.94, tiers === 2 ? 2 : 0.66, 2.02]),
+        ),
+        obstacle([desk.x, 0.43, desk.z], [0.91, 0.86, 0.55]),
       ],
     },
   )
@@ -105,7 +100,7 @@ export const residentialLayouts: Record<string, RoomLayout> = {
   },
   b2_command: {
     equipment: [
-      unit('HMI-201', '弧面三席多屏控制台', 'comms', [9.3, 0, -8.45], [7.8, 2.06, 2.8], 455, 1.65, {
+      unit('HMI-201', '弧面三席多屏控制台', 'comms', [10.37, 0, -8.45], [6.5, 2.06, 2.8], 455, 1.65, {
         notes: '曲面值班席由七块独立显示面组成，包含三套工作站。',
       }),
       ...[-9.65, -7.0].map((z, i) =>
@@ -113,7 +108,7 @@ export const residentialLayouts: Record<string, RoomLayout> = {
           'IT-20' + (i + 1),
           '双机热备机柜 ' + (i ? 'B' : 'A'),
           'comms',
-          [14.65, 0, z],
+          [15.0, 0, z],
           [0.85, 2.18, 1.2],
           370,
           2.4,
@@ -122,7 +117,7 @@ export const residentialLayouts: Record<string, RoomLayout> = {
       ),
     ],
     cameraAnchors: [
-      { name: '弧形席位与北侧机柜', position: [7.05, 1.65, -4.35], target: [10.25, 1.27, -8.7] },
+      { name: '弧形席位与北侧机柜', position: [8.25, 1.65, -4.35], target: [10.7, 1.27, -8.7] },
     ],
   },
   b2_commons: {
@@ -137,33 +132,75 @@ export const residentialLayouts: Record<string, RoomLayout> = {
         0,
         { notes: '夹层玻璃分格承托，可步行俯瞰下一层。质量为含框架概算，耐火等级与人群荷载须另行认证。' },
       ),
-      unit('DIN-201', '十席共餐长桌', 'storage', [-8.36, 0, 5.6], [2.62, 1.02, 4.6], 146, 0),
-      unit('KIT-202', '开放厨房与双眼灶', 'thermal', [-11.3, 0, 10.86], [6.9, 1.65, 1.04], 395, 7.2, {
+      unit('DIN-201', '十席共餐长桌', 'storage', [-8.48, 0, 6.4], [2.62, 1.02, 4.6], 146, 0),
+      unit('KIT-202', '开放厨房与双眼灶', 'thermal', [-6.52, 0, 2.15], [0.75, 1.65, 3.5], 395, 7.2, {
         notes: '额定电输入包含双眼灶、冷藏台与油烟罩照明，峰值不等于日均功耗。',
       }),
-      unit('FO-201', '地表集光器光纤出光头', 'comms', [-8.36, 3.27, 5.6], [0.42, 0.29, 0.42], 3.4, 0, {
+      unit('FO-201', '地表集光器光纤出光头', 'comms', [-8.48, 3.27, 6.4], [0.42, 0.29, 0.42], 3.4, 0, {
         notes: '被动光纤终端。屋顶集光，日间在餐桌中心形成光斑，入夜随太阳高度归零。',
       }),
+      unit('SOF-203', '客厅 L 形组合沙发', 'storage', [-11.5, 0, 10.25], [3.82, 0.87, 2.1], 109, 0, {
+        collisionBoxes: [
+          obstacle([0, 0.43, 0.54], [3.82, 0.86, 1]),
+          obstacle([-1.42, 0.35, -0.5], [0.95, 0.7, 1.08]),
+        ],
+      }),
+      unit('AV-204', '影音屏与矮柜', 'comms', [-7.25, 0, 10.2], [0.66, 1.76, 2.55], 83, 0.19),
       unit('OPT-202', '转向光学潜望镜', 'comms', [-15.22, 0, 9.43], [0.8, 3.47, 0.84], 66, 0),
     ],
     cameraAnchors: [
       { name: '从北沿俯瞰分层农场', position: [-12.6, 1.65, 1.39], target: [-12.15, 0.02, 4.55] },
-      { name: '光纤下的共餐长桌', position: [-14.75, 1.65, 8.45], target: [-8.36, 1.0, 5.6] },
+      { name: '光纤下的共餐长桌', position: [-14.75, 1.65, 8.45], target: [-8.48, 1.0, 6.4] },
     ],
   },
-  b2_gym: {
+  b1_gym: {
     equipment: [
-      unit('RCK-201', '力量架与杠铃', 'storage', [-4.25, 0, 8.15], [2.25, 2.45, 1.72], 260, 0),
-      unit('ROW-201', '风阻划船器', 'storage', [0.45, 0, 7.32], [0.84, 1.2, 2.55], 46, 0),
-      unit('PHY-201', '光疗灯墙与康复躺椅', 'medical', [-4.57, 0, 3.28], [1.6, 2.08, 2.1], 89, 0.2),
+      unit('GYM-151', '力量架与杠铃', 'storage', [-14.25, 0, 8.15], [2.25, 2.45, 1.72], 260, 0),
+      unit('ROW-152', '风阻划船器', 'storage', [-9.55, 0, 7.32], [0.84, 1.2, 2.55], 46, 0),
+      unit('PHY-153', '光疗灯墙与康复躺椅', 'medical', [-14.57, 0, 3.28], [1.6, 2.08, 2.1], 89, 0.2),
     ],
-    cameraAnchors: [{ name: '划船机与光疗墙', position: [-1.52, 1.65, 2.56], target: [-2.35, 1.1, 7.9] }],
+    cameraAnchors: [{ name: '划船机与光疗墙', position: [-11.52, 1.65, 2.56], target: [-12.35, 1.1, 7.9] }],
+  },
+  b2_bath_laundry: {
+    equipment: [
+      unit('WC-211', '船用真空坐便器', 'water', [-5.43, 0, 1.95], [0.68, 0.98, 0.91], 29, 0.18, {
+        flushLitres: 1,
+        notes: '设计定额每次冲洗 1 L；汇流支管在 B3 夹层接入湿井。',
+        servicePorts: [
+          {
+            id: 'WC-211-V',
+            system: 'vacuum-blackwater',
+            floor: 'B2',
+            position: [-5.43, 0.12, 1.9],
+            plenumEntry: { floor: 'B3', position: [-5.43, 3.48, 1.9] },
+            connectsTo: { floor: 'B3', shaft: 'wet', position: [-7.12, 3.48, -3.4] },
+          },
+        ],
+      }),
+      unit('BAS-212', '公卫洗手盆', 'water', [-2.52, 0, 1.75], [0.72, 1.12, 0.6], 23, 0),
+      ...[4.2, 7.35].map((z, i) =>
+        unit('SH-' + (213 + i), '独立淋浴间 ' + (i + 1), 'water', [-5.11, 0, z], [1.45, 2.22, 1.78], 87, 0, {
+          collisionBoxes: [
+            obstacle([-0.69, 1.1, 0], [0.06, 2.2, 1.76]),
+            ...[-0.86, 0.86].map((side) => obstacle([0, 1.1, side], [1.43, 2.2, 0.055])),
+          ],
+        }),
+      ),
+      unit('WM-215', '洗衣机与热泵干衣机', 'water', [-4.04, 0, 10.9], [2.3, 1.05, 1.13], 170, 2.6, {
+        servicePorts: [{ id: 'WM-215-G', system: 'greywater', floor: 'B2', position: [-4.75, 0.18, 11.17] }],
+        notes: '淋浴、盥洗和洗衣灰水在北侧共用水墙汇入 B3 夹层。',
+      }),
+    ],
+    cameraAnchors: [
+      { name: '公卫盥洗与真空坐便器', position: [-4, 1.65, 1.48], target: [-5.43, 0.55, 1.95] },
+      { name: '独立淋浴间与洗烘区', position: [-3.35, 1.65, 8.62], target: [-4.95, 0.94, 9.55] },
+    ],
   },
   b2_quarters: {
-    equipment: Array.from({ length: 10 }, (_, i) => cabin(i)),
+    equipment: bedrooms.map(sleepFitout),
     cameraAnchors: [
-      { name: '两列寝舱之间', position: [14.88, 1.65, 7.42], target: [5.8, 1.38, 7.42] },
-      { name: '地质图册的主人', position: [4.28, 1.65, 5.5], target: [3.3, 1.05, 3.43] },
+      { name: '卧室之间的静谧内廊', position: [8, 1.65, 6], target: [1.1, 1.4, 6] },
+      { name: '独立单人卧室', position: [-0.45, 1.65, 8.1], target: [-1.28, 0.74, 10.13] },
     ],
   },
 }

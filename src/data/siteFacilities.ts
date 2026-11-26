@@ -1,6 +1,8 @@
 import { FLOORS, ADIT } from './floors'
 import survey from './siteSurvey.json'
 import { aditCentreZ, footprint, undergroundPlan } from '../geometry/coords'
+import { eastLobbyEntryX } from '../geometry/residentialPlan'
+import { stairRun } from '../geometry/stairs'
 import type { TerrainAtlas } from '../geometry/siteElevations'
 import { groundAt, pathLength, pointAlong } from '../geometry/siteElevations'
 import type { Point3, UndergroundId } from '../types/shelter'
@@ -42,8 +44,13 @@ export const adits: Record<Adit['id'], Adit> = {
 }
 export const refugeJunction = pointAlong(adits.east.points, pathLength(adits.east.points) / 2)
 export const refuge: Point3 = [refugeJunction[0], refugeJunction[1], refugeJunction[2] - 3.8]
-// The flush B2 passage uses the northern edge of the quarters to bypass the stairs.
-export const eastTransfer: Point3[] = [[10.5, eastY, -1], [10.5, eastY, ez], adits.east.points[0]]
+const [landingX, , landingZ] = stairRun('escape', 'B2')!.plates[0].centre
+export const eastTransfer: Point3[] = [
+  [landingX, eastY, landingZ],
+  [eastLobbyEntryX, eastY, landingZ],
+  [eastLobbyEntryX, eastY, ez],
+  adits.east.points[0],
+]
 const station = footprint(FLOORS.L1.bounds)
 export const galleryChainage = 82
 

@@ -22,6 +22,30 @@ export interface FloorDefinition {
   bounds: GridBounds
 }
 
+/** Surveyed interface coordinates use world X/Z and metres above the named floor. */
+export interface ServicePort {
+  id: string
+  system:
+    | 'vacuum-blackwater'
+    | 'greywater'
+    | 'duty-sanitary'
+    | 'borefield-supply'
+    | 'borefield-return'
+    | 'surface-heating'
+    | 'hydrogen-recovery'
+    | 'return-air-co2'
+    | 'battery-exhaust'
+    | 'combustion-air'
+    | 'combustion-exhaust'
+    | 'acoustic-sleeve'
+  floor: FloorId
+  position: Point3
+  /** Entry into the receiving floor plenum before the lateral run. */
+  plenumEntry?: { floor: FloorId; position: Point3 }
+  /** Endpoints reserved for M3; intermediate pipework is not installed in this milestone. */
+  connectsTo?: { floor: FloorId; position: Point3; shaft?: ShaftId }
+}
+
 export interface EquipmentUnit {
   id: string
   name: string
@@ -47,6 +71,10 @@ export interface EquipmentUnit {
   inputPowerKw: number
   generatedPowerKw: number
   o2RateKgPerDay: number
+  servicePorts?: ServicePort[]
+  sleepingRoomId?: string
+  flushLitres?: number
+  vibrationIsolation?: string
   collisionBoxes?: { center: Point3; size: Point3 }[]
   redundantGroup?: string
   powerKw: number
@@ -71,6 +99,18 @@ export interface RoomInstance {
   wetDryZone: 'dry' | 'wet' | 'semi_wet' | 'strict_dry_electrical'
   /** Optional wetted subzone inside a mixed-use gross room. */
   wetBounds?: GridBounds
+  corridorGlazing: boolean
+  servicePorts?: ServicePort[]
+  sleepingRooms?: {
+    id: string
+    x0: number
+    x1: number
+    z0: number
+    z1: number
+    beds: number
+    onCall: boolean
+  }[]
+  dailyWaterBudget?: { people: number; greyLitres: number; blackLitres: number }
   clearHeightOverride?: number
   atriumVoidToBelow?: GridBounds
   isDryElectricalZone: boolean

@@ -1,4 +1,5 @@
 import { RoomInteriors } from './rooms/RoomInteriors'
+import { doors, openingsAlong, type WallAxis } from '../geometry/doors'
 import { slabPlan } from '../geometry/planGeometry'
 import { Color, Group } from 'three'
 import { useFrame } from '@react-three/fiber'
@@ -13,7 +14,16 @@ import type { SurveyRuntime } from './camera/runtime'
 import { groundAt, type TerrainAtlas } from '../geometry/siteElevations'
 import { Model, reduceMotion } from './utils/Model'
 import { ModelBuilder } from './utils/modelBuilder'
-import { addSlab, iBeam, shaftFrames, stairStructure, steel, warm } from './utils/shellGeometry'
+import {
+  addSlab,
+  closedDoors,
+  iBeam,
+  partition,
+  shaftFrames,
+  stairStructure,
+  steel,
+  warm,
+} from './utils/shellGeometry'
 
 const l1 = footprint(FLOORS.L1.bounds),
   l2 = footprint(FLOORS.L2.bounds)
@@ -31,6 +41,14 @@ const l1h = FLOORS.L1.clearHeight,
   l2h = FLOORS.L2.clearHeight,
   roof = FLOORS.L2.pitch
 
+const outerEntry = doors.find((d) => d.id === 'entry')!
+const innerEntry = doors.find((d) => d.id === 'entry-inner')!
+const garageDoors = doors.filter(
+  (d) => d.floor === 'L1' && d.zones.includes('l1_garage') && d.zones.includes('surface'),
+)
+const lowerDoorLeaves = () => closedDoors('L1')
+const upperDoorLeaves = () => closedDoors('L2')
+
 function groundFloor() {
   const m = new ModelBuilder()
   addSlab(m, 'L1')
@@ -41,10 +59,10 @@ function groundFloor() {
     }
   }
   for (const x of [garage.x1, lobby.x0]) {
-    m.box('#afb7b3', [x, l1h / 2, l1.z0 + 2.2], [0.17, l1h, 4.4])
-    m.box('#afb7b3', [x, l1h / 2, l1.z1 - 2.6], [0.17, l1h, 5.2])
+    partition(m, 'L1', 'z', x, l1.z0, l1.z1, l1h)
     m.box(steel, [x, l1h - 0.24, l1.z], [0.23, 0.48, l1.d], 'steel')
   }
+  partition(m, 'L1', 'x', innerEntry.base[2], vestibule.x0, vestibule.x1, l1h)
   m.box('#8b9290', [garage.x, 0.095, l1.z1 + 0.85], [garage.w - 0.4, 0.07, 1.67])
   for (let x = garage.x0 + 0.75; x < garage.x1; x += 1.3)
     m.box('#d0b58a', [x, 0.138, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
@@ -66,55 +84,32 @@ function groundFacade() {
     m.box(ivory, [x, 3.01, l1.z], [0.24, 0.78, l1.d])
     for (let z = l1.z0 + 0.2; z < l1.z1; z += 1.32) m.box(mullion, [x, 2.04, z], [0.28, 1.2, 0.07], 'steel')
   }
-  for (let bay = 0; bay < 2; bay++) {
-    const x = garage.x0 + garage.w * (0.25 + bay * 0.5),
-      z = garage.z1
-    for (const dx of [-2.22, 2.22]) m.box(ivory, [x + dx, 1.58, z], [0.22, 3.16, 0.3])
-    m.box('#ecd1a0', [x, 3.09, z + 0.1], [2.9, 0.06, 0.12], 'lamp')
-  }
-  m.box('#b7b8ac', [garage.x, 3.23, garage.z1], [garage.w, 0.34, 0.35])
+  partition(m, 'L1', 'x', garage.z1, garage.x0, garage.x1, l1h)
+  for (const d of garageDoors)
+    m.box('#ecd1a0', [d.base[0], d.height + 0.1, d.base[2] + 0.1], [2.9, 0.06, 0.12], 'lamp')
   for (let x = lobby.x0 + 0.85; x < lobby.x1; x += 1.7) {
     m.box(glass, [x, 1.75, lobby.z1 - 0.1], [1.64, 2.94, 0.1], 'glass')
     m.box(mullion, [x - 0.82, 1.75, lobby.z1 - 0.08], [0.09, 3.18, 0.13], 'steel')
   }
   m.box(cedar, [lobby.x, l1h - 0.15, lobby.z1], [lobby.w, 0.3, 0.3], 'wood')
-  {
-    const jamb = (vestibule.w - 2.4) / 2
-    for (const sign of [-1, 1])
-      m.box(
-        '#88938d',
-        [vestibule.x + sign * (1.2 + jamb / 2), 1.54, l1.z1 - 0.12],
-        [jamb, 3.08, 0.22],
-        'steel',
-      )
-    m.box('#707a75', [vestibule.x, 2.94, l1.z1 - 0.12], [2.4, 0.52, 0.22], 'steel')
-    for (const side of [-1, 1])
-      m.box('#a9b1a9', [vestibule.x + side * (1.2 + jamb / 2), 1.55, l1.z1 - 3.8], [jamb, 3.1, 0.16])
-    m.box('#818b83', [vestibule.x, 2.94, l1.z1 - 3.8], [2.4, 0.52, 0.18], 'steel')
-  }
+  partition(m, 'L1', 'x', outerEntry.base[2], vestibule.x0, vestibule.x1, l1h)
   for (let i = 0; i < 8; i++)
     m.box(cedar, [lobby.x1 - 2.3 + i * 0.29, 1.68, l1.z1 + 0.1], [0.095, 3.2, 0.32], 'wood')
   return m
 }
 
-function garagePanels() {
+function garageShutters() {
   const m = new ModelBuilder()
-  for (let bay = 0; bay < 2; bay++) {
-    const x = garage.x0 + garage.w * (0.25 + bay * 0.5),
-      z = garage.z1
-    m.box(mullion, [x, 1.5, z - 0.16], [4.38, 3.0, 0.2], 'steel')
+  for (const d of garageDoors) {
+    const [x, , z] = d.base
     for (let j = 0; j < 14; j++)
-      m.box(j === 9 ? '#80979a' : '#596568', [x, 0.14 + j * 0.204, z - 0.025], [4.18, 0.176, 0.15], 'steel')
+      m.box(
+        j === 9 ? '#80979a' : '#596568',
+        [x, ((j + 0.5) / 14) * d.height, z + 0.22],
+        [d.width - 0.08, d.height / 16, 0.055],
+        'steel',
+      )
   }
-  return m
-}
-
-function entryPanels() {
-  const m = new ModelBuilder()
-  m.box('#767c79', [vestibule.x, 1.34, l1.z1 - 0.25], [2.38, 2.64, 0.12], 'steel')
-  for (const dx of [-0.61, 0.61])
-    m.box('#424f52', [vestibule.x + dx, 1.37, l1.z1 - 0.06], [1.14, 2.68, 0.12], 'steel')
-
   return m
 }
 
@@ -141,6 +136,30 @@ function lowerCeiling() {
   return m
 }
 
+// The greenhouse has full-height glass on both sides of its dry observation area.
+function glassPartition(m: ModelBuilder, axis: WallAxis, fixed: number, from: number, to: number) {
+  const addPane = (a: number, b: number, bottom: number) => {
+    if (b <= a) return
+    const axisCentre = (a + b) / 2,
+      h = l2h - bottom,
+      y = bottom + h / 2
+    m.box(
+      glass,
+      axis === 'x' ? [axisCentre, y, fixed] : [fixed, y, axisCentre],
+      axis === 'x' ? [b - a, h, 0.09] : [0.09, h, b - a],
+      'glass',
+    )
+  }
+  let start = from
+  for (const d of openingsAlong('L2', axis, fixed, from, to)) {
+    const centre = d.base[axis === 'x' ? 0 : 2]
+    addPane(start, centre - d.width / 2, 0)
+    addPane(centre - d.width / 2, centre + d.width / 2, d.height)
+    start = centre + d.width / 2
+  }
+  addPane(start, to, 0)
+}
+
 function observationFloor() {
   const m = new ModelBuilder()
   addSlab(m, 'L2')
@@ -153,10 +172,8 @@ function observationFloor() {
       m.box(ivory, [x, 0.1, z], [0.35, 0.2, 0.36])
     }
   const beds = footprint(roomsOn('L2').find((r) => r.wetBounds)!.wetBounds!)
-  for (const sign of [-1, 1]) {
-    const leaf = (garden.w - 1.45) / 2
-    m.box(glass, [garden.x + sign * (0.725 + leaf / 2), l2h / 2, beds.z0], [leaf, l2h, 0.09], 'glass')
-  }
+  glassPartition(m, 'x', beds.z0, garden.x0, garden.x1)
+  glassPartition(m, 'z', garden.x0, l2.z0, l2.z1)
   return m
 }
 
@@ -179,16 +196,8 @@ function upperFacade() {
       m.box(mullion, [r.x, l2h - 0.12, z], [r.w, 0.24, 0.18], 'steel')
     }
   }
-  for (const x of [l2.x0 + 0.09, l2.x1 - 0.09, garden.x0]) {
-    if (x === garden.x0) {
-      for (const side of [-1, 1])
-        m.box(
-          glass,
-          [x, l2h / 2, l2.z + side * (l2.d / 4 + 0.42)],
-          [0.085, l2h - 0.24, l2.d / 2 - 0.84],
-          'glass',
-        )
-    } else m.box(glass, [x, l2h / 2, l2.z], [0.085, l2h - 0.24, l2.d], 'glass')
+  for (const x of [l2.x0 + 0.09, l2.x1 - 0.09]) {
+    m.box(glass, [x, l2h / 2, l2.z], [0.085, l2h - 0.24, l2.d], 'glass')
     for (let z = l2.z0; z <= l2.z1; z += 2) m.box(mullion, [x, l2h / 2, z], [0.14, l2h, 0.09], 'steel')
     m.box(mullion, [x, l2h * 0.68, l2.z], [0.12, 0.075, l2.d], 'steel')
   }
@@ -435,6 +444,7 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
     cold = useShelterStore((s) => s.cold)
   const apron = useMemo(() => () => stationApron(atlas), [atlas])
   const panels = useRef<Group>(null),
+    gardenLeaves = useRef<Group>(null),
     building = useRef<Group>(null),
     upperFloor = useRef<Group>(null),
     roofShell = useRef<Group>(null),
@@ -449,8 +459,8 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
       if (a.current) a.current.rotation.y += step * 0.47
       if (b.current) b.current.rotation.y += step * 0.39
     }
-    if (panels.current)
-      panels.current.visible = !rt.garageTransfer && !walk && lower && !wire && floor !== 'L1'
+    if (panels.current) panels.current.visible = !rt.garageTransfer && !walk && lower && !wire
+    if (gardenLeaves.current) gardenLeaves.current.visible = !rt.garageTransfer && !walk && upper && !wire
     if (building.current)
       building.current.visible =
         (!walk || camera.position.y > -10.3) && (!rt.dropping || floor === 'L1' || floor === 'L2')
@@ -468,14 +478,14 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
           <Model build={apron} />
         </group>
         <group visible={lower && !wire}>
-          <RoomInteriors id="L1" />
+          <RoomInteriors id="L1" rt={rt} />
         </group>
         <Model build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
         <Model build={lowerServices} opacity={Number(lower && !wire && (plenum || floor === 'L2'))} />
         <Model build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
-        <group ref={panels} visible={!walk && lower && !wire && floor !== 'L1'} userData={{ skipWalk: true }}>
-          <Model build={entryPanels} />
-          <Model build={garagePanels} />
+        <group ref={panels} visible={!walk && lower && !wire} userData={{ skipWalk: true }}>
+          <Model build={lowerDoorLeaves} />
+          <Model build={garageShutters} />
         </group>
         <group ref={setback}>
           <Model build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
@@ -484,7 +494,10 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
       </group>
       <group ref={upperFloor} position-y={getFloorElevation('L2')}>
         <group visible={upper && !wire}>
-          <RoomInteriors id="L2" />
+          <RoomInteriors id="L2" rt={rt} />
+        </group>
+        <group ref={gardenLeaves} visible={!walk && upper && !wire} userData={{ skipWalk: true }}>
+          <Model build={upperDoorLeaves} />
         </group>
         <Model build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
         <Model build={upperServices} opacity={Number(upper && plenum && !wire)} />

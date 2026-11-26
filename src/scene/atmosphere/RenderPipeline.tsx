@@ -39,13 +39,18 @@ const tiers = [
 ]
 const Quality = createContext(tiers[2])
 export const useQuality = () => useContext(Quality)
-export function QualityControl({ children }: { children: ReactNode }) {
+export function QualityControl({
+  children,
+  onDprChange,
+}: {
+  children: ReactNode
+  onDprChange: (dpr: number) => void
+}) {
   const fixed = useMemo(() => {
     const param = new URLSearchParams(location.search).get('quality')
     return param !== null && /^[0-3]$/.test(param) ? Number(param) : null
   }, [])
   const tier = tiers[fixed ?? 2]
-  const setDpr = useThree((s) => s.setDpr)
   const meter = useRef({
     dpr: Math.min(devicePixelRatio, tier.dpr),
     pose: new Matrix4(),
@@ -55,14 +60,14 @@ export function QualityControl({ children }: { children: ReactNode }) {
     slow: 0,
   })
   useLayoutEffect(() => {
-    setDpr(meter.current.dpr)
+    onDprChange(meter.current.dpr)
     if (!PerformanceObserver.supportedEntryTypes.includes('longtask')) return
     const observer = new PerformanceObserver((list) => {
       for (const task of list.getEntries()) meter.current.lastTaskEnd = task.startTime + task.duration
     })
     observer.observe({ type: 'longtask' })
     return () => observer.disconnect()
-  }, [setDpr])
+  }, [onDprChange])
   useFrame(({ camera, gl }, dt) => {
     const m = meter.current
     if (
@@ -87,7 +92,8 @@ export function QualityControl({ children }: { children: ReactNode }) {
     if (next !== m.dpr) {
       m.dpr = next
       m.fast = m.slow = 0
-      setDpr(next)
+      // Canvas owns the configured ratio, including when a view change reconfigures the R3F root.
+      onDprChange(next)
     }
   })
   return <Quality.Provider value={tier}>{children}</Quality.Provider>

@@ -39,7 +39,9 @@ npm run perf      # 用本机 Chrome / ANGLE Metal 实测首切、步行、环�
 - **看剖面与平面**　拖动剖面下方的 Z 滑杆切过核心筒。点标高尺选层，进入平面后拖红色游标可改变相对楼面的剖切高度。`M` 切换机电夹层。平面中点房间可查面积、净高与分区，按 `F` 聚焦选中的房间。
 - **在三维空间移动**　在现场、剖切盒、楼层俯瞰和 X 光透视视角，拖鼠标环绕，滚轮推近。用 `W/A/S/D` 沿视向在水平方向飞行，`Q` 下降，`E` 上升，按住 `Shift` 加速。贴近地面时速度约 6 m/s，高空可达 70 m/s。现场镜头受地表和站房外墙约束。转场中可以拖动、滚轮或按键立即接管。
 - **走进建筑**　从“机位与图幅 → 房间索引”选房，或在图纸视图点房间、在三维视图点设备。右侧表可查位号、净用电的输入与输出、散热、尺寸和质量。选室内机位，再点“进入漫游”或按 `5`。现场进入地下房间会经过车库和货梯井，楼层俯瞰从上方落地。单击地面行走，拖动画面转头，也可用 WASD、Shift 或触屏摇杆。靠近气闸后长按 `E` 或屏上压差表约 1.5 秒。按一次 `Esc` 拉回俯瞰，再按一次返回现场。
-- **复现画廊**　截图使用 Playwright Chromium 或本机 Google Chrome。首次安装浏览器可运行 `npx playwright install chromium`，也可设置 `CHROME_PATH` 指向现有 Chromium 可执行文件。运行 `npm run verify` 后执行 `npm run shots`，图片将写入 [M2 五个固定机位](./docs/shots/m2/)。
+- **复现画廊**　截图使用 Playwright Chromium 或本机 Google Chrome。首次安装浏览器可运行 `npx playwright install chromium`，也可设置 `CHROME_PATH` 指向现有 Chromium 可执行文件。运行 `npm run verify` 后执行 `npm run shots -- m2.5a`，图片将写入 [M2.5a 五个固定机位](./docs/shots/m2.5a/)。
+
+全站房间索引收录 27 间房。看平面时可从货梯南侧主走廊向东找到 2 米宽的北向联络廊，物流、图书馆、食品加工和地热各自在这一侧开门。B2 公卫从主走廊进入，淋浴、洗衣从居住内廊西端进入。居住区南排六个单人间、北排两个双人间，共十个常住床位。玄关旁的备勤宿舍另有四床。东侧前室把主走廊、居住区第二出口和疏散平硐接在一起。
 
 地形由固定种子在构建期生成。`npm run terrain` 可单独重建测区与五个驱动通道。工程坐标见 `src/geometry/coords.ts`，外围设施见 `src/data/siteFacilities.ts`，摄影机位及其时刻见 `src/data/photographs.ts`。
 

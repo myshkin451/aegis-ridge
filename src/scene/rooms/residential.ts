@@ -1,14 +1,15 @@
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import type { ModelBuilder } from '../utils/modelBuilder'
-import { cabinDepth, cabinWidth } from '../../data/roomLayouts/residential'
+import { bedroomFurniture } from '../../data/roomLayouts/residential'
+import { doors, leafOffset } from '../../geometry/doors'
+import { bedrooms } from '../../geometry/residentialPlan'
 
 const timber = '#a97e5a',
   paleWood = '#c5aa84',
   steel = '#8b9b9a',
   dark = '#424e50'
 const paper = '#dbd9c8',
-  linen = '#b6c5c0',
-  green = '#819576'
+  linen = '#b6c5c0'
 const bookColors = ['#ad6552', '#788e89', '#bfab7b', '#5a717b', '#627362', '#aa8e74', '#866d69']
 
 function wheel(m: ModelBuilder, x: number, z: number, y = 0.09) {
@@ -156,7 +157,7 @@ function consoleDesk(m: ModelBuilder) {
   const radius = 6.4,
     count = 7
   for (let i = 0; i < count; i++) {
-    const a = (i - 3) * 0.167
+    const a = (i - 3) * 0.139
     const locate = (x: number, y: number, z: number): Point3 => [
       (radius - z) * Math.sin(a) + x * Math.cos(a),
       y,
@@ -167,7 +168,7 @@ function consoleDesk(m: ModelBuilder) {
       p: Point3,
       size: Point3,
       mat: 'steel' | 'epoxy' | 'lamp' | 'wood' = 'epoxy',
-    ) => m.box(color, locate(...p), size, mat, [0, -a, 0])
+    ) => m.box(color, locate(p[0] * 0.84, p[1], p[2]), [size[0] * 0.84, size[1], size[2]], mat, [0, -a, 0])
     box(dark, [0, 0.44, 0], [0.88, 0.83, 0.61], 'steel')
     box('#a9b1ac', [0, 0.91, 0.09], [1.02, 0.11, 0.88])
     box(steel, [0, 1.24, -0.2], [0.065, 0.6, 0.085], 'steel')
@@ -254,24 +255,21 @@ function dining(m: ModelBuilder) {
     for (const x of [-0.38, 0.38]) round(m, [x, 0.803, z], [0.23, 0.011, 0.23], paper)
 }
 function kitchen(m: ModelBuilder) {
-  m.box('#717c79', [0, 0.105, 0], [6.72, 0.21, 0.87], 'steel')
-  for (let i = 0; i < 8; i++) {
-    const x = -2.94 + i * 0.84
-    m.box(i % 3 === 0 ? '#91a39a' : '#a7b7a8', [x, 0.52, 0], [0.822, 0.72, 0.88], 'epoxy')
-    m.box(dark, [x, 0.72, -0.455], [0.32, 0.031, 0.023], 'steel')
+  // Along the east service wall. Drawer fronts face the dining table to the west.
+  for (let i = 0; i < 4; i++) {
+    const z = (i - 1.5) * 0.84
+    m.box(i % 3 ? '#a7b7a8' : '#91a39a', [0, 0.46, z], [0.65, 0.83, 0.815], 'epoxy')
+    m.box(dark, [-0.338, 0.72, z], [0.022, 0.031, 0.32], 'steel')
   }
-  m.box('#cfcdc0', [0, 0.92, 0], [6.86, 0.085, 1.03], 'stone')
-  m.box(dark, [-1.75, 0.977, 0], [1.47, 0.022, 0.73], 'epoxy')
-  for (const x of [-2.08, -1.44]) {
-    round(m, [x, 1.0, 0], [0.42, 0.026, 0.42], steel)
-    round(m, [x, 1.018, 0], [0.34, 0.01, 0.34], dark)
-  }
-  m.box(steel, [1.48, 0.978, 0], [0.79, 0.024, 0.62], 'steel')
-  m.box(dark, [1.48, 0.994, 0], [0.64, 0.016, 0.46], 'epoxy')
-  m.beam([1.82, 0.98, 0.33], [1.82, 1.29, 0.33], 0.035, 0.034, steel)
-  m.beam([1.82, 1.29, 0.33], [1.55, 1.29, 0.33], 0.035, 0.034, steel)
-  for (const x of [-2.41, -1.07]) m.box(steel, [x, 1.26, 0.47], [0.033, 0.56, 0.037], 'steel')
-  m.box('#c4c7bf', [-1.75, 1.58, 0.06], [1.57, 0.13, 0.83], 'steel')
+  m.box('#cfcdc0', [0, 0.92, 0], [0.74, 0.085, 3.46], 'stone')
+  m.box(dark, [0, 0.977, -0.83], [0.59, 0.022, 1.47], 'epoxy')
+  for (const z of [-1.16, -0.52]) round(m, [0, 1, z], [0.43, 0.026, 0.43], steel)
+  m.box(steel, [0, 0.978, 0.86], [0.59, 0.024, 0.79], 'steel')
+  m.box(dark, [0, 0.994, 0.86], [0.45, 0.016, 0.64], 'epoxy')
+  m.beam([0.29, 0.98, 0.92], [0.29, 1.27, 0.92], 0.035, 0.035, steel)
+  m.beam([0.29, 1.27, 0.92], [0.06, 1.27, 0.92], 0.035, 0.035, steel)
+  for (const z of [-1.5, -0.16]) m.box(steel, [0.31, 1.26, z], [0.033, 0.56, 0.037], 'steel')
+  m.box('#c4c7bf', [0.035, 1.58, -0.83], [0.65, 0.13, 1.57], 'steel')
 }
 function optic(m: ModelBuilder) {
   round(m, [0, 0.07, 0], [0.65, 0.13, 0.65], dark)
@@ -325,7 +323,7 @@ function therapy(m: ModelBuilder) {
   m.box(paper, [0.27, 0.98, -0.68], [0.49, 0.11, 0.27], 'epoxy', [0.58, 0, 0])
 }
 
-// Segment lettering in the same instance batch as the furniture also remains crisp at close range.
+// Door numbers reuse the floor's box/steel and box/epoxy instance batches.
 const digitSegments = [
   'abcdef',
   'bc',
@@ -338,96 +336,126 @@ const digitSegments = [
   'abcdefg',
   'abcdfg',
 ]
-function roomNumber(m: ModelBuilder, n: number, side: number, x: number, y: number, z: number) {
-  const digits = String(n).padStart(2, '0')
-  const segments: [string, number, number, boolean][] = [
-    ['a', 0, 0.06, true],
-    ['b', 0.032, 0.03, false],
-    ['c', 0.032, -0.03, false],
-    ['d', 0, -0.06, true],
-    ['e', -0.032, -0.03, false],
-    ['f', -0.032, 0.03, false],
-    ['g', 0, 0, true],
-  ]
-  for (let j = 0; j < 2; j++)
-    for (const [s, dx, dy, flat] of segments)
-      if (digitSegments[Number(digits[j])].includes(s))
-        m.box(
-          paper,
-          [x + side * ((j - 0.5) * 0.1 + dx), y + dy, z],
-          [flat ? 0.061 : 0.009, flat ? 0.009 : 0.053, 0.005],
-          'epoxy',
-        )
-}
-function cabinFitout(m: ModelBuilder, i: number) {
-  const side = i < 5 ? 1 : -1,
-    front = side * (cabinDepth / 2 - 0.075),
-    back = -front,
-    tone = bookColors[i % bookColors.length]
-  for (const x of [-1.12, 1.12]) m.box('#a39b8c', [x, 1.275, 0], [0.08, 2.55, cabinDepth], 'wood')
-  m.box('#b7b5a5', [0, 1.275, back], [2.16, 2.55, 0.09], 'epoxy')
-  m.box('#a6a99d', [-0.54, 1.275, front], [1.08, 2.55, 0.09], 'epoxy')
-  m.box(paleWood, [0.54, 2.36, front], [1.08, 0.38, 0.09], 'wood')
-  m.box(timber, [0.015, 1.085, front], [0.037, 2.17, 0.11], 'wood')
-  m.box(dark, [-0.3, 1.56, front + side * 0.051], [0.31, 0.22, 0.015], 'steel')
-  roomNumber(m, i + 1, side, -0.3, 1.56, front + side * 0.063)
-  // Fitted daylight panel and diffuser. Each cabin has its own sky hue, bedding and mementos.
-  m.box(timber, [0, 1.82, back + side * 0.07], [1.62, 0.79, 0.08], 'wood')
-  m.box(i % 2 ? '#b3c8ce' : '#abc2ba', [0, 1.85, back + side * 0.119], [1.49, 0.63, 0.012], 'lamp')
-  m.box('#c6c9b9', [0, 1.64, back + side * 0.129], [1.49, 0.18, 0.01], 'epoxy')
-  m.box(paleWood, [-0.56, 0.25, -side * 0.44], [0.95, 0.5, 2.04], 'wood')
-  m.box(paper, [-0.56, 0.53, -side * 0.44], [0.91, 0.09, 1.98], 'epoxy')
-  m.box(tone, [-0.56, 0.589, -side * 0.19], [0.9, 0.038, 1.34], 'epoxy')
-  m.box(linen, [-0.56, 0.615, -side * 1.12], [0.61, 0.093, 0.41], 'epoxy')
-  m.box(paleWood, [0.58, 0.78, -side * 1.24], [0.93, 0.08, 0.53], 'wood')
-  m.box(timber, [0.98, 0.37, -side * 1.24], [0.095, 0.73, 0.46], 'wood')
-  for (const z of [-0.68, -0.41]) m.box(timber, [0.42, 0.214, z * side], [0.29, 0.42, 0.041], 'wood')
-  m.box(tone, [0.42, 0.455, -side * 0.54], [0.37, 0.06, 0.35], 'epoxy')
-  const p = (x: number, y: number, z: number): Point3 => [x, y, -side * z]
-  const item = i % 10
-  if (item === 1 || item === 8) {
-    const guitar = item === 1
-    m.part('bud', 'wood', guitar ? '#bc8256' : dark, p(0.68, 1.17, 1.48), [0.36, 0.46, 0.084])
-    if (guitar) m.part('bud', 'wood', paleWood, p(0.68, 1.35, 1.48), [0.26, 0.27, 0.083])
-    round(m, p(0.68, 1.26, 1.424), [0.09, 0.014, 0.09], dark, [Math.PI / 2, 0, 0])
-    m.box(dark, p(0.68, 1.61, 1.46), [0.047, 0.44, 0.04], 'wood')
-    m.box(timber, p(0.68, 1.84, 1.46), [0.081, 0.1, 0.05], 'wood')
-  } else if (item === 2 || item === 3) {
-    round(m, p(0.48, 0.91, 1.24), [0.21, 0.17, 0.21], '#b78e70')
-    for (let leaf = 0; leaf < 7; leaf++) {
-      const a = leaf * 0.9
-      m.part(
-        'leaf',
-        'foliage',
-        leaf % 2 ? green : '#678769',
-        p(0.48 + 0.07 * Math.sin(a), 1.06 + 0.011 * leaf, 1.24 + 0.07 * Math.cos(a)),
-        [0.13, 0.23, 0.28],
-        [0.35, a, 0],
+const segments: [string, number, number, boolean][] = [
+  ['a', 0, 0.06, true],
+  ['b', 0.032, 0.03, false],
+  ['c', 0.032, -0.03, false],
+  ['d', 0, -0.06, true],
+  ['e', -0.032, -0.03, false],
+  ['f', -0.032, 0.03, false],
+  ['g', 0, 0, true],
+]
+export function bedroomNumbers(m: ModelBuilder) {
+  for (const [i, bedroom] of bedrooms.entries()) {
+    const door = doors.find((d) => d.id === bedroom.id)!
+    const [x, , z] = door.base
+    // Outward normal toward the reader. Its perpendicular is the reader's left-to-right axis.
+    const nx = bedroom.onCall ? -1 : 0,
+      nz = bedroom.onCall ? 0 : bedroom.z0 === 0 ? 1 : -1
+    const along = leafOffset(door, 1, 1) + door.width / 4 + 0.21
+    function mark(dx: number, dy: number, depth: number, w: number, h: number, t: number, plate: boolean) {
+      const center: Point3 = [
+        x + nz * (along + dx) + nx * depth,
+        1.55 + dy,
+        z - nx * (along + dx) + nz * depth,
+      ]
+      m.box(
+        plate ? dark : paper,
+        center,
+        door.axis === 'x' ? [w, h, t] : [t, h, w],
+        plate ? 'steel' : 'epoxy',
       )
     }
-    if (item === 3) {
-      m.box(paleWood, p(-0.65, 1.17, 1.61), [0.4, 0.36, 0.024], 'wood')
-      m.part('leaf', 'foliage', green, p(-0.65, 1.17, 1.58), [0.15, 0.02, 0.29], [Math.PI / 2, 0, 0])
-    }
-  } else if (item === 5 || item === 9) {
-    for (let j = 0; j < 3; j++) {
-      const x = 0.36 + j * 0.205
-      m.box(timber, p(x, 1.22, 1.61), [0.19, 0.23, 0.033], 'wood')
-      m.box(bookColors[(i + j) % 7], p(x, 1.22, 1.59), [0.15, 0.19, 0.011], 'epoxy')
-    }
-    round(m, p(0.44, 0.86, 1.2), [0.12, 0.075, 0.12], dark)
-    if (item === 9) m.box(paper, p(0.69, 0.831, 1.15), [0.42, 0.02, 0.27], 'epoxy')
-  } else if (item === 7) {
-    for (let j = 0; j < 3; j++)
-      mug(m, 0.32 + j * 0.22, 0.822, -side * (1.16 + (j % 2) * 0.12), bookColors[j + 3])
-  } else {
-    const count = item === 6 ? 8 : 4
-    for (let j = 0; j < count; j++)
-      book(m, 0.23 + j * 0.07, 0.821, -side * 1.36, j + i, 0.058, 0.18 + (j % 3) * 0.022, 0.16)
-    if (item === 4) m.box(paper, p(0.69, 0.839, 1.14), [0.3, 0.021, 0.22], 'epoxy', [0, 0.16, 0])
-    else mug(m, 0.78, 0.821, -side * 1.09, tone)
+    mark(0, 0, 0.082, 0.31, 0.22, 0.014, true)
+    for (const [j, digit] of [...String(i + 1).padStart(2, '0')].entries())
+      for (const [name, dx, dy, flat] of segments)
+        if (digitSegments[Number(digit)].includes(name))
+          mark((j - 0.5) * 0.1 + dx, dy, 0.091, flat ? 0.061 : 0.009, flat ? 0.009 : 0.053, 0.004, false)
   }
-  m.box('#fff1d3', [-cabinWidth / 2 + 0.08, 1.15, -side * 0.37], [0.025, 0.032, 1.13], 'lamp')
+}
+
+function sleepFitout(m: ModelBuilder, e: EquipmentUnit, i: number) {
+  const b = bedrooms.find((room) => room.id === e.sleepingRoomId)!
+  const { beds, desk } = bedroomFurniture(b)
+  const towardHall = b.z0 === 0 ? 1 : -1
+  const tone = bookColors[i % bookColors.length]
+  for (const { x, z, tiers } of beds) {
+    for (let tier = 0; tier < tiers; tier++) {
+      const y = 0.38 + tier * 1.05
+      m.box(timber, [x, y, z], [0.94, 0.12, 2.02], 'wood')
+      m.box(paper, [x, y + 0.115, z], [0.91, 0.12, 1.98], 'epoxy')
+      m.box(tone, [x, y + 0.19, z + towardHall * 0.27], [0.9, 0.045, 1.39], 'epoxy')
+      m.box(linen, [x, y + 0.21, z - towardHall * 0.71], [0.61, 0.105, 0.41], 'epoxy')
+    }
+    for (const dx of [-0.43, 0.43])
+      for (const dz of [-0.95, 0.95]) {
+        const h = tiers === 2 ? 1.96 : 0.45
+        m.box(timber, [x + dx, h / 2, z + dz], [0.045, h, 0.045], 'wood')
+      }
+    if (tiers === 2) {
+      m.box(steel, [x - 0.43, 1.9, z - 0.2], [0.035, 0.045, 1.43], 'steel')
+      for (let k = 1; k <= 5; k++) m.box(steel, [x - 0.43, k * 0.27, z + 0.72], [0.04, 0.035, 0.42], 'steel')
+    }
+  }
+  m.box(paleWood, [desk.x, 0.77, desk.z], [0.91, 0.075, 0.55], 'wood')
+  for (const dx of [-0.39, 0.39]) m.box(timber, [desk.x + dx, 0.37, desk.z], [0.055, 0.73, 0.47], 'wood')
+  deskLamp(m, desk.x - 0.33, 0.81, desk.z)
+  for (let j = 0; j < 3 + (i % 3); j++) book(m, desk.x + 0.01 + j * 0.071, 0.81, desk.z, i + j)
+  // A different recessed sky panel for each bedroom, on its exterior-side wall.
+  const back = -towardHall * 2.38
+  m.box(timber, [0, 1.78, back], [1.42, 0.76, 0.04], 'wood')
+  m.box(i % 2 ? '#b3c8ce' : '#abc2ba', [0, 1.78, back + towardHall * 0.025], [1.34, 0.67, 0.009], 'lamp')
+}
+
+function livingRoom(m: ModelBuilder, type: string) {
+  if (type === 'SOF') {
+    m.box(timber, [0, 0.13, 0.54], [3.78, 0.25, 0.94], 'wood')
+    for (let i = 0; i < 4; i++) m.box(linen, [-1.43 + i * 0.95, 0.38, 0.53], [0.93, 0.25, 0.94], 'epoxy')
+    m.box(linen, [0, 0.62, 0.95], [3.8, 0.47, 0.17], 'epoxy')
+    m.box(linen, [-1.42, 0.29, -0.5], [0.95, 0.52, 1.08], 'epoxy')
+    m.box(linen, [-1.82, 0.47, -0.5], [0.14, 0.4, 1.08], 'epoxy')
+  } else {
+    m.box(timber, [0, 0.33, 0], [0.63, 0.63, 2.5], 'wood')
+    m.box(dark, [0.18, 1.17, 0], [0.08, 1.15, 2.17], 'epoxy')
+    m.box('#4d6269', [0.134, 1.17, 0], [0.009, 1.07, 2.09], 'epoxy')
+  }
+}
+
+function sanitary(m: ModelBuilder, type: string) {
+  if (type === 'WC') {
+    m.box(paper, [0, 0.48, 0.33], [0.55, 0.95, 0.2], 'epoxy')
+    round(m, [0, 0.22, -0.07], [0.53, 0.41, 0.62], paper)
+    round(m, [0, 0.43, -0.09], [0.62, 0.055, 0.72], linen)
+    round(m, [0, 0.462, -0.09], [0.42, 0.012, 0.48], '#718583')
+    m.box(steel, [0, 0.81, 0.218], [0.17, 0.062, 0.013], 'steel')
+  } else if (type === 'BAS') {
+    m.box(paper, [0, 0.76, 0], [0.71, 0.23, 0.59], 'epoxy')
+    round(m, [0, 0.88, 0], [0.46, 0.013, 0.35], '#a3b6b1')
+    m.beam([0.27, 0.88, 0.1], [0.27, 1.07, 0.1], 0.032, 0.032, steel)
+    m.beam([0.27, 1.07, 0.1], [0.06, 1.07, 0.1], 0.032, 0.032, steel)
+  } else if (type === 'SH') {
+    m.box('#bcc6c1', [0, 0.023, 0], [1.44, 0.045, 1.77], 'epoxy')
+    for (const z of [-0.86, 0.86]) m.box(linen, [0, 1.1, z], [1.43, 2.2, 0.045], 'epoxy')
+    m.box(linen, [-0.69, 1.1, 0], [0.06, 2.2, 1.76], 'epoxy')
+    for (let i = 0; i < 8; i++)
+      m.box(paper, [0.65 - (i % 2) * 0.025, 1, -0.78 + i * 0.055], [0.035, 1.86, 0.072], 'epoxy')
+    m.beam([-0.64, 0.87, 0], [-0.64, 2.02, 0], 0.031, 0.031, steel)
+    m.box(steel, [-0.53, 2.04, 0], [0.25, 0.045, 0.18], 'steel')
+    round(m, [-0.34, 0.049, 0.34], [0.15, 0.008, 0.15], dark)
+  } else {
+    for (const x of [-0.57, 0.57]) {
+      m.box(paper, [x, 0.5, 0], [1.07, 0.98, 1.01], 'epoxy')
+      round(m, [x, 0.51, -0.517], [0.62, 0.04, 0.62], dark, [Math.PI / 2, 0, 0])
+      round(m, [x, 0.51, -0.544], [0.49, 0.015, 0.49], steel, [Math.PI / 2, 0, 0])
+      m.box(dark, [x + 0.21, 0.89, -0.512], [0.25, 0.078, 0.018], 'epoxy')
+    }
+  }
+}
+
+export function drawGym(m: ModelBuilder, type: string) {
+  if (type === 'GYM') strength(m)
+  else if (type === 'ROW') rower(m)
+  else therapy(m)
 }
 
 export function drawResidential(m: ModelBuilder, e: EquipmentUnit) {
@@ -463,14 +491,16 @@ export function drawResidential(m: ModelBuilder, e: EquipmentUnit) {
       return
     case 'OPT':
       return optic(m)
-    case 'RCK':
-      return strength(m)
-    case 'ROW':
-      return rower(m)
-    case 'PHY':
-      return therapy(m)
+    case 'SOF':
+    case 'AV':
+      return livingRoom(m, type)
+    case 'WC':
+    case 'BAS':
+    case 'SH':
+    case 'WM':
+      return sanitary(m, type)
     case 'CAB':
-      return cabinFitout(m, i)
+      return sleepFitout(m, e, i)
     default:
       throw new Error('Unknown residential unit ' + e.tagCode)
   }

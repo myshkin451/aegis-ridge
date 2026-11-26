@@ -292,6 +292,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     if (dive || rise) {
       // Photo presets can update lastFloor before the previous walk has finished exiting.
       const floor = rise ? rt.floor : state.lastFloor
+      rt.collision?.freightCar?.guideTo(floor)
       const landing = rise ? start.eye : goal.eye
       const lane = garage.x0 + garage.w * 0.75
       const walking =

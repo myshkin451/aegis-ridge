@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
 import { roomsOn } from '../../data/defaultBlueprint'
-import { CORRIDOR, FLOORS, UNDERGROUND } from '../../data/floors'
+import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, UNDERGROUND } from '../../data/floors'
 import { footprint, shaftPlans } from '../../geometry/coords'
 import { atriumFootprint, clearCeilingPatches, clipZSpan } from '../../geometry/atrium'
 import type { FloorId, UndergroundId } from '../../types/shelter'
@@ -13,6 +13,7 @@ import { useShelterStore } from '../../store/useShelterStore'
 import { Inscription } from './Inscription'
 import { roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
+import type { SurveyRuntime } from '../camera/runtime'
 
 function fixtures(id: UndergroundId) {
   const m = new ModelBuilder(),
@@ -33,7 +34,7 @@ function fixtures(id: UndergroundId) {
   return m
 }
 const freight = shaftPlans.find((s) => s.id === 'freight')!
-export function RoomInteriors({ id }: { id: FloorId }) {
+export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
   const build = useMemo(() => () => roomModels(id), [id])
   const root = useRef<Group>(null)
   const floor = FLOORS[id]
@@ -41,17 +42,17 @@ export function RoomInteriors({ id }: { id: FloorId }) {
     if (!root.current) return
     const state = useShelterStore.getState()
     const p = camera.position
-    const nearBuilding = Math.hypot(p.x, p.z) < 40 && Math.abs(p.y - floor.elevation) < 18
+    const aboveGround = id === 'L1' || id === 'L2'
+    const nearBuilding = aboveGround && Math.hypot(p.x, p.z) < 40 && Math.abs(p.y - floor.elevation) < 18
+    const besideShaft = rt.garageTransfer && Math.abs(p.y - floor.elevation - 1.65) < floor.pitch
     const orbit = state.cameraState === 'floorOrbit' || state.cameraState === 'plan'
     // Opaque slabs occlude lower fit-outs. The glazed B2 floor also exposes the B3 crop beds.
     const throughAtrium = id === 'B3' && state.lastFloor === 'B2'
-    root.current.visible =
-      state.mode !== 'xray' &&
-      (state.cameraState === 'site'
-        ? nearBuilding
-        : orbit || state.cameraState === 'walkthrough'
-          ? state.lastFloor === id || throughAtrium
-          : true)
+    let visible = true
+    if (state.cameraState === 'site') visible = nearBuilding || besideShaft
+    else if (orbit || state.cameraState === 'walkthrough')
+      visible = state.lastFloor === id || throughAtrium || besideShaft
+    root.current.visible = visible && state.mode !== 'xray'
   })
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
@@ -68,7 +69,12 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
     <>
       <Model build={build} />
       <group visible={view === 'walkthrough'}>
-        <Inscription text={id} position={[freight.x, 1.62, freight.z0 + 0.13]} width={2.1} height={1.2} />
+        <Inscription
+          text={id}
+          position={[freight.x, id === 'B1' || id === 'B4' ? 3.32 : 1.62, freight.z0 + 0.13]}
+          width={2.1}
+          height={1.2}
+        />
         {id === 'B3' && (
           <Inscription text="B3　分层水培" width={2.35} height={0.34} position={[-7, 2.69, -0.013]} reverse />
         )}
@@ -113,8 +119,10 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
           ))
             m.box(floorLight[id], [x, h - 0.008, (a + b) / 2], [0.07, 0.025, b - a], 'lamp')
       }
-      const r = footprint(CORRIDOR)
-      m.box('#b9bdb9', [r.x, 3.035, r.z], [r.w, 0.07, r.d])
+      for (const corridor of [CORRIDOR, BRANCH_CORRIDOR]) {
+        const r = footprint(corridor)
+        m.box('#b9bdb9', [r.x, 3.035, r.z], [r.w, 0.07, r.d])
+      }
       return m
     },
     [id],

@@ -1,10 +1,19 @@
 import { DoubleSide, Ray, Vector3 } from 'three'
 import { roomAt } from '../../geometry/viewGeometry'
 import { roomsOn } from '../../data/defaultBlueprint'
-import { FLOORS, UNDERGROUND } from '../../data/floors'
+import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, SERVICE_NICHE, UNDERGROUND } from '../../data/floors'
 import { footprint, shaftPlans } from '../../geometry/coords'
+import { doors } from '../../geometry/doors'
+import {
+  bedrooms,
+  eastLink,
+  escapeLobby,
+  quietHall,
+  westVestibule,
+  type PlanRect,
+} from '../../geometry/residentialPlan'
 import type { FloorId } from '../../types/shelter'
-import { WALK, type WalkCollision } from './walkCollision'
+import { doorBlocks, WALK, type WalkCollision } from './walkCollision'
 
 const freight = shaftPlans.find((s) => s.id === 'freight')!
 const surveyInterval = 0.12
@@ -13,6 +22,23 @@ export const routeKey = (x: number, z: number) => x + '/' + z
 
 type FloorSurvey = (x: number, z: number, simplify: boolean) => Vector3[] | undefined
 const floorSurveys = new WeakMap<WalkCollision, Map<FloorId, FloorSurvey>>()
+
+const inside = (r: PlanRect, x: number, z: number) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1
+const publicZone = 'circulation'
+
+/** The gross quarters footprint includes shared circulation and individual private rooms.
+ * Label both here so an open internal door never makes the adjoining room a shortcut. */
+function circulationZones(floor: FloorId) {
+  const common: PlanRect[] = [footprint(CORRIDOR), footprint(BRANCH_CORRIDOR)]
+  if (floor === 'B2') common.push(westVestibule, quietHall, eastLink, escapeLobby)
+  const rooms = roomsOn(floor).map((r) => ({ id: r.id, ...footprint(r.bounds) }))
+  const niche = { id: 'service-niche', ...footprint(SERVICE_NICHE) }
+  const zones = [...(floor === 'B2' ? bedrooms : []), ...rooms, ...shaftPlans, niche]
+  return (x: number, z: number) => {
+    if (common.some((r) => inside(r, x, z))) return publicZone
+    return zones.find((r) => inside(r, x, z))?.id
+  }
+}
 
 /** Reconnect a visitor's current feet to the precomputed predecessor tree after manual walking. */
 export function routeToWalkPosition(world: WalkCollision, floor: FloorId, eye: Vector3) {
@@ -60,6 +86,8 @@ export function surveyRoomRoutes(world: WalkCollision) {
   const surveys = new Map<FloorId, FloorSurvey>()
   floorSurveys.set(world, surveys)
   for (const floor of UNDERGROUND) {
+    const zoneAt = circulationZones(floor)
+    const installedDoors = doors.filter((d) => d.floor === floor)
     const y = FLOORS[floor].elevation,
       p = footprint(FLOORS[floor].bounds),
       step = 0.4
@@ -70,16 +98,28 @@ export function surveyRoomRoutes(world: WalkCollision) {
       nx * Math.min(nz - 1, Math.max(0, Math.floor((z - p.z0) / step)))
     const point = (i: number) =>
       new Vector3(p.x0 + ((i % nx) + 0.5) * step, y, p.z0 + (Math.floor(i / nx) + 0.5) * step)
-    const clear = (a: Vector3, b: Vector3) => {
+    const clear = (a: Vector3, b: Vector3, allowed?: string) => {
       const steps = Math.ceil(a.distanceTo(b) / surveyInterval)
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps
-        if (!world.stands(a.x + (b.x - a.x) * t, y, a.z + (b.z - a.z) * t, clearance)) return false
+      for (let i = 0; i <= steps; i++) {
+        const t = steps ? i / steps : 0
+        const x = a.x + (b.x - a.x) * t,
+          z = a.z + (b.z - a.z) * t
+        if (allowed) {
+          const zone = zoneAt(x, z)
+          if (zone !== publicZone && zone !== allowed) return false
+        }
+        if (i === 0) continue
+        if (!world.stands(x, y, z, clearance)) return false
+        if (installedDoors.some((d) => doorBlocks(d, x, z, 1, WALK.radius + clearance))) return false
       }
       return true
     }
     const start = index(freight.x, -1),
       parent = new Int16Array(nx * nz).fill(-1)
+    const zones = Array.from({ length: parent.length }, (_, i) => {
+      const p = point(i)
+      return zoneAt(p.x, p.z)
+    })
     parent[start] = start
     const queue = [start]
     for (let j = 0; j < queue.length; j++) {
@@ -88,6 +128,8 @@ export function surveyRoomRoutes(world: WalkCollision) {
       const from = point(id)
       for (const next of [col ? id - 1 : -1, col < nx - 1 ? id + 1 : -1, id - nx, id + nx]) {
         if (next < 0 || next >= parent.length || parent[next] !== -1) continue
+        // Once a path leaves public circulation it can only advance inside its destination.
+        if (!zones[next] || (zones[id] !== publicZone && zones[next] !== zones[id])) continue
         const v = point(next)
         if (!world.stands(v.x, y, v.z, clearance)) parent[next] = -2
         else if (clear(from, v)) {
@@ -98,10 +140,12 @@ export function surveyRoomRoutes(world: WalkCollision) {
     }
     const survey: FloorSurvey = (x, z, simplify) => {
       if (x < p.x0 || x > p.x1 || z < p.z0 || z > p.z1) return
+      const targetZone = zoneAt(x, z)
+      if (!targetZone) return
       const end = new Vector3(x, y, z),
         cell = index(x, z)
       let k = cell
-      if (parent[k] < 0 || !clear(point(k), end)) {
+      if (parent[k] < 0 || !clear(point(k), end, targetZone)) {
         // Check only the local 5 × 5 cells when the closest cell is across a partition.
         let nearest = 1
         k = -1
@@ -112,7 +156,7 @@ export function surveyRoomRoutes(world: WalkCollision) {
             if (col < 0 || col >= nx || i < 0 || i >= parent.length || parent[i] < 0) continue
             const candidate = point(i),
               distance = candidate.distanceToSquared(end)
-            if (distance < nearest && clear(candidate, end)) {
+            if (distance < nearest && clear(candidate, end, targetZone)) {
               k = i
               nearest = distance
             }
@@ -134,7 +178,7 @@ export function surveyRoomRoutes(world: WalkCollision) {
       const corners = [route[0]]
       for (let i = 0; i < route.length - 1; ) {
         let j = simplify ? route.length - 1 : i + 1
-        while (j > i + 1 && !clear(route[i], route[j])) j--
+        while (j > i + 1 && !clear(route[i], route[j], targetZone)) j--
         if (route[j].distanceToSquared(corners[corners.length - 1]) > 1e-6) corners.push(route[j])
         i = j
       }

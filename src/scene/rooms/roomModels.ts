@@ -2,7 +2,7 @@ import type { FloorId, EquipmentUnit } from '../../types/shelter'
 import { roomsOn } from '../../data/defaultBlueprint'
 import { ModelBuilder } from '../utils/modelBuilder'
 import { drawUpper } from './upper'
-import { drawResidential } from './residential'
+import { bedroomNumbers, drawResidential } from './residential'
 import { drawPlant } from './plant'
 
 export function drawEquipment(builder: ModelBuilder, floor: FloorId, unit: EquipmentUnit) {
@@ -14,5 +14,6 @@ export function drawEquipment(builder: ModelBuilder, floor: FloorId, unit: Equip
 export function roomModels(floor: FloorId) {
   const builder = new ModelBuilder()
   for (const room of roomsOn(floor)) for (const unit of room.equipment) drawEquipment(builder, floor, unit)
+  if (floor === 'B2') bedroomNumbers(builder)
   return builder
 }

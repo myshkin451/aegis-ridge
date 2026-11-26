@@ -3,16 +3,19 @@ import { Box3, InstancedMesh, Matrix4, Vector3 } from 'three'
 import { defaultBlueprint } from '../src/data/defaultBlueprint'
 import { CORRIDOR, FLOORS } from '../src/data/floors'
 import { footprint, shaftsAt } from '../src/geometry/coords'
-import { roomDoor } from '../src/geometry/doors'
+import { doors, leafOffset } from '../src/geometry/doors'
+import { bedroomFurniture } from '../src/data/roomLayouts/residential'
+import { bedrooms } from '../src/geometry/residentialPlan'
 import { equipmentSolids } from '../src/geometry/equipment'
+import { bedroomNumbers } from '../src/scene/rooms/residential'
 import { drawEquipment } from '../src/scene/rooms/roomModels'
 import { ModelBuilder } from '../src/scene/utils/modelBuilder'
 import { useShelterStore } from '../src/store/useShelterStore'
 
 const rooms = defaultBlueprint.rooms
 const all = rooms.flatMap((room) => room.equipment)
-it('assigns unique equipment tags across all 26 blueprints', () => {
-  expect(rooms).toHaveLength(26)
+it('assigns unique equipment tags across all 27 blueprints', () => {
+  expect(rooms).toHaveLength(27)
   expect(new Set(all.map((u) => u.tagCode)).size).toBe(all.length)
 })
 describe.each(rooms)('$id', (room) => {
@@ -105,10 +108,12 @@ describe.each(rooms)('$id', (room) => {
     const reserved = shaftsAt(f.elevation).map((s) => ({ ...s, label: s.id as string }))
     if (room.floorId.startsWith('B')) {
       reserved.push({ ...reserved[0], ...footprint(CORRIDOR), label: '主走廊' })
-      const {
-        base: [x, , z],
-      } = roomDoor(room)
-      reserved.push({ ...reserved[0], x0: x - 0.93, x1: x + 0.93, z0: z - 0.8, z1: z + 0.8, label: '门洞' })
+      for (const door of doors.filter((d) => d.floor === room.floorId && d.axis !== 'bearing')) {
+        const [x, , z] = door.base
+        const dx = door.axis === 'x' ? door.width / 2 : 0.78
+        const dz = door.axis === 'z' ? door.width / 2 : 0.78
+        reserved.push({ ...reserved[0], x0: x - dx, x1: x + dx, z0: z - dz, z1: z + dz, label: door.id })
+      }
     }
     for (const b of bounds)
       for (const area of reserved)
@@ -145,4 +150,104 @@ it('enters the selected floor and uses both the chosen eye position and the look
         landingTarget: [a.target[0], FLOORS[room.floorId].elevation + a.target[1], a.target[2]],
       })
     }
+})
+
+it('installs every designated bed inside its own bedroom and keeps the private property out of the hall', () => {
+  const quarters = rooms.find((r) => r.id === 'b2_quarters')!
+  for (const b of bedrooms) {
+    const fit = quarters.equipment.filter((e) => e.sleepingRoomId === b.id)
+    expect(fit).toHaveLength(1)
+    expect(bedroomFurniture(b).beds.reduce((sum, bed) => sum + bed.tiers, 0)).toBe(b.beds)
+    const [x, , z] = fit[0].position,
+      [w, , d] = fit[0].moduleSizeM
+    expect(x - w / 2).toBeGreaterThan(b.x0)
+    expect(x + w / 2).toBeLessThan(b.x1)
+    expect(z - d / 2).toBeGreaterThan(b.z0)
+    expect(z + d / 2).toBeLessThan(b.z1)
+  }
+})
+it('provides individually located and typed M3 interfaces with the 10-person water balance', () => {
+  const ports = rooms.flatMap((r) => [
+    ...(r.servicePorts ?? []),
+    ...r.equipment.flatMap((e) => e.servicePorts ?? []),
+  ])
+  expect(new Set(ports.map((p) => p.id)).size).toBe(ports.length)
+  for (const r of rooms) {
+    const bounds = footprint(r.bounds)
+    for (const p of [...(r.servicePorts ?? []), ...r.equipment.flatMap((e) => e.servicePorts ?? [])]) {
+      const [x, y, z] = p.position
+      expect(p.floor).toBe(r.floorId)
+      expect(x >= bounds.x0 && x <= bounds.x1 && z >= bounds.z0 && z <= bounds.z1, p.id).toBe(true)
+      expect(y >= 0 && y <= FLOORS[r.floorId].pitch - 0.3, p.id).toBe(true)
+      if (p.connectsTo?.shaft) {
+        const destination = p.connectsTo,
+          shaft = shaftsAt(FLOORS[destination.floor].elevation).find((s) => s.id === destination.shaft)!
+        const [sx, , sz] = destination.position
+        expect(sx >= shaft.x0 && sx <= shaft.x1 && sz >= shaft.z0 && sz <= shaft.z1, p.id).toBe(true)
+      }
+    }
+  }
+  const bath = rooms.find((r) => r.id === 'b2_bath_laundry')!
+  expect(bath.dailyWaterBudget).toEqual({ people: 10, greyLitres: 650, blackLitres: 60 })
+  expect(bath.equipment.find((e) => e.flushLitres)?.flushLitres).toBe(1)
+  for (const system of ['vacuum-blackwater', 'greywater']) {
+    const discharge = ports.filter((port) => port.system === system && port.connectsTo?.shaft)
+    expect(discharge, system).toHaveLength(1)
+    const { plenumEntry, connectsTo } = discharge[0]
+    expect(connectsTo).toMatchObject({ floor: 'B3', shaft: 'wet' })
+    expect(plenumEntry?.floor).toBe('B3')
+    const [x, y, z] = plenumEntry!.position
+    const [ex, ey, ez] = connectsTo!.position
+    for (const height of [y, ey]) {
+      expect(height).toBeGreaterThan(FLOORS.B3.clearHeight)
+      expect(height).toBeLessThan(FLOORS.B3.pitch - 0.3)
+    }
+    const plenumSpan = Math.hypot(ex - x, ez - z)
+    expect(plenumSpan).toBeGreaterThanOrEqual(4)
+    expect(plenumSpan).toBeLessThanOrEqual(8)
+  }
+  expect(ports.filter((p) => p.system === 'duty-sanitary').map((p) => p.floor)).toEqual(['B1', 'B3', 'B4'])
+  expect(ports.filter((p) => p.system === 'acoustic-sleeve').map((p) => p.position[1])).toEqual(
+    Array(9).fill(3.45),
+  )
+  for (const system of [
+    'borefield-supply',
+    'borefield-return',
+    'surface-heating',
+    'hydrogen-recovery',
+    'return-air-co2',
+    'battery-exhaust',
+    'combustion-air',
+    'combustion-exhaust',
+  ])
+    expect(
+      ports.some((p) => p.system === system),
+      system,
+    ).toBe(true)
+  expect(all.filter((e) => e.tagCode.startsWith('AQ-')).every((e) => e.vibrationIsolation)).toBe(true)
+})
+
+it('mounts all nine numbers on the circulation face of their wall, clear of the open leaves', () => {
+  const builder = new ModelBuilder()
+  bedroomNumbers(builder)
+  const model = builder.build()
+  try {
+    const mesh = model.object.children.find((m) => m.userData.finish === 'steel') as InstancedMesh
+    expect(mesh.count).toBe(bedrooms.length)
+    for (const [i, b] of bedrooms.entries()) {
+      const d = doors.find((d) => d.id === b.id)!
+      const matrix = new Matrix4()
+      mesh.getMatrixAt(i, matrix)
+      const box = new Box3(new Vector3(-0.5, -0.5, -0.5), new Vector3(0.5, 0.5, 0.5)).applyMatrix4(matrix)
+      const main = d.axis === 'x' ? 'x' : 'z'
+      const centre = d.base[d.axis === 'x' ? 0 : 2]
+      const travel = leafOffset(d, 1, 1) + d.width / 4
+      expect(box.min[main] > centre + travel || box.max[main] < centre - travel, d.id).toBe(true)
+      if (b.onCall) expect(box.max.x).toBeCloseTo(b.x0 - 0.075)
+      else if (b.z0 === 0) expect(box.min.z).toBeCloseTo(b.z1 + 0.075)
+      else expect(box.max.z).toBeCloseTo(b.z0 - 0.075)
+    }
+  } finally {
+    model.dispose()
+  }
 })

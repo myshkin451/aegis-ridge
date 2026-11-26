@@ -2,8 +2,14 @@ import { lazy, Suspense, useState, useEffect } from 'react'
 import { Instruments } from './ui/Instruments'
 import { useShelterStore } from './store/useShelterStore'
 const ShelterCanvas = lazy(async () => ({ default: (await import('./scene/ShelterCanvas')).ShelterCanvas }))
-export default function App() {
+function DrawingTransition() {
   const view = useShelterStore((s) => s.cameraState)
+  return view === 'section' || view === 'plan' ? (
+    <div key={view} className="drawing-transition" aria-hidden="true" />
+  ) : null
+}
+
+export default function App() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
     const opened = () => setReady(true)
@@ -18,9 +24,7 @@ export default function App() {
         </Suspense>
       </div>
       <div aria-hidden="true" className="drawing-intro" />
-      {(view === 'section' || view === 'plan') && (
-        <div key={view} className="drawing-transition" aria-hidden="true" />
-      )}
+      <DrawingTransition />
       <div inert={!ready}>
         <Instruments />
       </div>

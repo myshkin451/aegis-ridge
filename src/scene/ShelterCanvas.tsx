@@ -1,5 +1,5 @@
 import { Canvas, useLoader } from '@react-three/fiber'
-import { Component, useMemo } from 'react'
+import { Component, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AgXToneMapping, PCFSoftShadowMap } from 'three'
 import { InteriorLights } from './rooms/RoomInteriors'
@@ -21,13 +21,13 @@ import { surveyRuntime } from './camera/runtime'
 import { DrawingMarks } from './DrawingMarks'
 import { CoreTraces } from './CoreTraces'
 
-function SurveyScene() {
+function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
   const rt = useMemo(surveyRuntime, [])
   const xray = useShelterStore((s) => s.mode === 'xray')
   const structure = useShelterStore((s) => s.layers.structure)
   return (
-    <QualityControl>
+    <QualityControl onDprChange={onDprChange}>
       <PhysicalSky />
       <MultiScaleMountain atlas={atlas} />
       <group visible={!xray || structure}>
@@ -73,10 +73,12 @@ class GraphicsBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 export function ShelterCanvas() {
+  const [dpr, setDpr] = useState(() => Math.min(devicePixelRatio, 1.25))
+  const scene = useMemo(() => <SurveyScene onDprChange={setDpr} />, [])
   return (
     <GraphicsBoundary>
       <Canvas
-        dpr={Math.min(devicePixelRatio, 1.25)}
+        dpr={dpr}
         shadows={{ type: PCFSoftShadowMap }}
         camera={{ position: [-88, 19, -41], near: 0.5, far: 15000, fov: 23 }}
         onCreated={({ gl }) => {
@@ -94,7 +96,7 @@ export function ShelterCanvas() {
         }}
         fallback={<GraphicsMessage />}
       >
-        <SurveyScene />
+        {scene}
       </Canvas>
     </GraphicsBoundary>
   )

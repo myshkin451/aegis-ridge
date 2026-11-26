@@ -122,7 +122,9 @@
 
 `pbrLibrary.ts` 按世界米制坐标采样程序化矿物、粗糙度和凹凸细节。矩形构件使用 5–20 mm 法线倒角，带开孔的楼板有 12 mm 几何倒角。天空生成同源 PMREM 供玻璃反射，三层噪声云片位于山谷。渲染器按光照、AO、选中发光体的 Bloom、SMAA 与 AgX 输出。现场最高两档有三级太阳阴影；持续慢帧时逐档降低阴影、AO、植被细节和像素比。
 
-`geometry/doors.ts` 使用房间、平硐和前厅坐标定位门扇。`walkCollision.ts` 从同一套实体网格建立 BVH，`SectionBoxTool.tsx` 与标高尺通过 store 修改世界切面。楼板孔洞与楼梯保留在漫游碰撞几何中。封口模板只录入封闭实体，避免把单面平硐表皮误判为实体产生大面积黑块。
+`geometry/doors.ts` 保存门的楼层、底部中心坐标、墙轴、宽高、门型和两侧分区。建筑沿墙轴读取开口，图纸绘制关闭的门扇，漫游按各扇的开度更新碰撞位置。地下走廊观察窗由房间的 `corridorGlazing` 控制。B2 的卧室、共用内廊、卫浴和疏散前室边界定义在 `geometry/residentialPlan.ts`。房间设备、隔墙与漫游寻路共用这份平面。
+
+`walkCollision.ts` 从建筑实体和设备碰撞体建立 BVH。`SectionBoxTool.tsx` 与标高尺通过 store 修改世界切面。楼板孔洞与楼梯保留在漫游碰撞几何中。封口模板只录入封闭实体，避免把单面平硐表皮误判为实体产生大面积黑块。
 
 ## 3. 核心 TypeScript 数据模型要点（`src/types/shelter.ts`）
 
@@ -181,6 +183,9 @@ export interface RoomInstance {
   bounds: GridBounds
   clearHeightOverride?: number       // 如 b2_commons 与 b2_library 局部抬高至 3.6m
   wetDryZone: WetDryZone
+  corridorGlazing: boolean
+  servicePorts?: ServicePort[]        // 世界 X/Z、相对端口所在楼层的 Y，单位均为米
+  dailyWaterBudget?: { people: number; greyLitres: number; blackLitres: number }
   replaceable: boolean
   adjustable?: boolean
   zonePressure: 'high_pos' | 'normal_pos' | 'neutral' | 'neg_isolation'
@@ -194,7 +199,7 @@ export interface RoomInstance {
 
 ---
 
-M2 在同一楼层内按材质和原语合批。每个实例保留设备位号，点击后可回到同一条设备记录。漫游碰撞采用设备安装包络，龙门吊、洗消拱门、独立寝舱用分件碰撞体保留开口。首屏将设备与建筑一次性建入 BVH，再沿有楼板支撑、满足胶囊净距的位置测出货梯至室内机位的路径。设备饰面跟随建筑裁切面，图纸的材料封口归属结构实体。
+同层的重复构件按材质和原语合批。每个设备实例保留位号，点击后可回到同一条设备记录。龙门吊、洗消拱门和卧室家具采用分件碰撞体。首屏将设备与建筑一次性建入 BVH，再从货梯旁的主走廊测出地下各机位的通路。寻路和路径简化都检查公共通行范围、地面支撑、胶囊净空与打开后的门扇。设备饰面跟随建筑裁切面，图纸的材料封口归属结构实体。
 
 ## 4. 运行时性能预算与工程防坑清单
 

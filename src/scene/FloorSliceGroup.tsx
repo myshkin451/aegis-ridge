@@ -1,13 +1,12 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
-import { ADIT, CORRIDOR, FLOORS, FLOOR_ORDER } from '../data/floors'
-import { roomsOn } from '../data/defaultBlueprint'
-import { adits } from '../data/siteFacilities'
+import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, FLOOR_ORDER, SLAB } from '../data/floors'
+import { carDeck } from '../geometry/freightCar'
+import { openingsAlong } from '../geometry/doors'
 import { useShelterStore } from '../store/useShelterStore'
 import type { UndergroundId } from '../types/shelter'
 import {
-  aditCentreZ,
   floorSection,
   footprint,
   shaftsAt,
@@ -21,6 +20,7 @@ import type { SurveyRuntime } from './camera/runtime'
 import { Model } from './utils/Model'
 import {
   addSlab,
+  closedDoors,
   iBeam,
   roomStructure,
   shaftFrames,
@@ -29,14 +29,15 @@ import {
   trim,
 } from './utils/shellGeometry'
 
-function structure(id: UndergroundId) {
+export function structure(id: UndergroundId) {
   const m = new ModelBuilder(),
     route = footprint(CORRIDOR)
   addSlab(m, id)
   roomStructure(m, id)
-  m.box('#707b7d', [route.x, 0.012, route.z], [route.w, 0.024, route.d], id === 'B4' ? 'grate' : 'epoxy')
+  for (const r of [route, footprint(BRANCH_CORRIDOR)])
+    m.box('#707b7d', [r.x, -0.01, r.z], [r.w, 0.024, r.d], id === 'B4' ? 'grate' : 'epoxy')
   for (const z of [route.z0 + 0.14, route.z1 - 0.14])
-    m.box('#d0b286', [route.x, 0.03, z], [route.w - 0.2, 0.018, 0.055], 'wood')
+    m.box('#d0b286', [route.x, 0.0025, z], [route.w - 0.2, 0.001, 0.055], 'wood')
   // Drainage grate sits outside the circulation strip, just inside the perimeter.
   for (const z of [plan.z0 + 0.13, plan.z1 - 0.13]) {
     m.box(steel, [plan.x, 0.022, z], [plan.w - 0.18, 0.035, 0.18], 'steel')
@@ -52,23 +53,32 @@ function structure(id: UndergroundId) {
   return m
 }
 
-function verticalCore(id: UndergroundId) {
+export function verticalCore(id: UndergroundId) {
   const m = new ModelBuilder()
   shaftFrames(m, 0, FLOORS[id].pitch, id === 'B4' ? 'B3' : id === 'B3' ? 'B2' : id === 'B2' ? 'B1' : 'L1')
   stairStructure(m, id, 0, -Infinity, FLOORS[id].pitch)
-  if (id === 'B4') {
-    const s = shaftsAt(FLOORS.B4.elevation).find((shaft) => shaft.id === 'freight')!
-    m.box('#677477', [s.x, 0.09, s.z], [1.8, 0.18, 1.8], 'steel')
-    m.box('#8f9997', [s.x, 1.25, s.z0 + 1.12], [1.8, 2.5, 0.09], 'steel')
-    for (const dx of [-0.87, 0.87]) m.box('#a5aeaa', [s.x + dx, 1.25, s.z], [0.06, 2.5, 1.8], 'steel')
-    m.box(steel, [s.x1 - 0.34, 2.2, s.z], [0.3, 2.5, 1.1], 'steel')
+  const s = shaftsAt(FLOORS[id].elevation).find((shaft) => shaft.id === 'freight')!
+  // The slab stops at the shaft frame. Steel thresholds bridge from each landing
+  // to the parked car, leaving the car footprint clear for vertical travel.
+  const apron = (s.d - carDeck.depth) / 2
+  for (const opening of openingsAlong(id, 'x', s.z1, s.x0, s.x1).concat(
+    openingsAlong(id, 'x', s.z0, s.x0, s.x1),
+  )) {
+    const z = opening.base[2]
+    const overlap = 0.035 // Span the bevel at the slab edge.
+    m.box(
+      '#788384',
+      [s.x, -0.049, z + (Math.sign(s.z - z) * (apron - overlap)) / 2],
+      [carDeck.width, 0.1, apron + overlap],
+      'steel',
+    )
   }
   return m
 }
 
-function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
+export function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
   const m = new ModelBuilder(),
-    h = FLOORS[id].clearHeight
+    h = FLOORS[id].pitch - SLAB
   const wall = (x0: number, z0: number, x1: number, z1: number, bottom = 0, top = h) => {
     const alongX = x1 !== x0
     if (side === 'wire') {
@@ -83,33 +93,26 @@ function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
       [alongX ? x1 - x0 : 0.2, top - bottom, alongX ? 0.2 : z1 - z0],
     )
   }
+  function flank(axisX: number, step: number) {
+    const x = axisX + step
+    let cursor = plan.z0
+    for (const opening of openingsAlong(id, 'z', axisX, plan.z0, plan.z1)) {
+      const z = opening.base[2],
+        start = z - opening.width / 2,
+        end = z + opening.width / 2
+      wall(x, cursor, x, start)
+      wall(x, start, x, end, opening.height)
+      cursor = end
+    }
+    wall(x, cursor, x, plan.z1)
+  }
   if (side !== 'front') {
     wall(plan.x0, plan.z0 + 0.1, plan.x1, plan.z0 + 0.1)
-    const x = plan.x1 - 0.1
-    if (id === 'B2') {
-      const z = adits.east.points[0][2],
-        half = adits.east.width / 2
-      wall(x, plan.z0, x, z - half)
-      wall(x, z + half, x, plan.z1)
-      wall(x, z - half, x, z + half, adits.east.height)
-    } else wall(x, plan.z0, x, plan.z1)
+    flank(plan.x1, -0.1)
   }
   if (side !== 'rear') {
     wall(plan.x0, plan.z1 - 0.1, plan.x1, plan.z1 - 0.1)
-    const x = plan.x0 + 0.1
-    if (id === ADIT.floorId) {
-      wall(x, plan.z0, x, aditCentreZ - ADIT.width / 2)
-      wall(x, aditCentreZ + ADIT.width / 2, x, plan.z1)
-      wall(x, aditCentreZ - ADIT.width / 2, x, aditCentreZ + ADIT.width / 2, ADIT.height)
-    } else wall(x, plan.z0, x, plan.z1)
-  }
-  for (const room of roomsOn(id)) {
-    if (!room.clearHeightOverride) continue
-    const b = footprint(room.bounds),
-      top = room.clearHeightOverride
-    if (side !== 'front' && b.z0 === plan.z0) wall(b.x0, b.z0 + 0.1, b.x1, b.z0 + 0.1, h, top)
-    if (side !== 'rear' && b.z1 === plan.z1) wall(b.x0, b.z1 - 0.1, b.x1, b.z1 - 0.1, h, top)
-    if (side !== 'rear' && b.x0 === plan.x0) wall(b.x0 + 0.1, b.z0, b.x0 + 0.1, b.z1, h, top)
+    flank(plan.x0, 0.1)
   }
   return m
 }
@@ -162,12 +165,16 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
       wire: () => enclosure(id, 'wire'),
       plenum: () => plenumFrame(id),
       core: () => verticalCore(id),
+      leaves: () => closedDoors(id),
     }),
     [id],
   )
   const floorGroup = useRef<Group>(null),
+    fixedLeaves = useRef<Group>(null),
     ceiling = useRef<Group>(null)
   useFrame(({ camera }) => {
+    if (fixedLeaves.current)
+      fixedLeaves.current.visible = seen && mode !== 'xray' && !walk && !rt.garageTransfer
     if (ceiling.current)
       ceiling.current.visible =
         (walk || rt.garageTransfer) && !(rt.dropping && camera.position.y > FLOORS[id].elevation + 2.5)
@@ -199,10 +206,13 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
     >
       <group visible={seen && mode !== 'xray'}>
         <CorridorFixtures id={id} />
-        <RoomInteriors id={id} />
+        <RoomInteriors id={id} rt={rt} />
       </group>
       <group ref={ceiling} visible={walk}>
         <WalkCeiling id={id} />
+      </group>
+      <group ref={fixedLeaves} visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
+        <Model build={builders.leaves} interior />
       </group>
       <Model build={builders.frame} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0} />
       <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />

@@ -14,7 +14,8 @@ import {
 import { defaultBlueprint } from '../../data/defaultBlueprint'
 import { equipmentSolids } from '../../geometry/equipment'
 import { BoxGeometry, Group } from 'three'
-import { doors } from '../../geometry/doors'
+import { FreightCar } from '../../geometry/freightCar'
+import { doors, doorTints, leafOffset, leafThickness, manualDoorAvailable } from '../../geometry/doors'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
 import { FLOORS, FLOOR_ORDER } from '../../data/floors'
 import { useShelterStore } from '../../store/useShelterStore'
@@ -86,7 +87,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       cos: Math.cos(d.yaw),
       sin: Math.sin(d.yaw),
       rotation: new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), d.yaw),
-      size: new Vector3(d.width * 0.49, d.height - 0.05, 0.075),
+      size: new Vector3(d.width / 2, d.height - 0.02, leafThickness),
     }))
     const position = new Vector3(),
       matrix = new Matrix4()
@@ -95,7 +96,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       const { door, cos, sin, rotation, size } = installed[index]
       const track = door.trackOffset ?? 0
       for (let leaf = 0; leaf < 2; leaf++) {
-        const offset = (2 * leaf - 1) * door.width * (0.25 + 0.52 * opening)
+        const offset = leafOffset(door, leaf, opening)
         position.set(
           door.base[0] + cos * offset + sin * track,
           door.base[1] + door.height / 2,
@@ -139,7 +140,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         }
     appendSolids(hulls, vertices, () => true)
     cube.dispose()
-    const collision = new WalkCollision(positionGeometry(vertices))
+    const collision = new WalkCollision(positionGeometry(vertices), new FreightCar())
     rt.collision = player.current = collision
     rt.roomRoutes = surveyRoomRoutes(collision)
     gl.domElement.dataset.surveyedAnchors = String(rt.roomRoutes.size)
@@ -150,7 +151,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   }, [scene, rt, mat, gl])
   useLayoutEffect(() => {
     doors.forEach((d, i) => {
-      const tint = new Color(d.airlock ? '#806b52' : '#849290')
+      const tint = new Color(doorTints[d.kind])
       leaves.current!.setColorAt(i * 2, tint)
       leaves.current!.setColorAt(i * 2 + 1, tint)
       placeDoor(i, 0)
@@ -307,7 +308,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
           // The guide's passage is visual. It does not grant a manual pressure-door unlock.
           const fraction = Math.max(0, Math.min(1, (3.15 - distance) / 1.7))
           const opening = fraction * fraction * (3 - 2 * fraction)
-          placeDoor(i, opening)
+          placeDoor(i, manualDoorAvailable(doors[i], player.current.freightCar?.stop) ? opening : 0)
         }
         leaves.current.instanceMatrix.needsUpdate = true
       }
@@ -349,12 +350,15 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     rt.nearby = nearest
     rt.pressure = input.unlocked.has(nearest) ? 1 : Math.min(1, input.held / 1.5)
     const snap = reduceMotion()
+    const car = player.current.freightCar
+    car?.callFrom(rt.feet.x, rt.feet.y, rt.feet.z)
     for (const [i, d] of doors.entries()) {
       const near = Math.hypot(rt.feet.x - d.base[0], rt.feet.y - d.base[1], rt.feet.z - d.base[2]) < 2.6
       if (!near) input.unlocked.delete(d.id)
-      const open = Number(near && (!d.airlock || input.unlocked.has(d.id))),
+      const available = manualDoorAvailable(d, car?.stop)
+      const open = Number(near && available && (!d.airlock || input.unlocked.has(d.id))),
         last = input.opened.get(d.id) ?? 0
-      const value = snap ? open : open + (last - open) * Math.exp(-7 * dt)
+      const value = snap || !available ? open : open + (last - open) * Math.exp(-7 * dt)
       input.opened.set(d.id, value)
       placeDoor(i, value)
     }
