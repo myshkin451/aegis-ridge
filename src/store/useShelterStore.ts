@@ -1,68 +1,159 @@
 import { create } from 'zustand'
-import type { CameraPreset, FloorSelection, ViewMode } from '../types/shelter'
+import { defaultBox, moveFace } from '../geometry/viewGeometry'
+import type { SectionBounds } from '../geometry/viewGeometry'
+import { FLOORS } from '../data/floors'
+import { photo } from '../data/photographs'
+import type { ShotId } from '../data/photographs'
+import type {
+  BoxFace,
+  CameraStateId,
+  CameraPreset,
+  FloorId,
+  FloorSelection,
+  Point3,
+  ViewMode,
+} from '../types/shelter'
 
+export const systems = ['power', 'data', 'water', 'air', 'freight', 'structure'] as const
+export type SystemId = (typeof systems)[number]
+const allLayers = { power: true, data: true, water: true, air: true, freight: true, structure: true }
 interface ShelterView {
   mode: ViewMode
+  cameraState: CameraStateId
   floor: FloorSelection
+  lastFloor: FloorId
   sectionZ: number
-  setSectionZ: (z: number) => void
+  orbitCut: boolean
+  cutHeight: number
+  box: SectionBounds
+  sectionPerspective: boolean
   plenum: boolean
+  layers: Record<SystemId, boolean>
   preset: CameraPreset
   facilityId: number | null
-  focusFacility: (id: number) => void
+  roomId: string | null
+  landing: Point3 | null
   cameraRevision: number
+  shot: ShotId | null
+  time: string
+  cold: boolean
+  hud: boolean
+  setView: (view: CameraStateId, landing?: Point3) => void
   setMode: (mode: ViewMode) => void
   selectFloor: (floor: FloorSelection) => void
+  followFloor: (floor: FloorId) => void
   frame: (preset: CameraPreset) => void
+  focusFacility: (id: number) => void
+  focusRoom: (id: string | null) => void
+  refocus: () => void
+  photograph: (shot: ShotId) => void
+  setSectionZ: (z: number) => void
+  setCutHeight: (h: number) => void
+  setBoxFace: (face: BoxFace, value: number) => void
+  toggleProjection: () => void
   togglePlenum: () => void
+  toggleLayer: (id: SystemId) => void
+  toggleHud: () => void
 }
-
+function viewFields(s: ShelterView, view: CameraStateId) {
+  const whole = view === 'site' || view === 'section' || view === 'sectionBox'
+  return {
+    cameraState: view,
+    mode: (view === 'site' ? 'exterior' : 'cutaway') as ViewMode,
+    floor: whole ? ('ALL' as const) : s.lastFloor,
+    orbitCut: false,
+    shot: null,
+    roomId: null,
+    facilityId: null,
+    landing: null,
+    preset: (view === 'section' ? 'section' : 'surface') as CameraPreset,
+    cameraRevision: s.cameraRevision + 1,
+  }
+}
 export const useShelterStore = create<ShelterView>((set) => ({
   mode: 'exterior',
-  sectionZ: -3.75,
-  setSectionZ: (z) => set({ sectionZ: Math.max(-9, Math.min(8, z)) }),
+  cameraState: 'site',
   floor: 'ALL',
-  plenum: true,
+  lastFloor: 'B2',
+  sectionZ: -3.75,
+  orbitCut: false,
+  cutHeight: 1.2,
+  box: defaultBox,
+  sectionPerspective: false,
   preset: 'surface',
+  plenum: true,
+  layers: allLayers,
   facilityId: null,
+  roomId: null,
+  cameraRevision: 0,
+  landing: null,
+  shot: null,
+  time: '07:40',
+  cold: false,
+  hud: true,
+  setView: (view, landing) => set((s) => ({ ...viewFields(s, view), landing: landing ?? null })),
+  selectFloor: (floor) =>
+    set((s) => {
+      if (floor === 'ALL') return { ...viewFields(s, 'site'), preset: 'panorama' }
+      const view = s.cameraState === 'plan' || s.cameraState === 'walkthrough' ? s.cameraState : 'floorOrbit'
+      return {
+        ...viewFields(s, view),
+        mode: s.mode === 'xray' ? 'xray' : 'cutaway',
+        floor,
+        lastFloor: floor,
+        cutHeight: 1.2,
+      }
+    }),
+  followFloor: (floor) => set({ floor, lastFloor: floor }),
+  setMode: (mode) =>
+    set((s) => {
+      if (mode === 'xray')
+        return { ...viewFields(s, s.floor === 'ALL' ? 'site' : 'floorOrbit'), mode, preset: 'panorama' }
+      const view = mode === 'exterior' ? 'site' : 'section'
+      return {
+        ...viewFields(s, view),
+        preset:
+          mode === 'exterior' && s.floor !== 'ALL' ? 'panorama' : view === 'section' ? 'section' : 'surface',
+      }
+    }),
+  frame: (preset) => set((s) => ({ ...viewFields(s, preset === 'section' ? 'section' : 'site'), preset })),
   focusFacility: (id) =>
     set((s) => ({
+      ...viewFields(s, 'site'),
       facilityId: id,
-      floor: 'ALL',
       mode: id === 6 || id === 7 ? 'xray' : 'exterior',
-      cameraRevision: s.cameraRevision + 1,
     })),
-  cameraRevision: 0,
-  setMode: (mode) =>
+  focusRoom: (roomId) => set({ roomId }),
+  refocus: () => set((s) => ({ cameraRevision: s.cameraRevision + 1 })),
+  photograph: (shot) =>
+    set((s) => {
+      const p = photo(shot)
+      return {
+        ...viewFields(s, p.camera),
+        shot,
+        time: p.time,
+        cold: !!p.cold,
+        mode: p.xray ? 'xray' : p.camera === 'site' ? 'exterior' : 'cutaway',
+        lastFloor: p.floor ?? 'B2',
+        floor: p.floor ?? 'ALL',
+        cutHeight: 1.2,
+        layers: allLayers,
+        sectionZ: -3.75,
+        sectionPerspective: false,
+        plenum: true,
+        hud: true,
+      }
+    }),
+  setSectionZ: (z) => set({ sectionZ: Math.max(-9, Math.min(8, z)) }),
+  setCutHeight: (h) =>
     set((s) => ({
-      mode,
-      facilityId: null,
-      floor: mode === 'exterior' ? 'ALL' : s.floor,
-      preset:
-        mode === 'cutaway'
-          ? 'section'
-          : mode === 'xray'
-            ? 'panorama'
-            : s.floor !== 'ALL' || s.preset === 'section'
-              ? 'panorama'
-              : s.preset,
-      cameraRevision: s.cameraRevision + 1,
+      orbitCut: s.cameraState === 'floorOrbit',
+      cutHeight: Math.max(0.05, Math.min(FLOORS[s.lastFloor].pitch - 0.02, h)),
     })),
-  selectFloor: (floor) =>
-    set((s) => ({
-      floor,
-      facilityId: null,
-      mode: floor.startsWith('B') && s.mode === 'exterior' ? 'cutaway' : s.mode,
-      preset: floor === 'ALL' ? 'panorama' : s.preset,
-      cameraRevision: s.cameraRevision + 1,
-    })),
-  frame: (preset) =>
-    set((s) => ({
-      preset,
-      facilityId: null,
-      floor: 'ALL',
-      mode: preset === 'section' ? 'cutaway' : preset === 'surface' ? 'exterior' : s.mode,
-      cameraRevision: s.cameraRevision + 1,
-    })),
+  setBoxFace: (face, value) => set((s) => ({ box: moveFace(s.box, face, value) })),
+  toggleProjection: () =>
+    set((s) => ({ sectionPerspective: !s.sectionPerspective, cameraRevision: s.cameraRevision + 1 })),
   togglePlenum: () => set((s) => ({ plenum: !s.plenum })),
+  toggleLayer: (id) => set((s) => ({ layers: { ...s.layers, [id]: !s.layers[id] } })),
+  toggleHud: () => set((s) => ({ hud: !s.hud })),
 }))

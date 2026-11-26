@@ -1,4 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { Group } from 'three'
 import { ADIT, CORRIDOR, FLOORS, FLOOR_ORDER } from '../data/floors'
 import { adits } from '../data/siteFacilities'
 import { useShelterStore } from '../store/useShelterStore'
@@ -12,6 +14,7 @@ import {
   undergroundPlan as plan,
 } from '../geometry/coords'
 import { ModelBuilder } from './utils/modelBuilder'
+import { StudyFixtures, WalkCeiling } from './StudyFixtures'
 import { Model } from './utils/Model'
 import {
   addSlab,
@@ -28,7 +31,7 @@ function structure(id: UndergroundId) {
     route = footprint(CORRIDOR)
   addSlab(m, id)
   roomStructure(m, id)
-  m.box('#707b7d', [route.x, 0.012, route.z], [route.w, 0.024, route.d])
+  m.box('#707b7d', [route.x, 0.012, route.z], [route.w, 0.024, route.d], id === 'B4' ? 'grate' : 'epoxy')
   for (const z of [route.z0 + 0.14, route.z1 - 0.14])
     m.box('#d0b286', [route.x, 0.03, z], [route.w - 0.2, 0.018, 0.055], 'wood')
   // Drainage grate sits outside the circulation strip, just inside the perimeter.
@@ -131,7 +134,9 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
-  const seen = floor === 'ALL' || FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
+  const view = useShelterStore((s) => s.cameraState)
+  const walk = view === 'walkthrough'
+  const seen = walk || floor === 'ALL' || FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
   const builders = useMemo(
     () => ({
       frame: () => structure(id),
@@ -143,17 +148,38 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
     }),
     [id],
   )
-  const closed = mode !== 'xray' && floor === 'ALL'
+  const floorGroup = useRef<Group>(null)
+  useFrame(({ camera }) => {
+    if (floorGroup.current && walk && floor !== 'ALL') {
+      const closeToEye = Math.abs(camera.position.y - getFloorElevation(id) - 1.65) < 5.8
+      floorGroup.current.visible =
+        closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
+    }
+  })
+  const closed = mode !== 'xray' && (floor === 'ALL' || walk)
+  const delayMs = (FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf('B1')) * 40
   return (
-    <group name={id} position-y={getFloorElevation(id)}>
-      <Model build={builders.frame} opacity={seen ? (mode === 'xray' ? 0.22 : 1) : 0} />
-      <Model build={builders.core} opacity={Number(seen)} />
-      <Model build={builders.rear} opacity={Number(seen && mode !== 'xray')} />
-      <Model build={builders.front} opacity={Number(seen && closed)} />
-      <Model build={builders.wire} opacity={seen && mode === 'xray' ? 0.12 : 0} />
+    <group
+      ref={floorGroup}
+      name={id}
+      position-y={getFloorElevation(id)}
+      visible={
+        walk && floor !== 'ALL'
+          ? Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
+          : !(mode === 'exterior' && floor === 'ALL')
+      }
+    >
+      {seen && mode !== 'xray' && <StudyFixtures id={id} />}
+      {walk && <WalkCeiling id={id} />}
+      <Model build={builders.frame} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0} />
+      <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
+      <Model build={builders.rear} delayMs={delayMs} opacity={Number(seen && mode !== 'xray')} />
+      <Model build={builders.front} delayMs={delayMs} opacity={Number(seen && closed)} />
+      <Model build={builders.wire} delayMs={delayMs} opacity={seen && mode === 'xray' ? 0.12 : 0} />
       <Model
         build={builders.plenum}
-        opacity={seen && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.3 : 1) : 0}
+        delayMs={delayMs}
+        opacity={seen && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.09 : 1) : 0}
       />
     </group>
   )

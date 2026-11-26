@@ -3,44 +3,60 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
   --paper: #eceeea;
   --ink: #15181a;
   --dim: #545b61;
-  --rule: #9da39e;
-  --active: #a6382c;
+  --rule: #858c89;
+  --active: #c0372a;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --condensed: 'IBM Plex Sans Condensed', 'Arial Narrow', Arial, sans-serif;
+  --drawing: STFangsong, FangSong, FangSong_GB2312, 'Songti SC', serif;
+  --margin: 24px;
   color: var(--ink);
   background: var(--paper);
 }
 * {
   box-sizing: border-box;
 }
-body {
+body,
+h1,
+h2,
+p,
+dl,
+dd {
   margin: 0;
-  min-width: 280px;
 }
 button,
-select,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
 }
 button {
   cursor: pointer;
   border: 0;
+  border-radius: 0;
   background: transparent;
+  padding: 0;
 }
 button:focus-visible,
-select:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--active);
   outline-offset: 2px;
 }
-h1,
-h2,
-p {
-  margin: 0;
+button,
+select,
+input {
+  touch-action: manipulation;
 }
 [hidden] {
   display: none !important;
+}
+kbd,
+.numeric,
+.condition,
+output {
+  font: 11px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
 }

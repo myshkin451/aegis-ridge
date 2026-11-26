@@ -58,6 +58,7 @@
 │   ├── data/
 │   │   ├── floors.ts               # L2..B4 标高、16×12 网格、扩容核心筒与双平硐定义
 │   │   ├── defaultBlueprint.ts     # v2.0 垂直干湿对齐完整避难所蓝图（含机位锚点）
+│   │   ├── photographs.ts          # 5 个固定机位的时刻、镜头、取景与漫游落点
 │   │   ├── siteFacilities.ts       # 19 处“藏于科研”外围设施与三条出路元数据
 │   │   ├── roomTemplates.ts        # 可替换房间模块库
 │   │   ├── mepNetwork.ts           # 6 大管网拓扑与 GB 7231 识别信息
@@ -81,26 +82,26 @@
 │   │   │   └── Vegetation.tsx          # 五驱动图分带高山植被与倒石堆（InstancedMesh + LOD）
 │   │   ├── atmosphere/
 │   │   │   ├── PhysicalSky.tsx         # 24h 物理天空、空气透视雾与山谷逆温云海
-│   │   │   └── WeatherAndLockdown.tsx  # 暴雪/孢子/核尘粒子与 30 秒封锁编排驱动
+│   │   │   ├── RenderPipeline.tsx      # CSM、N8AO、选择性 Bloom、SMAA、AgX 与四档画质
+│   │   │   └── WeatherAndLockdown.tsx  # M4：多工况与 30 秒封锁编排驱动
 │   │   ├── camera/
 │   │   │   ├── CameraStateMachine.tsx  # 6 状态相机、投影变形、竖井下潜、掀顶落地与深链接
 │   │   │   ├── WalkthroughRig.tsx      # three-mesh-bvh 胶囊碰撞、点地移动、气闸长按压差
+│   │   │   ├── walkCollision.ts       # BVH 地面支撑、胶囊滑动与门扇通行
+│   │   │   ├── SceneReadouts.tsx      # 光标拾取、轴号、指北针、比例尺与漫游压差读数
 │   │   │   ├── SectionBoxTool.tsx      # 6 面拖拽剖切盒（吸附轴线与墙线）
 │   │   │   └── MeasureTool.tsx         # M6：两点顶点吸附毫米级测距
-│   │   ├── building/
-│   │   │   ├── SurfaceStation.tsx      # L1/L2 科研站、可闭合装甲百叶、光伏翼与光纤采光器
-│   │   │   ├── UndergroundShell.tsx    # 6m 复合分层防护层、扩容核心筒、双平硐、超大层号
-│   │   │   └── FloorSliceGroup.tsx     # 单层楼板、隔墙、B2↔B3 挑空洞口、3.6m 局部抬高
+│   │   ├── SurfaceStation.tsx      # L1/L2 科研站、气闸前厅、百叶与光伏翼
+│   │   ├── UndergroundShell.tsx    # 分层防护、核心筒与平硐
+│   │   ├── FloorSliceGroup.tsx     # 按层合批的楼板、墙体、楼梯与夹层
+│   │   ├── DrawingMarks.tsx        # 平面房间标注与剖面标高线
+│   │   ├── CoreTraces.tsx          # M1.5b 竖井与走廊干线示意
 │   │   ├── rooms/                  # M2：6 层高精细倒角程序化房间与设备库
 │   │   ├── mep/                    # M3：6 大管网、GB 7231 色环、Alt X 光透镜、水流/阀门追踪
 │   │   └── ambiance/               # M5：10 人巡视小人、AGV、24h 节律照明与 WebAudio 声景
 │   └── ui/
-│       ├── TitleBlock.tsx          # 左上工程图签（站名 ARS-01、图名、投影焦距、基准标高、时刻）
-│       ├── ViewTabs.tsx            # 右上纯文字视图切换（2px 下划线 + 键位）
-│       ├── ElevationRuler.tsx      # 左侧真实比例标高尺（6m 岩层填充 + FL+1.200 红游标）
-│       ├── SystemLegend.tsx        # 左下情境线型图例与夹层勾选（M）
-│       ├── ReadoutFooter.tsx       # 右下光标坐标/标高/轴号、分段比例尺与极简指北针
-│       ├── DataSheetDrawer.tsx     # 右侧按需 1px 细线数据表（房间/体检/专家/检修）
+│       ├── Instruments.tsx         # 工程图签、视图、线型图例、即时读数、房间数据表
+│       ├── ElevationRuler.tsx      # 标高实尺与平面切面游标，窄屏横排
 │       └── TimeAndScenarioBar.tsx  # 紧凑 24h 时间轴与 4 工况切换（嵌套于图签/次级条）
 └── tests/                          # 几何、坐标、高程与蓝图不变量测试
 ```
@@ -114,6 +115,12 @@
 `src/geometry/` 提供坐标、开孔平面、楼梯踏板、地形采样以及平硐切面。场景在 `src/scene/terrain/` 读取测区，在 `src/scene/BuildingSection.tsx` 以模板缓冲封闭剖到的建筑实体。现有楼层与视图控件使用 `src/styles/` 下的纯 CSS。
 
 ---
+
+### M1.5b 渲染与导航
+
+`pbrLibrary.ts` 按世界米制坐标采样程序化矿物、粗糙度和凹凸细节。矩形构件使用 5–20 mm 法线倒角，带开孔的楼板有 12 mm 几何倒角。天空生成同源 PMREM 供玻璃反射，三层噪声云片位于山谷。渲染器按光照、AO、选中发光体的 Bloom、SMAA 与 AgX 输出。现场最高两档有三级太阳阴影；持续慢帧时逐档降低阴影、AO、植被细节和像素比。
+
+`geometry/doors.ts` 使用房间、平硐和前厅坐标定位门扇。`walkCollision.ts` 从同一套实体网格建立 BVH，`SectionBoxTool.tsx` 与标高尺通过 store 修改世界切面。楼板孔洞与楼梯保留在漫游碰撞几何中。封口模板只录入封闭实体，避免把单面平硐表皮误判为实体产生大面积黑块。
 
 ## 3. 核心 TypeScript 数据模型要点（`src/types/shelter.ts`）
 

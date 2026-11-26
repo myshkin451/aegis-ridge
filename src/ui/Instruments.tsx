@@ -1,0 +1,482 @@
+import { useEffect, useRef, useState } from 'react'
+import { defaultBlueprint, roomsOn } from '../data/defaultBlueprint'
+import { FLOORS, FLOOR_ORDER } from '../data/floors'
+import { photo, photographs } from '../data/photographs'
+import type { ShotId } from '../data/photographs'
+import { siteFacilities } from '../data/siteFacilities'
+import { footprint } from '../geometry/coords'
+import { boxLimits } from '../geometry/viewGeometry'
+import type { BoxFace, CameraStateId } from '../types/shelter'
+import { systems, useShelterStore } from '../store/useShelterStore'
+import { ElevationRuler } from './ElevationRuler'
+
+const names: Record<CameraStateId, string> = {
+  site: '现场',
+  section: '剖面',
+  sectionBox: '剖切盒',
+  plan: '平面',
+  floorOrbit: '楼层俯瞰',
+  walkthrough: '漫游',
+}
+const drawings: Record<CameraStateId, string> = {
+  site: '观测站与山地场址',
+  section: '南向地质剖面',
+  sectionBox: '建筑局部剖切',
+  plan: '水平剖切平面',
+  floorOrbit: '楼层轴测',
+  walkthrough: '第一人称巡览',
+}
+const codes: Record<CameraStateId, string> = {
+  site: 'S–101',
+  section: 'A–201',
+  sectionBox: 'A–202',
+  plan: 'A–103',
+  floorOrbit: 'A–301',
+  walkthrough: 'W–101',
+}
+const labels = {
+  power: '强电',
+  data: '弱电与智控',
+  water: '给排水',
+  air: '三防新风',
+  freight: '重载物流',
+  structure: '结构与防护',
+}
+const boxNames: Record<BoxFace, string> = {
+  west: '西',
+  east: '东',
+  bottom: '底',
+  top: '顶',
+  north: '北',
+  south: '南',
+}
+const views: CameraStateId[] = ['site', 'section', 'sectionBox', 'plan', 'floorOrbit', 'walkthrough']
+function Sheet({ close }: { close: () => void }) {
+  const s = useShelterStore(),
+    room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+  if (!room) return null
+  const f = FLOORS[room.floorId],
+    p = footprint(room.bounds),
+    h = room.clearHeightOverride ?? f.clearHeight
+  return (
+    <section className="drawer room-sheet" aria-label="房间数据表">
+      <div className="sheet-head">
+        <b>{room.name}</b>
+        <button onClick={close} aria-label="关闭数据表">
+          ×
+        </button>
+      </div>
+      <dl>
+        {[
+          ['楼层', f.id],
+          ['面积', p.area + ' m²'],
+          ['地面标高', f.elevation.toFixed(3) + ' m'],
+          ['净高 / 夹层', h.toFixed(2) + ' / ' + (f.pitch - h - 0.3).toFixed(2) + ' m'],
+          [
+            '干湿分区',
+            { dry: '干区', wet: '湿区', semi_wet: '半湿区', strict_dry_electrical: '绝对干区' }[
+              room.wetDryZone
+            ],
+          ],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <button onClick={() => s.setView('walkthrough', [p.x, f.elevation, p.z])}>
+        进入漫游 <kbd>W</kbd>
+      </button>
+    </section>
+  )
+}
+function WalkHud() {
+  const floor = useShelterStore((s) => s.lastFloor)
+  const send = (detail: object) => window.dispatchEvent(new CustomEvent('ars-walk', { detail }))
+  return (
+    <>
+      <span className="crosshair" />
+      <div className="walk-map">
+        <svg viewBox="-18 -14 36 28" aria-label="当前层平面与朝向">
+          {roomsOn(floor).map((room) => {
+            const r = footprint(room.bounds)
+            return <rect key={room.id} x={r.x0} y={r.z0} width={r.w} height={r.d} />
+          })}
+          <g id="map-heading">
+            <path d="M0 0 -1.7 3.6 1.7 3.6Z" />
+            <circle r=".6" />
+          </g>
+        </svg>
+        <span>
+          {floor}　<span id="walk-altitude" />
+        </span>
+      </div>
+      <button
+        id="pressure-control"
+        hidden
+        className="pressure-control"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          send({ hold: true })
+        }}
+        onLostPointerCapture={() => send({ hold: false })}
+      >
+        <svg viewBox="0 0 36 24" width="36">
+          <path d="M3 19a15 15 0 0 1 30 0" fill="none" stroke="currentColor" />
+          <g id="pressure-hand">
+            <path d="M18 18v-12" stroke="currentColor" />
+          </g>
+        </svg>
+        <span id="pressure-text" />
+      </button>
+      <button
+        className="joystick"
+        aria-label="触屏移动摇杆"
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+          const r = e.currentTarget.getBoundingClientRect()
+          send({
+            x: Math.max(-1, Math.min(1, (2 * (e.clientX - r.left)) / r.width - 1)),
+            y: Math.max(-1, Math.min(1, (2 * (e.clientY - r.top)) / r.height - 1)),
+          })
+        }}
+        onLostPointerCapture={() => send({ x: 0, y: 0 })}
+      >
+        移动
+      </button>
+    </>
+  )
+}
+export function Instruments() {
+  const s = useShelterStore(),
+    [open, setOpen] = useState<'views' | 'help' | null>(null),
+    [legend, setLegend] = useState(false),
+    [face, setFace] = useState<BoxFace>('east')
+  const menu = useRef<HTMLDivElement>(null),
+    [hint, setHint] = useState(() => {
+      try {
+        return !sessionStorage.getItem('ars-keys')
+      } catch {
+        return true
+      }
+    })
+  const walk = s.cameraState === 'walkthrough',
+    xray = s.mode === 'xray',
+    context = (s.cameraState !== 'site' && !walk) || xray
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setHint(false)
+      try {
+        sessionStorage.setItem('ars-keys', '1')
+      } catch {
+        /* private browsing */
+      }
+    }, 6500)
+    return () => clearTimeout(t)
+  }, [])
+  useEffect(() => {
+    const outside = (e: PointerEvent) => {
+      if (menu.current && !menu.current.contains(e.target as Node)) setOpen(null)
+    }
+    window.addEventListener('pointerdown', outside)
+    return () => window.removeEventListener('pointerdown', outside)
+  }, [])
+  useEffect(() => {
+    const keys = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.isComposing) return
+      const v = useShelterStore.getState(),
+        k = e.key.toLowerCase()
+      if (k === 'escape') {
+        if (open) {
+          setOpen(null)
+          return
+        }
+        if (v.roomId) {
+          v.focusRoom(null)
+          return
+        }
+        if (v.cameraState === 'walkthrough') v.setView('floorOrbit')
+        else if (v.cameraState !== 'site' || v.mode === 'xray') v.setView('site')
+        return
+      }
+      if (
+        (e.target as HTMLElement)?.matches('input,select,textarea,[role=slider]') &&
+        !['h', '?'].includes(k)
+      )
+        return
+      if (/^[1-6]$/.test(k)) v.selectFloor(FLOOR_ORDER[Number(k) - 1])
+      else if (k === 'v') v.setView(views[(views.indexOf(v.cameraState) + 1) % views.length])
+      else if (k === 'm') v.togglePlenum()
+      else if (k === 'x') v.setMode(v.mode === 'xray' ? 'exterior' : 'xray')
+      else if (k === 'w' && v.cameraState !== 'walkthrough') {
+        const room = defaultBlueprint.rooms.find((r) => r.id === v.roomId),
+          p = room && footprint(room.bounds)
+        v.setView('walkthrough', p && room ? [p.x, FLOORS[room.floorId].elevation, p.z] : undefined)
+      } else if (k === 'f') v.refocus()
+      else if (k === 'h') v.toggleHud()
+      else if (k === '?') {
+        if (!v.hud) v.toggleHud()
+        setOpen((o) => (o === 'help' ? null : 'help'))
+      } else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', keys)
+    return () => window.removeEventListener('keydown', keys)
+  }, [open])
+  const night = xray || walk || s.time === '19:30' || s.time === '22:00'
+  const title = s.shot
+    ? photo(s.shot).title
+    : (siteFacilities.find((f) => f.id === s.facilityId)?.name ??
+      (xray ? '竖井与平硐透视' : drawings[s.cameraState]))
+  const lens = s.shot ? photo(s.shot).lens : s.cameraState === 'site' || s.cameraState === 'section' ? 65 : 35
+  const projection = walk
+    ? '透视 · 60°'
+    : s.cameraState === 'plan' || (s.cameraState === 'section' && !s.sectionPerspective)
+      ? '正交投影'
+      : '透视 · ' + lens + ' mm'
+  return (
+    <div className={'hud' + (night ? ' night' : '')} hidden={!s.hud}>
+      <header className="title-block" aria-label="工程图签">
+        <h1>磐石山脊高山生态与气象观测站</h1>
+        <strong className="station-code">ARS-01</strong>
+        <div className="drawing-name">
+          <span className="sheet-code">{xray ? 'M–001' : codes[s.cameraState]}</span>
+          <b>{walk ? <span id="walk-room">{title}</span> : title}</b>
+        </div>
+        <span className="numeric">{projection}</span>
+        <span className="numeric">{walk ? <span id="flight-level" /> : '±0.000 = 海拔 1450.000 m'}</span>
+        <span className="condition">
+          {s.time} · {s.cold ? '极寒 −60℃' : '日常'}
+        </span>
+      </header>
+      <div className="view-tools" ref={menu}>
+        <nav className="tabs" aria-label="视图切换">
+          {(['site', 'section', 'plan', 'xray', 'walkthrough'] as const).map((id, i) => (
+            <button
+              key={id}
+              aria-pressed={id === 'xray' ? xray : !xray && s.cameraState === id}
+              onClick={() => {
+                id === 'xray' ? s.setMode('xray') : s.setView(id)
+                setOpen(null)
+              }}
+            >
+              {id === 'xray' ? 'X 光' : names[id]}
+              <sup>{['V', 'Ⅱ', 'Ⅲ', 'X', 'W'][i]}</sup>
+            </button>
+          ))}
+        </nav>
+        <div className="tool-row">
+          <button aria-expanded={open === 'views'} onClick={() => setOpen(open === 'views' ? null : 'views')}>
+            机位与图幅 ▾
+          </button>
+          <button aria-label="快捷键" onClick={() => setOpen(open === 'help' ? null : 'help')}>
+            ?
+          </button>
+        </div>
+        {open === 'views' && (
+          <div className="drawer view-menu">
+            <div className="subviews">
+              {(['sectionBox', 'floorOrbit'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => {
+                    s.setView(v)
+                    setOpen(null)
+                  }}
+                >
+                  {names[v]}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  s.frame('panorama')
+                  setOpen(null)
+                }}
+              >
+                场址总览
+              </button>
+            </div>
+            <label>
+              定位外围设施
+              <select
+                aria-label="定位外围设施"
+                value={s.facilityId ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    s.focusFacility(Number(e.target.value))
+                    setOpen(null)
+                  }
+                }}
+              >
+                <option value="">选择测点</option>
+                {siteFacilities.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {String(f.id).padStart(2, '0')}　{f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              固定摄影机位
+              <select
+                aria-label="固定摄影机位"
+                value={s.shot ?? ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    s.photograph(e.target.value as ShotId)
+                    setOpen(null)
+                  }
+                }}
+              >
+                <option value="">选择机位</option>
+                {Object.entries(photographs).map(([id, p]) => (
+                  <option key={id} value={id}>
+                    {id.slice(-2)}　{p.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        {open === 'help' && (
+          <div className="drawer help">
+            <b>键盘与漫游</b>
+            <dl>
+              {[
+                ['1–6', '从 L2 至 B4 切层'],
+                ['V / X', '循环视图 / X 光'],
+                ['M / F / H', '夹层 / 聚焦 / 隐藏图签'],
+                ['W / Esc', '进入漫游 / 拉出'],
+                ['WASD / ⇧', '步行 / 快走'],
+                ['点地 / 拖动', '移动 / 转头，双击锁定鼠标'],
+                ['长按 E', '气闸平压开门'],
+              ].map(([k, t]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{t}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </div>
+      {!walk && <ElevationRuler />}
+      {context && (
+        <aside className={'legend' + (legend ? ' open' : '')}>
+          <button className="legend-title" aria-expanded={legend} onClick={() => setLegend(!legend)}>
+            线型图例 <span>{legend ? '−' : '＋'}</span>
+          </button>
+          <div className="legend-items">
+            {systems.map((id) => (
+              <label key={id}>
+                <input
+                  checked={s.layers[id] && s.mode === 'xray'}
+                  type="checkbox"
+                  onChange={() => {
+                    if (s.mode !== 'xray') {
+                      s.setMode('xray')
+                      if (!s.layers[id]) s.toggleLayer(id)
+                    } else s.toggleLayer(id)
+                  }}
+                />
+                <i className={'swatch ' + id} />
+                {labels[id]}
+              </label>
+            ))}
+            <label>
+              <input type="checkbox" checked={s.plenum} onChange={s.togglePlenum} />
+              <i className="swatch plenum" />
+              机电夹层 <kbd>M</kbd>
+            </label>
+          </div>
+        </aside>
+      )}
+      {s.cameraState === 'section' && (
+        <div className="cut-tools">
+          <label>
+            剖面位置 <output>Z {s.sectionZ.toFixed(2)} m</output>
+            <input
+              aria-label="剖面位置"
+              type="range"
+              min="-9"
+              max="8"
+              step=".25"
+              value={s.sectionZ}
+              onChange={(e) => s.setSectionZ(+e.target.value)}
+            />
+          </label>
+          <button onClick={s.toggleProjection}>{s.sectionPerspective ? '切至正交' : '切至透视'}</button>
+          <small>＋ 花岗岩　△ 混凝土　▽ 水位</small>
+        </div>
+      )}
+      {s.cameraState === 'sectionBox' && (
+        <div className="cut-tools">
+          <label>
+            剖切盒{' '}
+            <select aria-label="剖切面" value={face} onChange={(e) => setFace(e.target.value as BoxFace)}>
+              {Object.entries(boxNames).map(([k, n]) => (
+                <option value={k} key={k}>
+                  {n}面
+                </option>
+              ))}
+            </select>{' '}
+            <output>{s.box[face].toFixed(2)} m</output>
+            <input
+              aria-label="剖切面位置"
+              type="range"
+              min={
+                ['bottom', 'top'].includes(face)
+                  ? boxLimits.bottom
+                  : ['east', 'west'].includes(face)
+                    ? boxLimits.west
+                    : boxLimits.north
+              }
+              max={
+                ['bottom', 'top'].includes(face)
+                  ? boxLimits.top
+                  : ['east', 'west'].includes(face)
+                    ? boxLimits.east
+                    : boxLimits.south
+              }
+              step=".1"
+              value={s.box[face]}
+              onChange={(e) => s.setBoxFace(face, +e.target.value)}
+            />
+          </label>
+        </div>
+      )}
+      {!walk && hint && !context && <span className="key-hint">按 V 切换视图　? 查看按键</span>}
+      <div className="readouts">
+        <div className="compass">
+          <svg viewBox="0 0 32 36" width="32" height="36" aria-label="指北针">
+            <g id="north-needle">
+              <text x="16" y="8" textAnchor="middle">
+                N
+              </text>
+              <path d="M16 11 21 28 16 24 11 28Z" fill="none" stroke="currentColor" />
+              <path d="M16 11v13l-5 4Z" fill="currentColor" />
+            </g>
+          </svg>
+        </div>
+        <span id="cursor-coords">X —　 Z —　 ▽ —　 轴 —</span>
+        <div className="ruler-scale" id="scale-bar">
+          <div className="marks">
+            <i />
+            <i />
+            <i />
+          </div>
+          <span>0</span>
+          <span id="scale-quarter" />
+          <span id="scale-half" />
+          <span id="scale-full" />
+        </div>
+      </div>
+      {walk && <WalkHud />}
+      {s.roomId && <Sheet close={() => s.focusRoom(null)} />}
+    </div>
+  )
+}

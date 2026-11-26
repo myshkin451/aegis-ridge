@@ -1,4 +1,5 @@
 import { Detailed } from '@react-three/drei'
+import { useQuality } from '../atmosphere/RenderPipeline'
 import { useMemo } from 'react'
 import { siteFacilities } from '../../data/siteFacilities'
 import { randomSource } from '../../geometry/random'
@@ -49,7 +50,7 @@ function stand(atlas: TerrainAtlas) {
         const r = 0.3 + random() * 1.6
         m.part(
           'rock',
-          'stone',
+          'lichen',
           '#99978a',
           [u, y + 0.16 * r, v],
           [r * 1.4, r * 0.8, r],
@@ -89,11 +90,16 @@ function stand(atlas: TerrainAtlas) {
   }))
 }
 export function Vegetation({ atlas, visible }: { atlas: TerrainAtlas; visible: boolean }) {
+  const quality = useQuality()
   const plots = useMemo(() => stand(atlas), [atlas])
   return (
     <group visible={visible}>
       {plots.map((p) => (
-        <Detailed key={p.cx + ',' + p.cz} position={[p.cx, 0, p.cz]} distances={[0, 340, 1450]}>
+        <Detailed
+          key={p.cx + ',' + p.cz}
+          position={[p.cx, 0, p.cz]}
+          distances={[0, quality.trees, 650 + quality.trees * 2]}
+        >
           <Model build={p.nearModel} />
           <Model build={p.farModel} />
           <group />

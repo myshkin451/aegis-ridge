@@ -73,3 +73,6 @@ export interface Shaft {
   bounds: GridBounds
   topFloor: FloorId
 }
+
+export type CameraStateId = 'site' | 'section' | 'sectionBox' | 'plan' | 'floorOrbit' | 'walkthrough'
+export type BoxFace = 'west' | 'east' | 'bottom' | 'top' | 'north' | 'south'

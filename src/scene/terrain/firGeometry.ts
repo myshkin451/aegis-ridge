@@ -7,6 +7,7 @@ import {
   LinearMipmapLinearFilter,
   MeshStandardMaterial,
 } from 'three'
+import { shadowUniforms } from '../atmosphere/shadowUniforms'
 import { randomSource } from '../../geometry/random'
 
 // A bough gets narrower towards its tip. Oblique branchlets break up both sides of its silhouette.
@@ -37,16 +38,17 @@ export function needleMaterial() {
   map.minFilter = LinearMipmapLinearFilter
   map.generateMipmaps = true
   map.needsUpdate = true
-  return {
+  const material = new MeshStandardMaterial({
     map,
-    material: new MeshStandardMaterial({
-      map,
-      roughness: 1,
-      side: DoubleSide,
-      alphaTest: 0.33,
-      alphaToCoverage: true,
-    }),
+    roughness: 1,
+    side: DoubleSide,
+    alphaTest: 0.33,
+    alphaToCoverage: true,
+  })
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, shadowUniforms)
   }
+  return { map, material }
 }
 
 export function firGeometry(distant = false) {

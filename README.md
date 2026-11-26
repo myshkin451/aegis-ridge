@@ -29,12 +29,17 @@
 ```bash
 npm ci
 npm run dev       # 生成地形并启动本地开发预览
-npm run verify    # 一键执行 typecheck + Vitest 单元测试 + 生产构建
+npm run verify    # 执行 typecheck、Vitest 与生产构建
+npm run shots     # 打开生产构建，截取五个固定机位
 ```
 
-在“视角”菜单中选择“场址总览”可看盘山公路，选择外围设施可定位到各自的测点。“地质半剖”中的滑杆沿南北方向移动切面，“X 光透视”可追踪从 B1、B2 出发的两条平硐。楼层按钮可以单独查看 B2 的布局与夹层。
+在右上角切换现场、剖面、平面、X 光和漫游。“机位与图幅”里可以进入剖切盒、楼层俯瞰和场址总览，也可定位 19 处外围设施或重现五张签收图。按 `?` 查看键盘操作。
 
-地形由固定种子在构建期生成。`npm run terrain` 可单独重建测区与五个驱动通道。工程坐标以 `src/geometry/coords.ts` 为准，19 项设施登记在 `src/data/siteFacilities.ts`。M1.5a 的浏览器实测图和签收状态见[进度账本](./docs/PROGRESS.md)。
+- **看剖面与平面**　拖动剖面下方的 Z 滑杆切过核心筒。点标高尺选层，进入平面后拖红色游标可改变相对楼面的剖切高度。`M` 切换机电夹层。平面中点房间可查面积、净高与分区，按 `F` 聚焦选中的房间。
+- **走进建筑**　在现场按 `W` 沿货梯井下潜，或在楼层俯瞰点房间地板落地。单击地面行走，拖动画面转头，也可用 WASD、Shift 或触屏摇杆。靠近气闸后长按 `E` 或屏上压差表约 1.5 秒。按一次 `Esc` 拉回俯瞰，再按一次返回现场。
+- **复现画廊**　截图使用 Playwright Chromium 或本机 Google Chrome。首次安装浏览器可运行 `npx playwright install chromium`，也可设置 `CHROME_PATH` 指向现有 Chromium 可执行文件。运行 `npm run verify` 后执行 `npm run shots`，图片将写入 [M1.5b 签收画廊](./docs/PROGRESS.md#视觉验收画廊5-个固定出片机位自-m15b-起自动生成)。
+
+地形由固定种子在构建期生成。`npm run terrain` 可单独重建测区与五个驱动通道。工程坐标见 `src/geometry/coords.ts`，外围设施见 `src/data/siteFacilities.ts`，摄影机位及其时刻见 `src/data/photographs.ts`。
 
 ---
 

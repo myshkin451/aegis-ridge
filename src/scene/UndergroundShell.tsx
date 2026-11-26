@@ -41,6 +41,7 @@ function pitFloor() {
 export function UndergroundShell() {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode)
+  const walk = useShelterStore((s) => s.cameraState === 'walkthrough')
   const upper = floor === 'ALL' || floor === 'L1' || floor === 'L2'
   return (
     <>
@@ -53,7 +54,9 @@ export function UndergroundShell() {
       <Model build={concrete} opacity={upper ? (mode === 'xray' ? 0.14 : 1) : 0} cutMaterial="concrete" />
       <Model build={granite} opacity={Number(upper && mode !== 'xray')} cutMaterial="granite" />
       <Model build={bufferWire} opacity={Number(upper && mode === 'xray')} />
-      <Model build={coreExtension} opacity={Number(upper)} />
+      <group name="上部竖井">
+        <Model build={coreExtension} opacity={Number(upper || walk)} />
+      </group>
     </>
   )
 }

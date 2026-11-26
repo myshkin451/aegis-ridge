@@ -1,4 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { Group } from 'three'
+import { nearSurfaceOpening } from '../../geometry/doors'
 import {
   adits,
   eastTransfer,
@@ -101,7 +104,7 @@ function avalanche(atlas: TerrainAtlas, m: ModelBuilder) {
     if (i === 0) m.box(steel, p(0, 4.17, 0), [7.2, 0.54, 0.33], 'steel', [0, yaw, 0])
   }
 }
-function portal(m: ModelBuilder, adit: Adit) {
+function portal(m: ModelBuilder, adit: Adit, walk: boolean) {
   const b = adit.points.at(-1)!,
     a = adit.points.at(-2)!
   const yaw = Math.atan2(b[0] - a[0], b[2] - a[2]),
@@ -115,10 +118,11 @@ function portal(m: ModelBuilder, adit: Adit) {
       m.box(steel, p(side * (w / 2 + 0.91 + j * 0.87), 0.38, 0.19), [0.12, 0.12, 0.07], 'steel', [0, yaw, 0])
   }
   m.box(cement, p(0, h + 0.19, 0), [w + 1.24, 0.38, 1.15], 'stone', [0, yaw, 0])
-  m.box(rust, p(0, h * 0.48, -0.32), [w - 0.08, h * 0.96, 0.14], 'steel', [0, yaw, 0])
+  if (!walk) m.box(rust, p(0, h * 0.48, -0.32), [w - 0.08, h * 0.96, 0.14], 'corten', [0, yaw, 0])
   if (adit.id === 'east') {
-    for (let u = -1; u <= 1; u += 0.22)
-      m.box(steel, p(u, h / 2, -0.1), [0.045, h - 0.12, 0.06], 'steel', [0, yaw, 0])
+    if (!walk)
+      for (let u = -1; u <= 1; u += 0.22)
+        m.box(steel, p(u, h / 2, -0.1), [0.045, h - 0.12, 0.06], 'steel', [0, yaw, 0])
     m.part('round', 'steel', '#c3c8be', p(2.8, 0.85, 1), [0.2, 1.7, 0.2])
   }
 }
@@ -166,7 +170,7 @@ function bore(m: ModelBuilder, adit: Adit) {
   return m
 }
 function eastBore() {
-  const m = bore(new ModelBuilder(), adits.east),
+  const m = bore(new ModelBuilder('shotcrete'), adits.east),
     [x, y, z] = refuge
   m.box('#a7aea3', [x, y - 0.08, z], [7, 0.16, 5])
   m.box(cement, [x, y + 1.4, z - 2.42], [7, 2.8, 0.16])
@@ -188,9 +192,9 @@ function eastBore() {
   }
   return m
 }
-const westBore = () => bore(new ModelBuilder(), adits.west)
+const westBore = () => bore(new ModelBuilder('shotcrete'), adits.west)
 
-function landscape(atlas: TerrainAtlas) {
+function landscape(atlas: TerrainAtlas, walk: boolean) {
   const m = new ModelBuilder()
   for (const f of siteFacilities) {
     const [x, y, z] = facilityAnchor(f, atlas),
@@ -212,10 +216,10 @@ function landscape(atlas: TerrainAtlas) {
         avalanche(atlas, m)
         break
       case 'westPortal':
-        portal(m, adits.west)
+        portal(m, adits.west, walk)
         break
       case 'eastPortal':
-        portal(m, adits.east)
+        portal(m, adits.east, walk)
         break
       case 'gate': {
         const g = frame(x + 5, y, z)
@@ -336,18 +340,45 @@ function landscape(atlas: TerrainAtlas) {
 export function SiteFacilities({ atlas }: { atlas: TerrainAtlas }) {
   const mode = useShelterStore((s) => s.mode),
     floor = useShelterStore((s) => s.floor)
-  const build = useMemo(() => () => landscape(atlas), [atlas])
+  const walk = useShelterStore((s) => s.cameraState === 'walkthrough'),
+    mount = useRef<Group>(null)
+  const build = useMemo(() => () => landscape(atlas, walk), [atlas, walk])
+  useFrame(({ camera }) => {
+    if (mount.current)
+      mount.current.visible =
+        !walk || nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z)
+  })
   return (
-    <Model
-      build={build}
-      opacity={floor === 'ALL' ? (mode === 'exterior' ? 1 : mode === 'xray' ? 0.12 : 0) : 0}
-    />
+    <group ref={mount}>
+      <Model
+        build={build}
+        opacity={walk ? 1 : floor === 'ALL' ? (mode === 'exterior' ? 1 : mode === 'xray' ? 0.12 : 0) : 0}
+      />
+    </group>
   )
 }
+function tunnelSoffits() {
+  const m = new ModelBuilder('shotcrete')
+  for (const bore of Object.values(adits)) {
+    const frames = boreSections(bore),
+      w = bore.width / 2,
+      h = bore.height
+    for (let i = 1; i < frames.length; i++)
+      m.quad(frames[i - 1](0, h), frames[i - 1](w, h), frames[i](w, h), frames[i](0, h), '#a1a6a0')
+    const end = bore.points.at(-1)!,
+      prev = bore.points.at(-2)!,
+      angle = Math.atan2(end[0] - prev[0], end[2] - prev[2])
+    const p = frame(...end, angle)
+    m.box(cement, p(0, -0.085, 1.4), [bore.width + 0.35, 0.17, 2.8], 'stone', [0, angle, 0])
+  }
+  return m
+}
 export function TunnelModels() {
+  const walk = useShelterStore((s) => s.cameraState === 'walkthrough')
   const floor = useShelterStore((s) => s.floor)
   return (
     <group name="检修与疏散平硐">
+      {walk && <Model build={tunnelSoffits} />}
       <Model build={westBore} opacity={Number(floor === 'B1' || floor === 'ALL')} />
       <Model build={eastBore} opacity={Number(floor === 'B2' || floor === 'ALL')} />
     </group>

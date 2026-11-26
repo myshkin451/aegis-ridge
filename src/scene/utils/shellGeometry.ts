@@ -1,11 +1,12 @@
 import { FLOORS, SLAB } from '../../data/floors'
-import { eastTransfer } from '../../data/siteFacilities'
+import { roomDoor } from '../../geometry/doors'
 import { roomsOn } from '../../data/defaultBlueprint'
 import type { FloorId, Point3, UndergroundId } from '../../types/shelter'
 import { footprint, shaftsAt, undergroundPlan } from '../../geometry/coords'
 import { stairRun } from '../../geometry/stairs'
 import type { ModelBuilder } from './modelBuilder'
 import { slabPlan } from '../../geometry/planGeometry'
+import { lampTint } from '../materials/pbrLibrary'
 import { plate } from './planGeometry'
 
 export const steel = '#343e46',
@@ -152,17 +153,9 @@ export function roomStructure(m: ModelBuilder, id: UndergroundId) {
     const h = room.clearHeightOverride ?? FLOORS[id].clearHeight
     const r = footprint(room.bounds)
     const north = room.bounds.gz0 === 0
-    const front = north ? r.z1 - 0.085 : r.z0 + 0.085
-    partition(
-      m,
-      'x',
-      front,
-      r.x0,
-      r.x1,
-      h,
-      id === 'B2' || id === 'B3',
-      room.id === 'b2_quarters' ? eastTransfer[0][0] : undefined,
-    )
+    const door = roomDoor(room)
+    const front = door.base[2]
+    partition(m, 'x', front, r.x0, r.x1, h, id === 'B2' || id === 'B3', door.base[0])
     if (r.x1 < undergroundPlan.x1) partition(m, 'z', r.x1, r.z0, r.z1, h, false)
     for (const x of [r.x0 + 0.28, r.x1 - 0.28])
       for (const z of [r.z0 + 0.29, r.z1 - 0.29]) {
@@ -178,7 +171,7 @@ export function roomStructure(m: ModelBuilder, id: UndergroundId) {
     const back = north ? r.z0 + 0.19 : r.z1 - 0.19
     for (let x = r.x0 + 1.9; x < r.x1 - 0.8; x += 3.6) {
       m.box(steel, [x, h - 0.15, back], [1.8, 0.12, 0.23], 'steel')
-      m.box('#f6d599', [x, h - 0.2, back + 0.11], [1.62, 0.075, 0.08], 'lamp')
+      m.box(lampTint(id), [x, h - 0.2, back + 0.11], [1.62, 0.075, 0.08], 'lamp')
     }
   }
 }

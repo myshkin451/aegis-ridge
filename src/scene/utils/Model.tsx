@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Group, MathUtils } from 'three'
+import { Group } from 'three'
 import { attachCut, useBuildingCut } from '../BuildingSection'
 import type { CutMaterial } from '../materials/sectionShader'
 import type { BuiltModel, ModelBuilder } from './modelBuilder'
@@ -36,16 +36,19 @@ function setOpacity(model: BuiltModel, amount: number) {
 export function Model({
   build,
   opacity = 1,
+  delayMs = 0,
   cutMaterial = 'structure',
 }: {
   build: () => ModelBuilder
   opacity?: number
+  delayMs?: number
   cutMaterial?: CutMaterial
 }) {
   const cut = useBuildingCut()
   const mount = useRef<Group>(null)
   const model = useRef<BuiltModel | null>(null)
   const amount = useRef(opacity)
+  const fade = useRef({ from: opacity, elapsed: 0 })
   const invalidate = useThree((s) => s.invalidate)
   const gl = useThree((s) => s.gl)
 
@@ -68,13 +71,16 @@ export function Model({
     if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
   }, [cut, cutMaterial, build])
   useLayoutEffect(() => {
+    fade.current = { from: amount.current, elapsed: 0 }
     invalidate()
-  }, [opacity, invalidate])
+  }, [opacity, delayMs, invalidate])
 
   useFrame((_, dt) => {
     if (!model.current || amount.current === opacity) return
-    const value = reduceMotion() ? opacity : MathUtils.damp(amount.current, opacity, 13, Math.min(dt, 0.1))
-    amount.current = Math.abs(value - opacity) < 0.004 ? opacity : value
+    const transition = fade.current
+    transition.elapsed += dt * 1000
+    const t = reduceMotion() ? 1 : Math.min(1, Math.max(0, (transition.elapsed - delayMs) / 360))
+    amount.current = t === 1 ? opacity : opacity + (transition.from - opacity) * (1 - t) ** 3
     if (setOpacity(model.current, amount.current)) gl.shadowMap.needsUpdate = true
     invalidate()
   })

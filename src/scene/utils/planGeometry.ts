@@ -1,4 +1,4 @@
-import type { MultiPolygon } from 'polygon-clipping'
+import type { MultiPolygon, Pair } from 'polygon-clipping'
 import { ShapeUtils, Vector2 } from 'three'
 import type { ModelBuilder, Tint } from './modelBuilder'
 
@@ -42,7 +42,37 @@ export function plate(
   face: Tint,
   edge: Tint,
 ) {
-  lid(m, plan, top, face)
-  lid(m, plan, bottom, edge, true)
-  walls(m, plan, bottom, top, edge)
+  const bevel = Math.min(0.012, (top - bottom) / 4)
+  // Polygon-clipping orients each ring with solid material to its left, including shaft holes.
+  const inset: MultiPolygon = plan.map((polygon) =>
+    polygon.map((ring) => {
+      const vertices = ring.slice(0, -1)
+      const left = (a: Pair, b: Pair) => new Vector2(a[1] - b[1], b[0] - a[0]).normalize()
+      const inner = vertices.map(([x, z], i): Pair => {
+        const n = left(vertices[(i + vertices.length - 1) % vertices.length], vertices[i])
+        const next = left(vertices[i], vertices[(i + 1) % vertices.length])
+        n.addScaledVector(next, 1).multiplyScalar((2 * bevel) / Math.max(0.1, n.lengthSq()))
+        return [x + n.x, z + n.y]
+      })
+      return [...inner, inner[0]]
+    }),
+  )
+  m.closedFaces(() => {
+    lid(m, inset, top, face)
+    lid(m, inset, bottom, edge, true)
+    walls(m, plan, bottom + bevel, top - bevel, edge)
+    plan.forEach((polygon, k) =>
+      polygon.forEach((ring, j) => {
+        const inner = inset[k][j]
+        for (let i = 1; i < ring.length; i++) {
+          const [ax, az] = ring[i - 1],
+            [bx, bz] = ring[i],
+            [cx, cz] = inner[i - 1],
+            [dx, dz] = inner[i]
+          m.quad([ax, top - bevel, az], [cx, top, cz], [dx, top, dz], [bx, top - bevel, bz], face)
+          m.quad([cx, bottom, cz], [ax, bottom + bevel, az], [bx, bottom + bevel, bz], [dx, bottom, dz], edge)
+        }
+      }),
+    )
+  })
 }

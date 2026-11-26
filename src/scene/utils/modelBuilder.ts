@@ -17,23 +17,13 @@ import {
   Quaternion,
   Vector3,
 } from 'three'
-import type { Material, MeshStandardMaterialParameters, Object3D } from 'three'
+import type { Material, Object3D } from 'three'
 import type { Point3 } from '../../types/shelter'
 import { firGeometry, needleMaterial } from '../terrain/firGeometry'
-import { graniteMaterial } from './granite'
+import { pbrMaterial } from '../materials/pbrLibrary'
+import type { Finish } from '../materials/pbrLibrary'
 
-type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud' | 'fir' | 'distantFir'
-type Finish = 'stone' | 'steel' | 'wood' | 'glass' | 'foliage' | 'needles' | 'lamp' | 'solar'
-const finishes: Record<Finish, MeshStandardMaterialParameters> = {
-  stone: { roughness: 0.92, metalness: 0.05 },
-  steel: { roughness: 0.48, metalness: 0.49 },
-  wood: { roughness: 0.83 },
-  glass: { roughness: 0.12, metalness: 0.18, transparent: true, opacity: 0.28, depthWrite: false },
-  needles: { roughness: 1 },
-  foliage: { roughness: 1, flatShading: true },
-  lamp: { roughness: 0.35, emissive: '#ffdc9a', emissiveIntensity: 0.6 },
-  solar: { roughness: 0.29, metalness: 0.46 },
-}
+type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud' | 'fir' | 'distantFir' | 'leaf'
 interface Stamp {
   matrix: Matrix4
   color: Color
@@ -54,10 +44,11 @@ export interface BuiltModel {
 
 /** Each immutable subassembly owns its GPU resources. All repeated parts share instanced draws. */
 export class ModelBuilder {
-  constructor(private readonly faceFinish: 'plain' | 'granite' = 'plain') {}
+  constructor(private readonly faceFinish: Finish = 'stone') {}
   private batches = new Map<string, Batch>()
   private vertices: number[] = []
   private faceColors: number[] = []
+  private closedRanges: [number, number][] = []
   private lines: number[] = []
   private lineColors: number[] = []
 
@@ -121,6 +112,12 @@ export class ModelBuilder {
     this.tri(b, c, d, tint)
   }
 
+  closedFaces(draw: () => void) {
+    const first = this.vertices.length / 3
+    draw()
+    this.closedRanges.push([first, this.vertices.length / 3 - first])
+  }
+
   build(): BuiltModel {
     const object = new Group()
     const geometries = new Set<BufferGeometry>()
@@ -128,7 +125,7 @@ export class ModelBuilder {
     const instances: InstancedMesh[] = []
     const textures: { dispose(): void }[] = []
     const shapes = new Map<Shape, BufferGeometry>()
-    const paints = new Map<Finish, MeshStandardMaterial>()
+    const paints = new Map<string, MeshStandardMaterial>()
     for (const { shape, finish, stamps } of this.batches.values()) {
       let geom = shapes.get(shape)
       if (!geom) {
@@ -149,6 +146,22 @@ export class ModelBuilder {
           case 'distantFir':
             geom = firGeometry(shape === 'distantFir')
             break
+          case 'leaf': {
+            geom = new BufferGeometry()
+            geom.setAttribute(
+              'position',
+              new Float32BufferAttribute(
+                [
+                  0, -0.4, -0.5, -0.44, 0.01, -0.12, 0, 0.11, -0.04, 0.44, 0.01, -0.12, -0.38, 0.15, 0.26, 0,
+                  0.38, 0.5, 0.38, 0.15, 0.26,
+                ],
+                3,
+              ),
+            )
+            geom.setIndex([0, 1, 2, 0, 2, 3, 1, 4, 2, 2, 4, 5, 2, 5, 6, 2, 6, 3])
+            geom.computeVertexNormals()
+            break
+          }
           case 'bud':
             geom = new IcosahedronGeometry(0.5, 0)
             break
@@ -156,14 +169,15 @@ export class ModelBuilder {
         shapes.set(shape, geom)
         geometries.add(geom)
       }
-      let mat = paints.get(finish)
+      const paintKey = finish + (shape === 'box' ? '-edge' : '')
+      let mat = paints.get(paintKey)
       if (!mat) {
         if (finish === 'needles') {
           const needles = needleMaterial()
           textures.push(needles.map)
           mat = needles.material
-        } else mat = new MeshStandardMaterial(finishes[finish])
-        paints.set(finish, mat)
+        } else mat = pbrMaterial(finish, shape === 'box')
+        paints.set(paintKey, mat)
         materials.add(mat)
       }
       const mesh = new InstancedMesh(geom, mat, stamps.length)
@@ -171,6 +185,9 @@ export class ModelBuilder {
         mesh.setMatrixAt(i, matrix)
         mesh.setColorAt(i, color)
       })
+      mesh.userData.closedSolid = true
+      mesh.userData.finish = finish
+      mesh.userData.shape = shape
       mesh.castShadow = finish !== 'glass' && finish !== 'lamp'
       mesh.receiveShadow = finish !== 'glass'
       mesh.computeBoundingSphere()
@@ -180,12 +197,9 @@ export class ModelBuilder {
     if (this.vertices.length) {
       const geom = coloredGeometry(this.vertices, this.faceColors)
       geom.computeVertexNormals()
-      const granite = this.faceFinish === 'granite' ? graniteMaterial() : null
-      if (granite) textures.push(granite.map)
-      const mat =
-        granite?.material ??
-        new MeshStandardMaterial({ vertexColors: true, roughness: 0.93, metalness: 0.04 })
+      const mat = pbrMaterial(this.faceFinish, false, true)
       const mesh = new Mesh(geom, mat)
+      mesh.userData.closedRanges = this.closedRanges
       mesh.castShadow = mesh.receiveShadow = true
       geometries.add(geom)
       materials.add(mat)

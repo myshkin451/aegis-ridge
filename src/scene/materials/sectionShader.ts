@@ -6,15 +6,19 @@ export function sectionMaterial(kind: CutMaterial | 'soil') {
     side: DoubleSide,
     uniforms: { lithology: { value: ['soil', 'granite', 'concrete', 'structure'].indexOf(kind) } },
     vertexShader: `
+      #include <clipping_planes_pars_vertex>
       attribute float groundY;
       varying vec3 vWorld;
       varying float vSurface;
       void main(){
         vec4 world=modelMatrix*vec4(position,1.);
         vWorld=world.xyz; vSurface=groundY;
-        gl_Position=projectionMatrix*viewMatrix*world;
+        vec4 mvPosition=viewMatrix*world;
+        gl_Position=projectionMatrix*mvPosition;
+        #include <clipping_planes_vertex>
       }`,
     fragmentShader: `
+      #include <clipping_planes_pars_fragment>
       uniform int lithology;
       varying vec3 vWorld;
       varying float vSurface;
@@ -22,7 +26,9 @@ export function sectionMaterial(kind: CutMaterial | 'soil') {
       float rule(float d,float pixels){return 1.-smoothstep(pixels-.5,pixels+.5,abs(d)/max(fwidth(d),.0001));}
       float hatch(float u,float period){return abs(fract(u/period+.5)-.5)*period;}
       void main(){
-        vec2 p=vWorld.xy;
+        #include <clipping_planes_fragment>
+        vec3 n=abs(cross(dFdx(vWorld),dFdy(vWorld)));
+        vec2 p=n.y>max(n.x,n.z)?vWorld.xz:(n.x>n.z?vWorld.zy:vWorld.xy);
         float depth=vSurface-p.y;
         vec2 g=mod(p+vec2(.3,.4),1.36)-.68;
         float plus=mark(min(max(abs(g.x)-.023,abs(g.y)-.16),max(abs(g.y)-.023,abs(g.x)-.16)));
@@ -47,7 +53,7 @@ export function sectionMaterial(kind: CutMaterial | 'soil') {
           float tri=abs(max(abs(c.x)*.866+c.y*.5,-c.y)-.085);
           color=mix(vec3(.76,.76,.71),ink,.67*max(mark(tri-.014),mark(hatch(p.x-p.y,.47)-.016)));
         }
-        if(lithology==3) color=vec3(.075,.082,.079);
+        if(lithology==3) color=vec3(.009,.011,.012);
         if(lithology==0) {
           float level=-18.7+.050*p.x+.37*sin(p.x*.12), y=p.y-level;
           float dash=mark(abs(y)-.045)*step(.26,fract(p.x*.48));
