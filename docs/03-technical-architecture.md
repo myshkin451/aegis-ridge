@@ -84,6 +84,10 @@
 
 ## 3. 核心数据模型（`src/types/shelter.ts` 概要）
 
+M1 的 `defaultBlueprint.rooms` 包含工程清单中的 26 个房间，设备实例在 M2 填充。所有网格换算、平面边界、标高和剖面尺寸均从 `src/scene/utils/coords.ts` 取得。地形生成位于 `src/scene/terrainGeometry.ts`，按各高度的平面轮廓做布尔裁切，生成房体空腔、平硐、道路路槽与剖面。相同的平面运算用于楼板和缓冲层的竖井开孔。
+
+场景按部件批量实例化，`src/scene/utils/Model.tsx` 管理可见性过渡和 GPU 资源释放。视口按需渲染，轨道控制器或场景过渡驱动后续帧。相机、标注、指北针和比例尺均读取实际正交投影。回归测试位于 `tests/`，运行 `npm run verify` 可执行与 CI 相同的类型检查、测试与生产构建。
+
 为确保 Phase 1 展示与 Phase 2 模拟无缝衔接，所有状态与蓝图均基于可序列化的纯数据接口：
 
 ```ts
