@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Environment & Secrets (Public Repo Guard)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# OS, Editor & Agent Temp
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+tmp/
+*.tmp
+playwright-report/
+test-results/
+
+# Logs & Test
+*.log
+coverage/
