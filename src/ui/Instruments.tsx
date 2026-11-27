@@ -427,7 +427,7 @@ export function Instruments() {
                 <option value="">选择机位</option>
                 {Object.entries(photographs).map(([id, p]) => (
                   <option key={id} value={id}>
-                    {id.slice(-2)}　{p.title}
+                    {id.startsWith('shot-') && `${id.slice(5)}　`}{p.title}
                   </option>
                 ))}
               </select>
