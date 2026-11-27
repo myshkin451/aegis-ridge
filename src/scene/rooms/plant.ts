@@ -53,11 +53,11 @@ function label(m: ModelBuilder, x: number, y: number, z: number) {
 }
 
 function logbook(m: ModelBuilder, x: number, y: number, z: number) {
-  m.box('#765845', [x, y + 0.014, z], [0.24, 0.028, 0.32], 'wood')
+  m.box('#765845', [x, y + 0.014, z], [0.24, 0.028, 0.32], 'oak_int')
   m.box('#e2ddc7', [x, y + 0.034, z + 0.005], [0.218, 0.012, 0.285], 'epoxy')
   for (let row = 0; row < 5; row++)
     m.box('#7c9191', [x, y + 0.041, z - 0.082 + row * 0.035], [0.155, 0.003, 0.006], 'steel')
-  m.box(amber, [x + 0.07, y + 0.048, z - 0.005], [0.012, 0.012, 0.166], 'wood', [0, 0.12, 0])
+  m.box(amber, [x + 0.07, y + 0.048, z - 0.005], [0.012, 0.012, 0.166], 'oak_int', [0, 0.12, 0])
 }
 
 function ring(m: ModelBuilder, x: number, y: number, z: number, radius: number, width: number, tint: string) {
@@ -570,64 +570,33 @@ function oxygenBottles(m: ModelBuilder) {
   drum(m, 0, 1.94, -0.36, 0.095, 2.13, steel, across)
 }
 
-export function drawPlant(m: ModelBuilder, e: EquipmentUnit) {
-  switch (e.tagCode.replace(/[AB]$/, '')) {
-    case 'TK-301':
-      return tank(m)
-    case 'WT-302':
-      return waterPlant(m)
-    case 'FD-311':
-      return grainStation(m)
-    case 'FD-312':
-      return packer(m)
-    case 'FV-313':
-      return fermenter(m, 1.5, 2.25)
-    case 'CS-321':
-      return grainRack(m, ...e.moduleSizeM)
-    case 'CS-322':
-      return seedDrawers(m)
-    case 'RF-323':
-      return cooler(m)
-    case 'GR-331':
-      return growRack(m, e, true)
-    case 'GR-332':
-      return growRack(m, e, false)
-    case 'AG-333':
-      return weighingBench(m)
-    case 'AQ-341':
-      return fishTank(m, e)
-    case 'MC-342':
-      return mushroomCabin(m)
-    case 'PB-343':
-      return algaeReactor(m)
-    case 'DG-344':
-      return fermenter(m, 2.14, 2.51)
-    case 'P-411':
-      return liftPump(m)
-    case 'WP-412':
-      return compactor(m)
-    case 'MH-421':
-      return manifold(m)
-    case 'HP-422':
-      return heatPump(m)
-    case 'BAT-431':
-      return batteryCabinets(m)
-    case 'SW-432':
-    case 'ATS-433':
-      return switchboardModel(m, e)
-    case 'GEN-441':
-      return shieldCell(m, e)
-    case 'CHP-442':
-      return chp(m)
-    case 'AHU-451':
-      return airHandler(m, e)
-    case 'OX-452':
-      return oxygenSkid(m)
-    case 'CB-453':
-      return carbonColumns(m)
-    case 'OX-454':
-      return oxygenBottles(m)
-    default:
-      throw new Error('Missing B3/B4 equipment geometry for ' + e.tagCode)
-  }
+export const plantVisuals: Record<string, (m: ModelBuilder, e: EquipmentUnit) => void> = {
+  'TK-301': tank,
+  'WT-302': waterPlant,
+  'FD-311': grainStation,
+  'FD-312': packer,
+  'FV-313': (m) => fermenter(m, 1.5, 2.25),
+  'CS-321': (m, e) => grainRack(m, ...e.moduleSizeM),
+  'CS-322': seedDrawers,
+  'RF-323': cooler,
+  'GR-331': (m, e) => growRack(m, e, true),
+  'GR-332': (m, e) => growRack(m, e, false),
+  'AG-333': weighingBench,
+  'AQ-341': fishTank,
+  'MC-342': mushroomCabin,
+  'PB-343': algaeReactor,
+  'DG-344': (m) => fermenter(m, 2.14, 2.51),
+  'P-411': liftPump,
+  'WP-412': compactor,
+  'MH-421': manifold,
+  'HP-422': heatPump,
+  'BAT-431': batteryCabinets,
+  'SW-432': switchboardModel,
+  'ATS-433': switchboardModel,
+  'GEN-441': shieldCell,
+  'CHP-442': chp,
+  'AHU-451': airHandler,
+  'OX-452': oxygenSkid,
+  'CB-453': carbonColumns,
+  'OX-454': oxygenBottles,
 }

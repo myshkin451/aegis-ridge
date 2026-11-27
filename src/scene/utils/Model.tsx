@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Group } from 'three'
+import { Group, Mesh } from 'three'
 import { attachCut, useBuildingCut } from '../BuildingSection'
 import type { CutMaterial } from '../materials/sectionShader'
 import type { BuiltModel, ModelBuilder } from './modelBuilder'
@@ -33,17 +33,26 @@ function setOpacity(model: BuiltModel, amount: number) {
   return shadowChanged
 }
 
+function orderOpaque(model: BuiltModel, order: number) {
+  for (const mesh of model.object.children) {
+    if (!(mesh instanceof Mesh) || Array.isArray(mesh.material)) continue
+    mesh.renderOrder = mesh.material.depthWrite && !mesh.material.transparent ? order : 0
+  }
+}
+
 export function Model({
   build,
   opacity = 1,
   delayMs = 0,
   cutMaterial = 'structure',
   interior = false,
+  opaqueOrder = 0,
 }: {
   build: () => ModelBuilder
   opacity?: number
   delayMs?: number
   interior?: boolean
+  opaqueOrder?: number
   cutMaterial?: CutMaterial
 }) {
   const cut = useBuildingCut()
@@ -59,7 +68,10 @@ export function Model({
     const parent = mount.current!
     if (interior) {
       built.object.userData.fitout = true
-      for (const caster of built.shadowCasters) caster.castShadow = false
+      for (const caster of built.shadowCasters) {
+        caster.userData.localFurnitureShadow = true
+        caster.castShadow = false
+      }
       built.shadowCasters.length = 0
     }
     parent.add(built.object)
@@ -78,6 +90,9 @@ export function Model({
     if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
   }, [cut, cutMaterial, build])
   useLayoutEffect(() => {
+    if (model.current) orderOpaque(model.current, opaqueOrder)
+  }, [opaqueOrder, build])
+  useLayoutEffect(() => {
     fade.current = { from: amount.current, elapsed: 0 }
     invalidate()
   }, [opacity, delayMs, invalidate])
@@ -89,6 +104,7 @@ export function Model({
     const t = reduceMotion() ? 1 : Math.min(1, Math.max(0, (transition.elapsed - delayMs) / 360))
     amount.current = t === 1 ? opacity : opacity + (transition.from - opacity) * (1 - t) ** 3
     if (setOpacity(model.current, amount.current)) gl.shadowMap.needsUpdate = true
+    if (opaqueOrder) orderOpaque(model.current, opaqueOrder)
     invalidate()
   })
   return <group ref={mount} />

@@ -359,6 +359,8 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       const open = Number(near && available && (!d.airlock || input.unlocked.has(d.id))),
         last = input.opened.get(d.id) ?? 0
       const value = snap || !available ? open : open + (last - open) * Math.exp(-7 * dt)
+      // Refresh the local shadow once the sliding leaves reach the new open/closed pose.
+      if ((value > 0.97 && last <= 0.97) || (value < 0.03 && last >= 0.03)) rt.doorRevision++
       input.opened.set(d.id, value)
       placeDoor(i, value)
     }
@@ -421,7 +423,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   }, -2)
   return (
     <group ref={doorGroup} visible={active}>
-      <instancedMesh ref={leaves} args={[undefined, mat, doors.length * 2]} frustumCulled={false}>
+      <instancedMesh userData={{ localDoorShadow: true }} ref={leaves} args={[undefined, mat, doors.length * 2]} frustumCulled={false}>
         <boxGeometry />
       </instancedMesh>
       <mesh ref={ring} visible={false} rotation-x={-Math.PI / 2}>

@@ -127,10 +127,10 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
     }
   }, [gl, scene, rt, get, kit])
   useFrame(({ camera, size }, dt) => {
-    last.current += dt
-    if (last.current < 0.115) return
-    last.current = 0
     const s = useShelterStore.getState()
+    last.current += dt
+    if (last.current < 0.115 && gl.domElement.dataset.instrumentRevision === String(s.cameraRevision)) return
+    last.current = 0
     if (!s.hud) return
     function el(id: string) {
       let node = cache.current.get(id)

@@ -15,6 +15,20 @@ interface Photograph {
   bearing: Point3
   height: number
 }
+function pilot(title: string, time: string, x: number, z: number, look: Point3): Photograph {
+  const y = getFloorElevation('B2')
+  return {
+    title,
+    time,
+    camera: 'walkthrough',
+    floor: 'B2',
+    lens: 68,
+    landing: [x, y, z],
+    target: [look[0], y + look[1], look[2]],
+    bearing: [0, 0, 1],
+    height: 1.65,
+  }
+}
 export const photographs = {
   'shot-01': {
     title: '蓝调时刻剖面',
@@ -65,6 +79,9 @@ export const photographs = {
     bearing: [0, 0, 1],
     height: 1.65,
   },
+  'pilot-bedroom': pilot('单人卧室 1', '19:30', 0.46, 7.64, [-0.78, 1.32, 10.68]),
+  'pilot-commons': pilot('光纤下的共餐客厅', '10:30', -14.75, 2, [-9.7, 1.25, 8.6]),
+  'pilot-bath': pilot('卫浴镜柜与瓷砖', '19:30', -3.04, 4.3, [-3.95, 1.3, 9.48]),
 } satisfies Record<string, Photograph>
 export type ShotId = keyof typeof photographs
 export const photo = (id: ShotId): Photograph => photographs[id]

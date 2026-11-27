@@ -1,4 +1,6 @@
 import type { SurveyRuntime } from '../camera/runtime'
+import { shadowPasses } from './roomShadows'
+import { floorAt } from '../../geometry/viewGeometry'
 import { precompileSurvey } from './warmPrograms'
 import { useFrame, useThree } from '@react-three/fiber'
 import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react'
@@ -99,6 +101,55 @@ export function QualityControl({
   return <Quality.Provider value={tier}>{children}</Quality.Provider>
 }
 
+// An inactive Three light has a zero RGB uniform. Keep it in the same program layout, but
+// bypass the analytic area integral, local BRDF and spot PCF before they touch any samplers.
+function skipUnlitEmitters(source: string) {
+  for (const name of ['pointLight', 'spotLight', 'rectAreaLight']) {
+    const assignment = name + ' = ' + name + 's[ i ];'
+    const start = source.indexOf(assignment) + assignment.length
+    const end = source.indexOf('\n\t}\n\t#pragma unroll_loop_end', start)
+    if (start < assignment.length || end < 0) throw new Error('Unexpected CSM shader loop: ' + name)
+    let body = source.slice(start, end)
+    if (name === 'rectAreaLight') {
+      // The stock rectangle uses local -Z. Its non-emitting side and a rectangle entirely
+      // below the receiving hemisphere have zero direct radiance. The area BRDF in r180
+      // evaluates base diffuse/specular only (glass transmission remains in its own pass).
+      body = body.replace(
+        'RE_Direct_RectArea(',
+        `
+        vec3 rectOffset = rectAreaLight.position - geometryPosition;
+        float furthest = dot(geometryNormal,rectOffset)
+          + abs(dot(geometryNormal,rectAreaLight.halfWidth)) + abs(dot(geometryNormal,rectAreaLight.halfHeight));
+        if (furthest > 0.0 && dot(rectOffset,cross(rectAreaLight.halfWidth,rectAreaLight.halfHeight)) >= 0.0)
+          RE_Direct_RectArea(`,
+      )
+    } else {
+      // Clear-coated glazing may have a separate coat normal. Only skip when neither lobe receives light.
+      body = body.replace(
+        'RE_Direct(',
+        `if (directLight.visible && max(dot(geometryNormal,directLight.direction),
+        dot(geometryClearcoatNormal,directLight.direction)) > 0.0) RE_Direct(`,
+      )
+    }
+    source =
+      source.slice(0, start) +
+      '\n if (any(greaterThan(' +
+      name +
+      '.color,vec3(0.)))) {' +
+      body +
+      '\n }' +
+      source.slice(end)
+  }
+  // All three CSM cascades describe one sun. Keep the following non-shadowing fill
+  // outside this guard; on an underground walk it is the only active directional light.
+  const cascades = '#if defined( USE_SHADOWMAP ) && defined( CSM_FADE )'
+  const fill = '#if ( NUM_DIR_LIGHTS > NUM_DIR_LIGHT_SHADOWS)'
+  if (!source.includes(cascades) || !source.includes(fill)) throw new Error('Unexpected CSM cascade layout')
+  return source
+    .replace(cascades, 'if(any(greaterThan(directionalLights[0].color,vec3(0.)))) {\n' + cascades)
+    .replace(fill, '}\n' + fill)
+}
+
 export function SunShadows({ rt }: { rt: SurveyRuntime }) {
   const { scene, gl, get } = useThree()
   const tier = useQuality(),
@@ -123,6 +174,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
       shadowBias: -0.00014,
       lightMargin: 90,
     })
+    ShaderChunk.lights_fragment_begin = skipUnlitEmitters(ShaderChunk.lights_fragment_begin)
     type CascadeMaterial = MeshStandardMaterial & { defines: Record<string, number> }
     const bound = new Set<CascadeMaterial>()
     scene.traverse((o) => {
@@ -134,7 +186,11 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
       mat.defines.CSM_CASCADES = 3
       mat.needsUpdate = true
     })
-    for (const l of shadows.lights) l.shadow.normalBias = 0.035
+    for (const l of shadows.lights) {
+      l.shadow.normalBias = 0.035
+      l.shadow.autoUpdate = false
+      l.shadow.needsUpdate = true
+    }
     csm.current = shadows
     return () => {
       csm.current = null
@@ -156,6 +212,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
     for (const l of s.lights) {
       l.color.set(cold ? '#eaf4ff' : sun.y < 0.18 ? '#ffcd94' : '#fff1dc')
     }
+    for (const l of s.lights) l.shadow.needsUpdate = outdoors
     gl.shadowMap.needsUpdate = outdoors
   }, [outdoors, cold, time, gl])
   useFrame(({ camera }) => {
@@ -163,9 +220,14 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
     if (!s) return
     const sunlight = outdoors && !(rt.garageTransfer && camera.position.y < 0)
     for (const light of s.lights) light.intensity = sunlight ? (cold ? 1.1 : 2.75) : 0
-    if (fill.current) fill.current.intensity = sunlight ? 0 : 0.91
+    if (fill.current) {
+      const living =
+        useShelterStore.getState().cameraState === 'walkthrough' && floorAt(camera.position.y - 1.65) === 'B2'
+      fill.current.intensity = sunlight ? 0 : living ? 0.22 : 0.91
+    }
     if (!sunlight) {
       gl.shadowMap.needsUpdate = false
+      for (const l of s.lights) l.shadow.needsUpdate = false
       return
     }
     if (s.camera !== camera || !projection.current.equals(camera.projectionMatrix)) {
@@ -185,6 +247,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
       !turn.current.equals(camera.quaternion)
     ) {
       s.update()
+      for (const l of s.lights) l.shadow.needsUpdate = true
       gl.shadowMap.needsUpdate = true
       eye.current.copy(camera.position)
       turn.current.copy(camera.quaternion)
@@ -200,14 +263,19 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
   )
 }
 
-export function RenderPipeline({ rt }: { rt: SurveyRuntime }) {
+export function RenderPipeline() {
   const gl = useThree((s) => s.gl),
     scene = useThree((s) => s.scene),
     get = useThree((s) => s.get),
     size = useThree((s) => s.size),
     dpr = useThree((s) => s.viewport.dpr),
     tier = useQuality()
-  const pipeline = useRef<{ pipe: EffectComposer; ao: N8AOPostPass; camera: Camera } | null>(null)
+  const pipeline = useRef<{
+    pipe: EffectComposer
+    ao: N8AOPostPass
+    camera: Camera
+    shadows: ReturnType<typeof shadowPasses>
+  } | null>(null)
   const startup = useRef(0),
     fence = useRef<WebGLSync | null>(null)
   useLayoutEffect(() => {
@@ -247,7 +315,7 @@ export function RenderPipeline({ rt }: { rt: SurveyRuntime }) {
         new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
       ),
     )
-    pipeline.current = { pipe, ao, camera }
+    pipeline.current = { pipe, ao, camera, shadows: shadowPasses(scene) }
     gl.toneMapping = AgXToneMapping
     gl.info.autoReset = false
     return () => {
@@ -289,11 +357,11 @@ export function RenderPipeline({ rt }: { rt: SurveyRuntime }) {
       canvas.dataset.pipelineRevision = String(state.cameraRevision)
     }
     ao.enabled = tier.ao && state.mode !== 'xray'
-    ao.configuration.aoRadius = state.cameraState === 'walkthrough' ? 0.55 : 1.8
-    if (state.mode !== 'exterior' || (rt.garageTransfer && camera.position.y < 0))
-      gl.shadowMap.needsUpdate = false
+    const closeInterior = state.cameraState === 'walkthrough' && camera.position.y < -6
+    ao.configuration.aoRadius = closeInterior ? 0.36 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
+    ao.configuration.intensity = closeInterior ? 2.15 : 1.6
     gl.info.reset()
-    pipe.render(Math.min(dt, 0.1))
+    p.shadows(gl, floorAt(camera.position.y - 1.65), () => pipe.render(Math.min(dt, 0.1)))
     canvas.dataset.mode = state.mode
     canvas.dataset.calls = String(gl.info.render.calls)
     canvas.dataset.triangles = String(gl.info.render.triangles)

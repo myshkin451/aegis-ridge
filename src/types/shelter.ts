@@ -46,7 +46,17 @@ export interface ServicePort {
   connectsTo?: { floor: FloorId; position: Point3; shaft?: ShaftId }
 }
 
+export interface FurniturePlacement {
+  visualKind: 'dining-chair'
+  /** Position relative to the parent installation base. Size is local, before rotation. */
+  position: Point3
+  rotationY: number
+  moduleSizeM: Point3
+}
+
 export interface EquipmentUnit {
+  visualKind?: string
+  furniture?: FurniturePlacement[]
   id: string
   name: string
   category:

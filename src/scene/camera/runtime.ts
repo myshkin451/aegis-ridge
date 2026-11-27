@@ -25,6 +25,7 @@ export function surveyRuntime() {
     pressure: 0,
     nearby: '',
     room: '',
+    doorRevision: 0,
   }
 }
 export type SurveyRuntime = ReturnType<typeof surveyRuntime>

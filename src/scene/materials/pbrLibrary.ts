@@ -9,6 +9,7 @@ import {
   RepeatWrapping,
 } from 'three'
 import type { MeshStandardMaterialParameters } from 'three'
+import { hasOakAtlas, oakAtlas } from '../assets/pilotAssets'
 import { shadowUniforms } from '../atmosphere/shadowUniforms'
 import { FLOORS } from '../../data/floors'
 
@@ -20,6 +21,14 @@ export type Finish =
   | 'snow'
   | 'shotcrete'
   | 'corten'
+  | 'oak_int'
+  | 'plaster'
+  | 'fabric'
+  | 'tile'
+  | 'ceramic'
+  | 'mirror'
+  | 'pvc_clean'
+  | 'rubber_gym'
   | 'wood'
   | 'glass'
   | 'epoxy'
@@ -38,6 +47,7 @@ export const floorLight = {
   B4: '#e0efff',
 } as const
 export const roomClockMinutes = { value: 460 }
+export const roomWashStrength = { value: 1 }
 export const weatherUniform = { value: 0 }
 function hash(x: number, y: number) {
   let n = Math.imul(x + 71, 374761393) + Math.imul(y + 31, 668265263)
@@ -92,7 +102,19 @@ const parameters: Partial<Record<Finish, MeshStandardMaterialParameters>> = {
   foliage: { roughness: 1 },
   snow: { roughness: 0.68 },
   wood: { roughness: 0.77 },
+  oak_int: { roughness: 0.57 },
+  plaster: { roughness: 0.93 },
+  fabric: { roughness: 0.95 },
+  tile: { roughness: 0.56 },
+  ceramic: { roughness: 0.2 },
+  mirror: { roughness: 0.08, metalness: 1, envMapIntensity: 1.45 },
+  pvc_clean: { roughness: 0.55 },
+  rubber_gym: { roughness: 0.97 },
 }
+const legacyLarch = `float joint=1.-smoothstep(.002,.008+aa,abs(fract(axes.x/.16+.5)-.5)*.16);
+    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
+    diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.24,.91,.65),vec3(.37,.36,.33),weather*.6);
+    diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0008*fibre-.004*joint;`
 const glsl = {
   granite: `float cell=grain.r;
     vec3 mineral=cell<.55?vec3(.62,.51,.45):cell<.85?vec3(.83,.85,.83):vec3(.13,.12,.12);
@@ -123,10 +145,58 @@ const glsl = {
     diffuseColor.rgb*=1.+(grain.b-.5)*.24-.33*plate+.28*bolt-.55*weephole; relief+=.007*grain.b+.009*plate;`,
   corten: `float streak=texture2D(grains,axes*vec2(.25,.019)).b;
     diffuseColor.rgb*=vec3(1.12,.89,.73)*(.82+.18*mottle+.27*streak); relief+=streak*.002;`,
-  wood: `float joint=1.-smoothstep(.002,.008+aa,abs(fract(axes.x/.16+.5)-.5)*.16);
-    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
-    diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.24,.91,.65),vec3(.37,.36,.33),weather*.6);
-    diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0008*fibre-.004*joint;`,
+  wood: legacyLarch,
+  oak_int: `if (hasOak && washStrength < .99) {
+      // Metric projection for millwork. Curved meshes blend three planes by their smooth normal.
+      #ifdef FLAT_SHADED
+      vec3 worldN=surfaceNormal;
+      #else
+      vec3 worldN=inverseTransformDirection(vNormal,viewMatrix);
+      #endif
+      vec3 weights = vec3(0.);
+      if (boxEdges) {
+        weights = axis.y>.64 ? vec3(0.,1.,0.) : axis.x>axis.z ? vec3(1.,0.,0.) : vec3(0.,0.,1.);
+      } else {
+        weights = pow(abs(worldN), vec3(4.));
+        weights /= max(dot(weights,vec3(1.)), .00001);
+      }
+      vec3 albedo=vec3(0.), tilt=vec3(0.); float scanRough=0.;
+      for (int i=0; i<3; ++i) {
+        float w=weights[i];
+        if (w<.001) continue;
+        // T × B points outward on both sides. Rotate the sampling frame and the normal together.
+        float side=worldN[i]<0. ? -1. : 1.;
+        vec3 T=i==0 ? vec3(0.,0.,-side) : vec3(i==1 ? 1. : side,0.,0.);
+        vec3 B=i==1 ? vec3(0.,0.,-side) : vec3(0.,1.,0.);
+        vec2 span=i==0 ? vExtent.zy : i==1 ? vExtent.xz : vExtent.xy;
+        if (boxEdges && span.x>span.y) {vec3 t=T; T=B; B=-t;}
+        vec2 st=vec2(dot(vMetric,T), dot(vMetric,B))/1.8;
+        // The oak finish occupies layers 0–2. Only its color layer uses the sRGB transfer.
+        albedo+=w*sRGBTransferEOTF(texture(oakLayers,vec3(st,0.))).rgb;
+        vec3 scan=texture(oakLayers,vec3(st,1.)).rgb*2.-1.;
+        tilt+=w*(T*scan.x+B*scan.y)/max(.1,scan.z);
+        scanRough+=w*texture(oakLayers,vec3(st,2.)).r;
+      }
+      diffuseColor.rgb=albedo*clamp(diffuseColor.rgb/vec3(.356,.209,.096),.24,1.8);
+      rough+=scanRough-.57;
+      oakPerturb=mat3(viewMatrix)*tilt*.58;
+    } else if (washStrength < .99) {
+      float ribbon=sin(axes.x*110.+1.3*sin(axes.y*2.2)+3.*mottle);
+      diffuseColor.rgb*=1.+detail*(.035*ribbon+.065*(grain.b-.5)); relief+=.00016*ribbon;
+    } else {
+      ${legacyLarch}
+      rough+=.20;
+    }`,
+  plaster: `diffuseColor.rgb*=1.+.035*(mottle-.5); relief+=.00015*(grain.g-.5);`,
+  fabric: `vec2 thread=cos(axes*vec2(2400.,1950.)); float nearWeave=1.-smoothstep(.0006,.0028,aa);
+    diffuseColor.rgb*=1.+.065*(mottle-.5)+.043*nearWeave*thread.x*thread.y;
+    relief+=.00017*nearWeave*thread.x*thread.y;`,
+  tile: `vec2 border=abs(fract(axes/vec2(.60,.30)+.5)-.5)*vec2(.60,.30);
+    float grout=1.-smoothstep(.001,.003+aa,min(border.x,border.y));
+    diffuseColor.rgb*=1.-.24*grout+.03*(mottle-.5); relief-=.002*grout; rough+=.27*grout;`,
+  ceramic: `rough+=.025*(mottle-.5);`,
+  pvc_clean: `rough+=.035*(grain.g-.5); diffuseColor.rgb*=1.+.018*(mottle-.5);`,
+  rubber_gym: `diffuseColor.rgb*=1.+.13*detail*(grain.r-.5); relief+=.0009*grain.b;`,
   glass: `float glassEdge=1.-smoothstep(.002,.03,max(edgeDistance,0.)); diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.39,.70,.56),glassEdge*.4);`,
   epoxy: `float track=(1.-smoothstep(.03,.34,abs(abs(vMetric.z+1.)-.54)))*axis.y;
     float scuff=pow(max(0.,sin(axes.y*41.+sin(axes.x*.84))),22.)*grain.r;
@@ -177,6 +247,9 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.uniforms.grains = { value: map }
     shader.uniforms.snowCover = weatherUniform
     shader.uniforms.roomMinutes = roomClockMinutes
+    shader.uniforms.washStrength = roomWashStrength
+    shader.uniforms.hasOak = hasOakAtlas
+    shader.uniforms.oakLayers = oakAtlas
     const vary = 'varying vec3 vMetric; varying vec3 vBoxLocal; varying vec3 vExtent;'
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + vary)
@@ -193,7 +266,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform float snowCover,roomMinutes; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray oakLayers; uniform bool hasOak; uniform float snowCover,roomMinutes,washStrength; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
           vary,
       )
       .replace(
@@ -205,6 +278,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         vec3 grain=texture2D(grains,axes*3.1).rgb;
         float mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
         float smooRock=1.-smoothstep(.66,.83,axis.y);
+        vec3 oakPerturb=vec3(0.);
         float rough=0., relief=.00055*(grain.g-.5)*detail, edgeDistance=1.;
         if(boxEdges){vec3 e=(.5-abs(vBoxLocal))*vExtent;
         edgeDistance=max(min(e.x,e.y),min(max(e.x,e.y),e.z));
@@ -224,7 +298,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         `#include <normal_fragment_maps>
         vec3 R1=cross(dFdy(-vViewPosition),normal), R2=cross(normal,dFdx(-vViewPosition));
         float det=dot(dFdx(-vViewPosition),R1);
-        normal=normalize(abs(det)*normal-sign(det)*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);`,
+        normal=normalize(abs(det)*(normal+oakPerturb-normal*dot(normal,oakPerturb))-sign(det)*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);`,
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -246,7 +320,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
             wash=vec3(1.,.045,.012);
             if(isLamp) totalEmissiveRadiance*=vec3(.65,.02,.012);
           }
-          totalEmissiveRadiance+=diffuseColor.rgb*wash*pool;
+          if (vMetric.y<${FLOORS.B3.elevation - 0.29} && washStrength<.99) wash=vec3(1.,.83,.68);
+          totalEmissiveRadiance+=diffuseColor.rgb*wash*pool*washStrength;
         }`,
       )
     if (kind === 'terrain')

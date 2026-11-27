@@ -7,6 +7,7 @@ import {
   Float32BufferAttribute,
   FogExp2,
   Group,
+  HemisphereLight,
   Mesh,
   PlaneGeometry,
   PMREMGenerator,
@@ -15,12 +16,16 @@ import {
   Vector3,
   type WebGLRenderTarget,
 } from 'three'
+import { FLOORS } from '../../data/floors'
+import { pilotFixtures } from '../../data/roomLayouts/residential'
+import { floorAt } from '../../geometry/viewGeometry'
+import { bakeRoomEnvironment } from './roomEnvironment'
 import { photographs } from '../../data/photographs'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
 import { nearSurfaceOpening } from '../../geometry/doors'
 import { randomSource } from '../../geometry/random'
-import { roomClockMinutes, weatherUniform } from '../materials/pbrLibrary'
+import { roomClockMinutes, roomWashStrength, weatherUniform } from '../materials/pbrLibrary'
 import { reduceMotion } from '../utils/Model'
 
 export function sunAt(time: string) {
@@ -28,26 +33,26 @@ export function sunAt(time: string) {
   const angle = ((hour + minute / 60 - 6) / 12) * Math.PI
   return new Vector3(Math.cos(angle), Math.sin(angle) * 0.84, Math.sin(angle) * 0.54).normalize()
 }
+function crestElevation(layer: number, angle: number) {
+  const phase = layer * 2.31
+  const ridges =
+    0.036 * Math.sin(7 * angle + phase) +
+    0.02 * Math.cos(17 * angle - phase) +
+    0.012 * Math.sin(39 * angle + 2 * phase) +
+    0.008 * Math.cos(71 * angle - phase)
+  return (3900 + layer * 900) * (0.03 + layer * 0.014 + ridges) - 140
+}
+
 function distantRidges() {
   const g = new BufferGeometry(),
     v: number[] = [],
     colors: number[] = []
   for (let layer = 0; layer < 6; layer++) {
-    const radius = 3900 + layer * 900,
-      phase = layer * 2.31
+    const radius = 3900 + layer * 900
     const color = new Color().lerpColors(new Color('#415b72'), new Color('#bfc9d0'), layer / 6)
     function point(i: number, crest: boolean): [number, number, number] {
       const a = (i / 700) * Math.PI * 2
-      const ridges =
-        0.036 * Math.sin(7 * a + phase) +
-        0.02 * Math.cos(17 * a - phase) +
-        0.012 * Math.sin(39 * a + 2 * phase) +
-        0.008 * Math.cos(71 * a - phase)
-      return [
-        Math.sin(a) * radius,
-        crest ? radius * (0.03 + layer * 0.014 + ridges) - 140 : -480,
-        Math.cos(a) * radius,
-      ]
+      return [Math.sin(a) * radius, crest ? crestElevation(layer, a) : -480, Math.cos(a) * radius]
     }
     for (let i = 0; i < 700; i++) {
       for (const p of [
@@ -153,6 +158,70 @@ function Spindrift() {
   )
   return <lineSegments frustumCulled={false} geometry={geom} material={material} />
 }
+function linkedSkies() {
+  const sky = new Sky()
+  // Both apertures use the same program and physical sun. The small daylight display
+  // maps local panel metres to rays toward the western horizon, retaining its true depth.
+  const source = sky.material
+  const vertex =
+    'uniform float windowMode;\n' +
+    source.vertexShader
+      .replace(
+        'vWorldPosition = worldPosition.xyz;',
+        `vWorldPosition = windowMode > .5
+        ? cameraPosition + vec3(-0.62, 0.18 + position.y * 0.67, position.x * 0.88)
+        : worldPosition.xyz;`,
+      )
+      .replace('gl_Position.z = gl_Position.w;', 'if (windowMode < .5) gl_Position.z = gl_Position.w;')
+  source.vertexShader = vertex
+  source.fragmentShader =
+    'uniform float windowMode;\n' +
+    source.fragmentShader.replace(
+      'gl_FragColor = vec4( retColor, 1.0 );',
+      `if (windowMode > .5) {
+        float dusk = 1.0-smoothstep(-.30,.09,vSunDirection.y);
+        retColor *= mix(vec3(1.),vec3(.40,.85,1.75),dusk);
+      }
+      gl_FragColor = vec4(retColor,1.);`,
+    )
+  source.uniforms.windowMode = { value: 0 }
+  const m = source.clone()
+  m.uniforms = { ...source.uniforms, windowMode: { value: 1 } }
+  m.depthWrite = true
+  return { sky, panelMaterial: m }
+}
+
+function windowRidges() {
+  const [w, h] = pilotFixtures.skyPanelSize
+  const geometry = new BufferGeometry()
+  const positions: number[] = [],
+    colors: number[] = []
+  // Project two ridgelines from the outdoor survey onto the same westward window rays.
+  for (const layer of [4, 1]) {
+    const radius = 3900 + layer * 900
+    const tint = new Color(layer === 4 ? '#64819a' : '#344e68')
+    function at(i: number, top: boolean) {
+      const x = w * (i / 90 - 0.5),
+        z = x * 0.88
+      const a = Math.atan2(-0.62, z)
+      const crest = ((Math.hypot(0.62, z) * crestElevation(layer, a)) / radius - 0.18) / 0.67
+      positions.push(x, top ? Math.max(-h / 2, crest) : -h / 2, layer === 4 ? -0.001 : -0.002)
+      colors.push(tint.r, tint.g, tint.b)
+    }
+    for (let i = 0; i < 90; i++) {
+      at(i, false)
+      at(i, true)
+      at(i + 1, true)
+      at(i, false)
+      at(i + 1, true)
+      at(i + 1, false)
+    }
+  }
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
+  return geometry
+}
+
 export function PhysicalSky() {
   const time = useShelterStore((s) => s.time),
     cold = useShelterStore((s) => s.cold)
@@ -162,10 +231,13 @@ export function PhysicalSky() {
   const section = useShelterStore((s) => s.cameraState === 'section')
   const scene = useThree((s) => s.scene),
     gl = useThree((s) => s.gl)
-  const sky = useMemo(() => new Sky(), []),
+  const { sky, panelMaterial } = useMemo(linkedSkies, []),
+    skyline = useMemo(windowRidges, []),
     clouds = useMemo(cloudSea, []),
     ridges = useMemo(distantRidges, [])
   const outer = useRef<Group>(null)
+  const hemisphere = useRef<HemisphereLight>(null)
+  const panel = useRef<Group>(null)
   const sun = useMemo(() => sunAt(time), [time]),
     clock = useRef(0)
   const twilight = sun.y < 0.01,
@@ -178,15 +250,18 @@ export function PhysicalSky() {
       pmrem = new PMREMGenerator(gl)
     dome.scale.copy(sky.scale)
     env.add(dome)
+    const cubeSize = 64
+    environments.set('interior-B2', bakeRoomEnvironment(pmrem, cubeSize))
     const conditions = [{ time: '07:40', cold: false }, ...Object.values(photographs)]
     for (const condition of conditions) {
+      if (environments.has(condition.time)) continue
       const icy = 'cold' in condition && condition.cold
       const u = dome.material.uniforms
       u.sunPosition.value.copy(sunAt(condition.time)).multiplyScalar(450000)
       u.turbidity.value = icy ? 9 : 2.6
       u.rayleigh.value = icy ? 0.68 : 1.2
       u.mieCoefficient.value = icy ? 0.018 : 0.004
-      environments.set(condition.time, pmrem.fromScene(env, 0.04, 0.1, 15000, { size: 64 }))
+      environments.set(condition.time, pmrem.fromScene(env, 0.04, 0.1, 15000, { size: cubeSize }))
     }
     pmrem.dispose()
     dome.geometry.dispose()
@@ -220,19 +295,47 @@ export function PhysicalSky() {
       m.uniforms.sun.value.copy(sun)
       m.uniforms.shade.value.set(twilight ? '#62778e' : sun.y < 0.16 ? '#657d9a' : '#7389a4')
     }
-    scene.environment = environments.get(time)!.texture
+    scene.environment = (environments.get(time) ?? environments.get('07:40')!).texture
     scene.environmentIntensity = walk ? 0.3 : 0.5
   }, [environments, scene, sky, clouds, sun, cold, exterior, twilight, xray, walk, section, time])
   useLayoutEffect(
     () => () => {
       sky.geometry.dispose()
       sky.material.dispose()
+      panelMaterial.dispose()
+      skyline.dispose()
       ridges.dispose()
       clouds.dispose()
     },
-    [sky, ridges, clouds],
+    [sky, ridges, clouds, panelMaterial, skyline],
   )
   useFrame(({ camera }, dt) => {
+    const floor = floorAt(camera.position.y - 1.65)
+    const underground = walk && floor.startsWith('B') && camera.position.y < -6
+    roomWashStrength.value = underground ? 0.1 : 1
+    if (panel.current) panel.current.visible = underground && floor === 'B2'
+    if (hemisphere.current) {
+      const hemi = hemisphere.current
+      hemi.color.set(
+        underground
+          ? '#f5e2c6'
+          : xray
+            ? '#9eb6cd'
+            : skyStudy && twilight
+              ? '#97b5e1'
+              : exterior && sun.y < 0.16
+                ? '#bdcff3'
+                : '#e8eff8',
+      )
+      hemi.groundColor.set(underground ? '#7d6c5d' : walk ? '#887c73' : '#8b8576')
+      hemi.intensity = underground ? 0.32 : xray ? 0.48 : walk ? 1.36 : twilight ? 0.8 : 1.16
+    }
+    const target =
+      underground && floor === 'B2'
+        ? environments.get('interior-B2')
+        : (environments.get(time) ?? environments.get('07:40'))
+    if (target) scene.environment = target.texture
+    scene.environmentIntensity = underground && floor === 'B2' ? 0.52 : walk ? 0.3 : 0.5
     if (outer.current)
       outer.current.visible =
         exterior || (walk && nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z))
@@ -253,19 +356,23 @@ export function PhysicalSky() {
       <group visible={exterior && cold}>
         <Spindrift />
       </group>
-      <hemisphereLight
-        args={[
-          xray
-            ? '#9eb6cd'
-            : skyStudy && twilight
-              ? '#97b5e1'
-              : exterior && sun.y < 0.16
-                ? '#bdcff3'
-                : '#e8eff8',
-          walk ? '#887c73' : '#8b8576',
-          xray ? 0.48 : walk ? 1.36 : twilight ? 0.8 : 1.16,
+      <hemisphereLight ref={hemisphere} />
+      <group
+        ref={panel}
+        visible={false}
+        position={[
+          pilotFixtures.skyPanel[0],
+          FLOORS.B2.elevation + pilotFixtures.skyPanel[1],
+          pilotFixtures.skyPanel[2],
         ]}
-      />
+      >
+        <mesh material={panelMaterial}>
+          <planeGeometry args={pilotFixtures.skyPanelSize} />
+        </mesh>
+        <mesh geometry={skyline}>
+          <meshBasicMaterial vertexColors side={DoubleSide} color={twilight ? '#526277' : '#c2d0db'} />
+        </mesh>
+      </group>
     </>
   )
 }

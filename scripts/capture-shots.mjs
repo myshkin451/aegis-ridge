@@ -1,12 +1,13 @@
 import { chromium } from 'playwright'
 import { preview } from 'vite'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rename, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm2.5a'
+const milestone = process.argv[2] ?? 'm2.5b'
 if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -17,7 +18,27 @@ const shots = [
   ['shot-04', 'site', 'perspective', '22:00'],
   ['shot-05', 'walkthrough', 'perspective', '21:30'],
 ]
-await mkdir(directory, { recursive: true })
+const pilots = [
+  [
+    'bedroom',
+    '19:30',
+    [0.46, -14.4, 7.64],
+    '40ac055508e726bd1f6e852d0aeeb4b2aca58c9f19b3a131cbc3e6b0a5871fa7',
+  ],
+  [
+    'commons',
+    '10:30',
+    [-14.75, -14.4, 2],
+    '2ea8ec8125500d434229e98e612894c1d22b351337f5f6920d73bad9c6511b8c',
+  ],
+  ['bath', '19:30', [-3.04, -14.4, 4.3], 'c006b2fe93030a82b90a6f18de173654af23ffcb12f18ceaa18791aba1014587'],
+]
+const baseline = join(root, 'docs/shots/m2.5b/pilot')
+await mkdir(join(directory, 'pilot'), { recursive: true })
+for (const [name, , , expected] of pilots) {
+  const bytes = await readFile(join(baseline, 'r0-' + name + '.png'))
+  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw Error('ebbe617 基线失配 ' + name)
+}
 const staging = await mkdtemp(join(directory, '.capture-'))
 let server
 let browser
@@ -54,9 +75,19 @@ try {
   })
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
-  await page.goto(base + '/?quality=2', { waitUntil: 'networkidle' })
-  await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
-  for (const [id, view, projection, time] of shots) {
+  const captures = []
+  async function openStage(stage) {
+    await page.goto(base + '/?quality=2&pilot=' + stage, { waitUntil: 'networkidle' })
+    await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
+    const data = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
+    if (
+      data.pilot !== stage ||
+      data.pilotTexture !== (stage === 'r1' ? 'procedural' : 'oak-array') ||
+      data.pilotChair !== (stage === 'r3' ? 'glb' : 'procedural')
+    )
+      throw Error('样板资产状态失配 ' + JSON.stringify(data))
+  }
+  async function capture(id, view, projection, time, file, expectedFeet) {
     const revision = await page.locator('canvas').getAttribute('data-revision')
     await page.getByRole('button', { name: '机位与图幅' }).click()
     await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption(id)
@@ -70,6 +101,7 @@ try {
           c.projection === p &&
           c.ready === 'settled' &&
           c.revision !== rev &&
+          c.instrumentRevision === c.revision &&
           Number(c.calls) > 0
         )
       },
@@ -83,7 +115,13 @@ try {
       throw Error('浏览器验收失败 ' + errors.join('\n').slice(0, 3500))
     if (view !== 'walkthrough')
       await page.waitForFunction(() => document.querySelector('#cursor-coords')?.textContent?.includes('X —'))
-    await page.screenshot({ path: join(staging, id + '.png'), timeout: 90000 })
+    if (expectedFeet) {
+      const feet = (await page.locator('canvas').getAttribute('data-feet')).split(',').map(Number)
+      if (Math.hypot(...feet.map((n, i) => n - expectedFeet[i])) > 0.025)
+        throw Error(id + ' 落点偏离 ' + feet)
+    }
+    await page.screenshot({ path: join(staging, file), timeout: 90000 })
+    captures.push(file)
     const { calls, triangles, feet } = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
     console.log(
       id,
@@ -98,12 +136,26 @@ try {
       feet && view === 'walkthrough' ? '· feet ' + feet : '',
     )
   }
-  if (errors.length) throw Error(errors.join('\n').slice(0, 4000))
-  for (const [id] of shots) {
-    const name = id + '.png'
-    await rename(join(staging, name), join(directory, name))
+  await openStage('r3')
+  for (const [id, view, projection, time] of shots) await capture(id, view, projection, time, id + '.png')
+  await mkdir(join(staging, 'pilot'))
+  for (const stage of ['r3', 'r2', 'r1']) {
+    if (stage !== 'r3') await openStage(stage)
+    for (const [name, time, feet] of pilots)
+      await capture(
+        'pilot-' + name,
+        'walkthrough',
+        'perspective',
+        time,
+        'pilot/' + stage + '-' + name + '.png',
+        feet,
+      )
   }
-  console.log('5 张截图已保存至 docs/shots/' + milestone + '/')
+  if (errors.length) throw Error(errors.join('\n').slice(0, 4000))
+  for (const file of captures) await rename(join(staging, file), join(directory, file))
+  console.log(
+    '五个固定机位与九张样板截图已保存至 docs/shots/' + milestone + '/；三张 ebbe617 基线哈希已核对。',
+  )
 } finally {
   await browser?.close()
   if (server) await new Promise((resolve) => server.httpServer.close(resolve))

@@ -18,13 +18,29 @@ import {
   Quaternion,
   Vector3,
 } from 'three'
+import { beddingGeometry } from '../rooms/beddingGeometry'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { proceduralChair, registerChairMesh } from '../assets/pilotAssets'
 import type { Material, Object3D } from 'three'
 import type { Point3 } from '../../types/shelter'
 import { firGeometry, needleMaterial } from '../terrain/firGeometry'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { Finish } from '../materials/pbrLibrary'
 
-type Shape = 'box' | 'round' | 'cone' | 'rock' | 'bud' | 'fir' | 'distantFir' | 'leaf'
+type Shape =
+  | 'box'
+  | 'round'
+  | 'cone'
+  | 'rock'
+  | 'bud'
+  | 'fir'
+  | 'distantFir'
+  | 'leaf'
+  | 'cushion'
+  | 'shade'
+  | 'dining-chair'
+  | 'pillow'
+  | 'duvet'
 interface Stamp {
   matrix: Matrix4
   color: Color
@@ -142,6 +158,7 @@ export class ModelBuilder {
     const geometries = new Set<BufferGeometry>()
     const materials = new Set<Material>()
     const instances: InstancedMesh[] = []
+    const unregister: (() => void)[] = []
     const textures: { dispose(): void }[] = []
     const shapes = new Map<Shape, BufferGeometry>()
     const paints = new Map<string, MeshStandardMaterial>()
@@ -149,6 +166,19 @@ export class ModelBuilder {
       let geom = shapes.get(shape)
       if (!geom) {
         switch (shape) {
+          case 'dining-chair':
+            geom = proceduralChair()
+            break
+          case 'pillow':
+          case 'duvet':
+            geom = beddingGeometry(shape)
+            break
+          case 'cushion':
+            geom = new RoundedBoxGeometry(1, 1, 1, 2, 0.12)
+            break
+          case 'shade':
+            geom = new CylinderGeometry(0.34, 0.5, 1, 32, 1, true)
+            break
           case 'box':
             geom = new BoxGeometry(1, 1, 1)
             break
@@ -217,6 +247,7 @@ export class ModelBuilder {
       mesh.castShadow = finish !== 'glass' && finish !== 'lamp'
       mesh.receiveShadow = finish !== 'glass'
       mesh.computeBoundingSphere()
+      if (shape === 'dining-chair') unregister.push(registerChairMesh(mesh))
       object.add(mesh)
       instances.push(mesh)
     }
@@ -248,6 +279,7 @@ export class ModelBuilder {
         depth: material.depthWrite,
       })),
       dispose() {
+        unregister.forEach((release) => release())
         instances.forEach((mesh) => mesh.dispose())
         geometries.forEach((geom) => geom.dispose())
         materials.forEach((mat) => mat.dispose())

@@ -273,7 +273,10 @@ export function Instruments() {
       else if (k === '3') v.setView('plan')
       else if (k === '4') v.setMode('xray')
       else if (k === 'v') v.setView(views[(views.indexOf(v.cameraState) + 1) % views.length])
-      else if (k === 'm') v.togglePlenum()
+      else if (k === 'm') {
+        if (v.cameraState === 'walkthrough' && v.lastFloor === 'B2') v.toggleWalkCeiling()
+        else v.togglePlenum()
+      }
       else if (k === 'x') v.setMode(v.mode === 'xray' ? 'exterior' : 'xray')
       else if (k === '5') {
         if (v.roomId) v.enterRoom()
@@ -296,7 +299,7 @@ export function Instruments() {
       (xray ? '竖井与平硐透视' : drawings[s.cameraState]))
   const lens = s.shot ? photo(s.shot).lens : s.cameraState === 'site' || s.cameraState === 'section' ? 65 : 35
   const projection = walk
-    ? '透视 · 60°'
+    ? '透视 · ' + (s.shot ? lens : 60) + '°'
     : s.cameraState === 'plan' || (s.cameraState === 'section' && !s.sectionPerspective)
       ? '正交投影'
       : '透视 · ' + lens + ' mm'
@@ -362,6 +365,11 @@ export function Instruments() {
                 场址总览
               </button>
             </div>
+            {walk && s.lastFloor === 'B2' && (
+              <button aria-pressed={s.walkCeiling} onClick={s.toggleWalkCeiling}>
+                {s.walkCeiling ? '收起' : '显示'} B2 吊顶与灯槽　<kbd>M</kbd>
+              </button>
+            )}
             <label>
               定位外围设施
               <select

@@ -21,7 +21,7 @@ const round = (
 ) => m.part('round', material, color, p, s, rot)
 
 function top(m: ModelBuilder, w: number, h: number, d: number, tint = spruce) {
-  m.box(tint, [0, h - 0.055, 0], [w, 0.11, d], 'wood')
+  m.box(tint, [0, h - 0.055, 0], [w, 0.11, d], 'oak_int')
   for (const x of [-1, 1])
     for (const z of [-1, 1])
       m.box(dark, [x * (w / 2 - 0.13), (h - 0.11) / 2, z * (d / 2 - 0.12)], [0.075, h - 0.11, 0.075], 'steel')
@@ -33,8 +33,8 @@ function thermos(m: ModelBuilder, x: number, y: number, z: number) {
   round(m, [x, y + 0.284, z], [0.082, 0.032, 0.082])
 }
 function book(m: ModelBuilder, x: number, y: number, z: number, tint = '#627a77') {
-  m.box(tint, [x, y + 0.026, z], [0.31, 0.052, 0.23], 'wood', [0, -0.12, 0])
-  m.box(paper, [x, y + 0.028, z + 0.009], [0.299, 0.035, 0.218], 'wood', [0, -0.12, 0])
+  m.box(tint, [x, y + 0.026, z], [0.31, 0.052, 0.23], 'oak_int', [0, -0.12, 0])
+  m.box(paper, [x, y + 0.028, z + 0.009], [0.299, 0.035, 0.218], 'oak_int', [0, -0.12, 0])
 }
 function gauge(m: ModelBuilder, x: number, y: number, z: number, r = 0.11) {
   round(m, [x, y, z], [r * 2.24, 0.051, r * 2.24], dark, [Math.PI / 2, 0, 0])
@@ -105,8 +105,8 @@ function weatherDesk(m: ModelBuilder) {
 function planter(m: ModelBuilder, e: EquipmentUnit) {
   top(m, 1.45, 0.32, 4.62, '#967d60')
   m.box('#4d5140', [0, 0.342, 0], [1.29, 0.06, 4.45], 'epoxy')
-  for (const x of [-0.7, 0.7]) m.box('#a89b84', [x, 0.375, 0], [0.074, 0.24, 4.62], 'wood')
-  for (const z of [-2.25, 2.25]) m.box('#a89b84', [0, 0.375, z], [1.47, 0.24, 0.075], 'wood')
+  for (const x of [-0.7, 0.7]) m.box('#a89b84', [x, 0.375, 0], [0.074, 0.24, 4.62], 'oak_int')
+  for (const z of [-2.25, 2.25]) m.box('#a89b84', [0, 0.375, z], [1.47, 0.24, 0.075], 'oak_int')
   for (let i = 0; i < 7; i++)
     for (let j = 0; j < 2; j++) {
       const a = i * 1.83 + j * 2.38,
@@ -127,7 +127,7 @@ function planter(m: ModelBuilder, e: EquipmentUnit) {
           )
         }
       } else {
-        m.beam([x, 0.37, z], [x + 0.05, 0.72 + h, z], 0.022, 0.022, '#697755', 'wood')
+        m.beam([x, 0.37, z], [x + 0.05, 0.72 + h, z], 0.022, 0.022, '#697755', 'oak_int')
         for (let k = 0; k < 5; k++) {
           const phi = k * 2.4
           m.part(
@@ -149,7 +149,7 @@ function planter(m: ModelBuilder, e: EquipmentUnit) {
           )
       }
     }
-  m.box(paper, [-0.58, 0.56, 2.15], [0.23, 0.13, 0.035], 'wood', [0.14, -0.18, 0])
+  m.box(paper, [-0.58, 0.56, 2.15], [0.23, 0.13, 0.035], 'oak_int', [0.14, -0.18, 0])
 }
 
 function coupler(m: ModelBuilder) {
@@ -162,7 +162,7 @@ function sampleDesk(m: ModelBuilder, biology: boolean) {
   top(m, biology ? 3 : 2.64, 0.88, 1.18)
   book(m, -0.94, 0.88, 0.12)
   if (!biology) {
-    m.box(paper, [0.29, 0.892, 0], [1.29, 0.02, 0.76], 'wood')
+    m.box(paper, [0.29, 0.892, 0], [1.29, 0.02, 0.76], 'oak_int')
     for (let i = 0; i < 8; i++)
       for (let k = 0; k < 8; k++) {
         const r = 0.04 + 0.035 * i,
@@ -171,7 +171,7 @@ function sampleDesk(m: ModelBuilder, biology: boolean) {
             0.905,
             Math.sin((n * Math.PI) / 4) * r * 0.7,
           ]
-        m.beam(p(k), p(k + 1), 0.006, 0.007, '#9d9476', 'wood')
+        m.beam(p(k), p(k + 1), 0.006, 0.007, '#9d9476', 'oak_int')
       }
     m.part('rock', 'granite', '#889283', [-0.62, 0.984, -0.21], [0.41, 0.21, 0.31])
   } else {
@@ -211,7 +211,7 @@ function vehicle(m: ModelBuilder, e: EquipmentUnit) {
   m.box(paint, [0, 1, -1.64], [1.49, 0.31, 0.07], 'steel')
   m.box(inox, [0, 0.44, 1.74], [1.62, 0.11, 0.12], 'steel')
   round(m, [-0.38, 1.14, 0.2], [0.25, 0.032, 0.25], dark, [0.89, 0, 0])
-  m.box('#ab8964', [0.23, 1.0, -1.2], [0.68, 0.27, 0.6], 'wood')
+  m.box('#ab8964', [0.23, 1.0, -1.2], [0.68, 0.27, 0.6], 'oak_int')
   for (const x of [0.03, 0.42]) m.box(dark, [x, 1.145, -1.2], [0.045, 0.016, 0.61], 'epoxy')
 }
 function crane(m: ModelBuilder) {
@@ -260,7 +260,7 @@ function lockers(m: ModelBuilder, e: EquipmentUnit) {
     m.box(i % 2 ? '#9ca99b' : '#8f9e94', [x, 1.08, 0.375], [bay - 0.032, 1.93, 0.055], 'steel')
     for (let j = 0; j < 4; j++) m.box(dark, [x, 1.81 - j * 0.054, 0.407], [bay * 0.51, 0.018, 0.012], 'steel')
     m.box(inox, [x + bay * 0.3, 1.08, 0.414], [0.033, 0.15, 0.029], 'steel')
-    m.box(paper, [x, 1.53, 0.407], [0.18, 0.06, 0.012], 'wood')
+    m.box(paper, [x, 1.53, 0.407], [0.18, 0.06, 0.012], 'oak_int')
   }
 }
 function bootBench(m: ModelBuilder) {
@@ -274,7 +274,7 @@ function bootBench(m: ModelBuilder) {
 }
 function geology(m: ModelBuilder) {
   top(m, 5.81, 0.68, 1.41)
-  m.box('#8a9084', [0, 1.51, -0.55], [5.76, 1.62, 0.12], 'wood')
+  m.box('#8a9084', [0, 1.51, -0.55], [5.76, 1.62, 0.12], 'oak_int')
   for (let i = 0; i < 19; i++)
     for (let j = 0; j < 4; j++) {
       const height = 0.38 + 0.11 * Math.cos(i * 0.61 + j * 0.3) + 0.13 * Math.sin(i * 0.34) - j * 0.035
@@ -295,7 +295,7 @@ function geology(m: ModelBuilder) {
       [0.43, 0.33, 0.39],
       [0, i, 0],
     )
-    m.box(paper, [x, 0.709, 0.42], [0.27, 0.039, 0.15], 'wood', [0.14, 0, 0])
+    m.box(paper, [x, 0.709, 0.42], [0.27, 0.039, 0.15], 'oak_int', [0.14, 0, 0])
   }
 }
 function windVane(m: ModelBuilder) {
@@ -314,9 +314,9 @@ function windVane(m: ModelBuilder) {
 }
 function visitor(m: ModelBuilder) {
   top(m, 2.29, 0.9, 1.13)
-  m.box('#9d8c76', [0, 0.46, -0.44], [1.94, 0.73, 0.07], 'wood')
+  m.box('#9d8c76', [0, 0.46, -0.44], [1.94, 0.73, 0.07], 'oak_int')
   for (let i = 0; i < 6; i++)
-    m.box(paper, [-0.68 + i * 0.22, 0.97, 0.05], [0.19, 0.13, 0.32], 'wood', [0, -0.15, 0])
+    m.box(paper, [-0.68 + i * 0.22, 0.97, 0.05], [0.19, 0.13, 0.32], 'oak_int', [0, -0.15, 0])
   book(m, 0.65, 0.9, -0.03)
   round(m, [0.92, 1.01, 0], [0.1, 0.22, 0.1], bronze)
 }
@@ -350,7 +350,7 @@ function robotCart(m: ModelBuilder, e: EquipmentUnit) {
   for (const x of [-0.48, 0.48]) m.box(yellow, [x, 0.3, 0.928], [0.19, 0.071, 0.024], 'lamp')
   round(m, [0.38, 0.55, -0.38], [0.12, 0.14, 0.12], dark)
   const n = e.tagCode.slice(-1).charCodeAt(0) - 64
-  for (let i = 0; i < n; i++) m.box(paper, [0.32 + i * 0.081, 0.342, 0.934], [0.04, 0.1, 0.017], 'wood')
+  for (let i = 0; i < n; i++) m.box(paper, [0.32 + i * 0.081, 0.342, 0.934], [0.04, 0.1, 0.017], 'oak_int')
 }
 function scale(m: ModelBuilder) {
   m.box(dark, [0, 0.08, 0], [1.67, 0.16, 2], 'steel')
@@ -358,8 +358,8 @@ function scale(m: ModelBuilder) {
   for (const x of [-0.73, 0.73]) m.box(enamel, [x, 1.11, -0.42], [0.095, 1.94, 0.14], 'steel')
   m.box(enamel, [0, 2.09, -0.42], [1.56, 0.14, 0.16], 'steel')
   m.box(dark, [0, 1.97, -0.42], [0.36, 0.12, 0.18], 'steel')
-  m.box('#c5a888', [0, 0.44, 0.29], [0.74, 0.5, 0.72], 'wood')
-  m.box(paper, [0.06, 0.695, 0.32], [0.38, 0.015, 0.26], 'wood')
+  m.box('#c5a888', [0, 0.44, 0.29], [0.74, 0.5, 0.72], 'oak_int')
+  m.box(paper, [0.06, 0.695, 0.32], [0.38, 0.015, 0.26], 'oak_int')
   for (let i = 0; i < 8; i++)
     m.box(dark, [-0.048 + i * 0.028, 0.706, 0.33], [0.009 + (i % 2) * 0.005, 0.006, 0.15], 'epoxy')
 }
@@ -411,7 +411,7 @@ function rack(m: ModelBuilder) {
       m.box(dark, [0, y + 0.494, z], [1.45, 0.047, 0.81], 'epoxy')
       for (const x of [-0.716, 0.716]) {
         m.box(dark, [x, y + 0.36, z], [0.015, 0.056, 0.25], 'epoxy')
-        m.box(paper, [x, y + 0.22, z - 0.17], [0.02, 0.09, 0.16], 'wood')
+        m.box(paper, [x, y + 0.22, z - 0.17], [0.02, 0.09, 0.16], 'oak_int')
       }
     }
   }
@@ -422,7 +422,7 @@ function trolley(m: ModelBuilder) {
     for (const z of [-0.43, 0.43]) round(m, [x, 0.13, z], [0.23, 0.09, 0.23], dark, [0, 0, Math.PI / 2])
   for (const x of [-0.69, 0.69]) m.box(inox, [x, 0.69, -0.48], [0.043, 0.79, 0.043], 'steel')
   m.box(dark, [0, 1.08, -0.48], [1.42, 0.07, 0.07], 'steel')
-  m.box('#9e967b', [-0.25, 0.52, 0.02], [0.76, 0.41, 0.73], 'wood')
+  m.box('#9e967b', [-0.25, 0.52, 0.02], [0.76, 0.41, 0.73], 'oak_int')
   book(m, -0.26, 0.725, 0)
 }
 function recycler(m: ModelBuilder) {
@@ -511,70 +511,37 @@ function rail(m: ModelBuilder, length: number) {
   m.box(inox, [trolley, 0.054, 0], [0.065, 0.103, 0.07], 'steel')
 }
 
-export function drawUpper(m: ModelBuilder, e: EquipmentUnit) {
-  switch (e.tagCode.split('-')[0]) {
-    case 'TEL':
-      return telescope(m)
-    case 'MET':
-      return weatherDesk(m)
-    case 'MAP':
-      return sampleDesk(m, false)
-    case 'BOT':
-      return planter(m, e)
-    case 'SOL':
-      return coupler(m)
-    case 'POT':
-      return sampleDesk(m, true)
-    case 'ATV':
-      return vehicle(m, e)
-    case 'HOI':
-      return crane(m)
-    case 'PLW':
-      return plow(m)
-    case 'AIR':
-      return statusPanel(m)
-    case 'PPE':
-    case 'KIT':
-      return lockers(m, e)
-    case 'DRY':
-      return bootBench(m)
-    case 'GEO':
-      return geology(m)
-    case 'WTH':
-      return windVane(m)
-    case 'VIS':
-      return visitor(m)
-    case 'GYM':
-    case 'ROW':
-    case 'PHY':
-      return drawGym(m, e.tagCode.split('-')[0])
-    case 'DEC':
-      return shower(m)
-    case 'SUM':
-      return sump(m)
-    case 'AGV':
-      return robotCart(m, e)
-    case 'SCL':
-      return scale(m)
-    case 'UAV':
-      return droneDock(m)
-    case 'INS':
-      return fieldGear(m)
-    case 'RCK':
-      return rack(m)
-    case 'PAL':
-      return trolley(m)
-    case 'REC':
-      return recycler(m)
-    case 'CNC':
-      return mill(m)
-    case 'AMF':
-      return printer(m)
-    case 'PCB':
-      return solder(m)
-    case 'RAI':
-      return rail(m, e.moduleSizeM[0])
-    default:
-      throw new Error('未识别的地表/B1 设备位号 ' + e.tagCode)
-  }
+export const upperVisuals: Record<string, (m: ModelBuilder, e: EquipmentUnit) => void> = {
+  'TEL': telescope,
+  'MET': weatherDesk,
+  'MAP': (m) => sampleDesk(m, false),
+  'BOT': planter,
+  'SOL': coupler,
+  'POT': (m) => sampleDesk(m, true),
+  'ATV': vehicle,
+  'HOI': crane,
+  'PLW': plow,
+  'AIR': statusPanel,
+  'PPE': lockers,
+  'locker': lockers,
+  'DRY': bootBench,
+  'GEO': geology,
+  'WTH': windVane,
+  'VIS': visitor,
+  'GYM': (m) => drawGym(m, 'GYM'),
+  'ROW': (m) => drawGym(m, 'ROW'),
+  'PHY': (m) => drawGym(m, 'PHY'),
+  'DEC': shower,
+  'SUM': sump,
+  'AGV': robotCart,
+  'SCL': scale,
+  'UAV': droneDock,
+  'INS': fieldGear,
+  'RCK': rack,
+  'PAL': trolley,
+  'REC': recycler,
+  'CNC': mill,
+  'AMF': printer,
+  'PCB': solder,
+  'RAI': (m, e) => rail(m, e.moduleSizeM[0]),
 }

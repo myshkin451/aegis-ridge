@@ -14,6 +14,8 @@ import { Inscription } from './Inscription'
 import { roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
 import type { SurveyRuntime } from '../camera/runtime'
+import { addLivingCoves, residentialFinishes } from './residentialFinishes'
+import { bedrooms } from '../../geometry/residentialPlan'
 
 function fixtures(id: UndergroundId) {
   const m = new ModelBuilder(),
@@ -34,10 +36,13 @@ function fixtures(id: UndergroundId) {
   return m
 }
 const freight = shaftPlans.find((s) => s.id === 'freight')!
+const commons = footprint(roomsOn('B2').find((r) => r.id === 'b2_commons')!.bounds)
+const mainCorridor = footprint(CORRIDOR)
 export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
   const build = useMemo(() => () => roomModels(id), [id])
   const root = useRef<Group>(null)
   const floor = FLOORS[id]
+  const walkB2 = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === 'B2')
   useFrame(({ camera }) => {
     if (!root.current) return
     const state = useShelterStore.getState()
@@ -47,7 +52,11 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
     const besideShaft = rt.garageTransfer && Math.abs(p.y - floor.elevation - 1.65) < floor.pitch
     const orbit = state.cameraState === 'floorOrbit' || state.cameraState === 'plan'
     // Opaque slabs occlude lower fit-outs. The glazed B2 floor also exposes the B3 crop beds.
-    const throughAtrium = id === 'B3' && state.lastFloor === 'B2'
+    const seesAtrium =
+      (p.x >= commons.x0 && p.x <= commons.x1 && p.z >= commons.z0 && p.z <= commons.z1) ||
+      (p.z >= mainCorridor.z0 && p.z <= mainCorridor.z1 && p.x >= mainCorridor.x0 && p.x <= mainCorridor.x1)
+    const throughAtrium =
+      id === 'B3' && state.lastFloor === 'B2' && (orbit || rt.garageTransfer || rt.dropping || seesAtrium)
     let visible = true
     if (state.cameraState === 'site') visible = nearBuilding || besideShaft
     else if (orbit || state.cameraState === 'walkthrough')
@@ -57,6 +66,11 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
       <Model build={build} interior />
+      {id === 'B2' && (
+        <group name="B2 内墙饰面与样板陈设" visible={walkB2}>
+          <Model build={residentialFinishes} interior opaqueOrder={-4} />
+        </group>
+      )}
       <FloorSigns id={id} />
     </group>
   )
@@ -108,8 +122,18 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
       for (const room of roomsOn(id)) {
         const r = footprint(room.bounds),
           h = room.clearHeightOverride ?? FLOORS[id].clearHeight
+        const living = ['b2_quarters', 'b2_commons', 'b2_library', 'b2_bath_laundry'].includes(room.id)
         for (const p of clearCeilingPatches(room))
-          m.box('#c5c6bd', [p.x, h + 0.025, p.z], [p.w - 0.02, 0.05, p.d - 0.02])
+          m.box(
+            living ? '#eae5da' : '#c5c6bd',
+            [p.x, h + 0.025, p.z],
+            [p.w - 0.02, 0.05, p.d - 0.02],
+            living ? 'plaster' : 'stone',
+          )
+        if (living) {
+          for (const bay of room.id === 'b2_quarters' ? bedrooms : [r]) addLivingCoves(m, bay, h)
+          continue
+        }
         for (let x = r.x0 + 1.4; x < r.x1 - 0.4; x += 3.3)
           for (const [a, b] of clipZSpan(
             x,
@@ -127,5 +151,11 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
     },
     [id],
   )
-  return <Model build={build} />
+  const showCeiling = useShelterStore((s) => s.walkCeiling)
+  const walkB2 = useShelterStore((s) => id === 'B2' && s.lastFloor === id && s.cameraState === 'walkthrough')
+  return (
+    <group name={id + ' 吊顶与灯槽'} visible={id !== 'B2' || showCeiling}>
+      <Model build={build} opaqueOrder={walkB2 ? -3 : 0} />
+    </group>
+  )
 }

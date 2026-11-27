@@ -5,6 +5,8 @@ import {
   Mesh,
   MeshStandardMaterial,
   OrthographicCamera,
+  DirectionalLight,
+  SpotLight,
   Vector2,
   type Camera,
   type Object3D,
@@ -12,6 +14,8 @@ import {
   type WebGLRenderer,
 } from 'three'
 import type { EffectComposer } from 'postprocessing'
+import { useShelterStore } from '../../store/useShelterStore'
+import { setChairWalkthrough } from '../assets/pilotAssets'
 import type { N8AOPostPass } from 'n8ao'
 
 export function precompileSurvey(
@@ -23,19 +27,27 @@ export function precompileSurvey(
 ) {
   // compile() alone misses local clipping, shadow depth, post passes and transparency variants.
   // Exercise their real draw paths on a tiny buffer, before opening the interactive viewport.
+  setChairWalkthrough(true)
   const size = gl.getSize(new Vector2())
   const objects: [Object3D, boolean, boolean, boolean][] = []
   const lods: LOD[] = []
+  const lights: (DirectionalLight | SpotLight)[] = []
+  const indoorCasters: Object3D[] = []
   const materials = new Map<Material, boolean>()
   scene.traverse((o) => {
+    if ((o instanceof DirectionalLight || o instanceof SpotLight) && o.castShadow) lights.push(o)
     objects.push([o, o.visible, o.frustumCulled, o.castShadow])
+    if (o.userData.localDoorShadow || o.userData.localFurnitureShadow) indoorCasters.push(o)
     o.visible = true
     o.frustumCulled = false
     if (o instanceof LOD && o.autoUpdate) {
       o.autoUpdate = false
       lods.push(o)
     }
-    if (o instanceof Mesh && o.userData.finish && !['glass', 'lamp'].includes(o.userData.finish))
+    if (
+      o instanceof Mesh &&
+      (o.userData.localDoorShadow || (o.userData.finish && !['glass', 'lamp'].includes(o.userData.finish)))
+    )
       o.castShadow = true
     if ((o instanceof Mesh || o instanceof Line) && !Array.isArray(o.material))
       materials.set(o.material, o.material.transparent)
@@ -45,6 +57,8 @@ export function precompileSurvey(
   gl.compile(scene, camera)
   performance.mark('ars-open-compile')
   gl.setRenderTarget(null)
+  for (const caster of indoorCasters) caster.castShadow = false
+  for (const light of lights) light.shadow.needsUpdate = light instanceof DirectionalLight
   gl.shadowMap.needsUpdate = true
   pipe.render(0)
   performance.mark('ars-open-opaque')
@@ -59,6 +73,8 @@ export function precompileSurvey(
   ortho.updateMatrixWorld()
   pipe.setMainCamera(ortho)
   ao.camera = ortho
+  for (const caster of indoorCasters) caster.castShadow = true
+  for (const light of lights) light.shadow.needsUpdate = light instanceof SpotLight
   gl.shadowMap.needsUpdate = true
   pipe.render(0)
   performance.mark('ars-open-faded')
@@ -76,4 +92,6 @@ export function precompileSurvey(
   pipe.setMainCamera(camera)
   ao.camera = camera
   pipe.setSize(size.x, size.y, false)
+  for (const light of lights) light.shadow.needsUpdate = light instanceof DirectionalLight
+  setChairWalkthrough(useShelterStore.getState().cameraState === 'walkthrough')
 }

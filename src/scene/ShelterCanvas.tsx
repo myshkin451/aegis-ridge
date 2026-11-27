@@ -1,3 +1,4 @@
+import { PilotPreload } from './assets/PilotPreload'
 import { Canvas, useLoader } from '@react-three/fiber'
 import { Component, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -11,6 +12,7 @@ import { SiteFacilities, TunnelModels } from './terrain/SiteFacilities'
 import { AtlasLoader } from './terrain/loadAtlas'
 import { BuildingSection } from './BuildingSection'
 import { useShelterStore } from '../store/useShelterStore'
+import { InteriorLightPool } from './atmosphere/InteriorLightPool'
 import { PhysicalSky } from './atmosphere/PhysicalSky'
 import { QualityControl, RenderPipeline, SunShadows } from './atmosphere/RenderPipeline'
 import { CameraStateMachine } from './camera/CameraStateMachine'
@@ -27,32 +29,35 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const xray = useShelterStore((s) => s.mode === 'xray')
   const structure = useShelterStore((s) => s.layers.structure)
   return (
-    <QualityControl onDprChange={onDprChange}>
-      <PhysicalSky />
-      <MultiScaleMountain atlas={atlas} />
-      <group visible={!xray || structure}>
-        <BuildingSection>
-          <UndergroundShell rt={rt} />
-          <SurfaceStation atlas={atlas} rt={rt} />
-          <TunnelModels />
-        </BuildingSection>
-      </group>
-      <SiteFacilities atlas={atlas} />
-      <group visible={xray}>
-        <CoreTraces />
-      </group>
-      <group visible={!xray}>
-        <DrawingMarks />
-      </group>
-      <InteriorLights />
-      <FibreDaylight />
-      <CameraStateMachine atlas={atlas} rt={rt} />
-      <WalkthroughRig rt={rt} />
-      <SectionBoxTool rt={rt} />
-      <SceneReadouts rt={rt} />
-      <SunShadows rt={rt} />
-      <RenderPipeline rt={rt} />
-    </QualityControl>
+    <PilotPreload>
+      <QualityControl onDprChange={onDprChange}>
+        <PhysicalSky />
+        <MultiScaleMountain atlas={atlas} />
+        <group visible={!xray || structure}>
+          <BuildingSection>
+            <UndergroundShell rt={rt} />
+            <SurfaceStation atlas={atlas} rt={rt} />
+            <TunnelModels />
+          </BuildingSection>
+        </group>
+        <SiteFacilities atlas={atlas} />
+        <group visible={xray}>
+          <CoreTraces />
+        </group>
+        <group visible={!xray}>
+          <DrawingMarks />
+        </group>
+        <InteriorLights />
+        <FibreDaylight />
+        <InteriorLightPool rt={rt} />
+        <CameraStateMachine atlas={atlas} rt={rt} />
+        <WalkthroughRig rt={rt} />
+        <SectionBoxTool rt={rt} />
+        <SceneReadouts rt={rt} />
+        <SunShadows rt={rt} />
+        <RenderPipeline />
+      </QualityControl>
+    </PilotPreload>
   )
 }
 function GraphicsMessage() {

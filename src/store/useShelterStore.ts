@@ -29,6 +29,7 @@ interface ShelterView {
   box: SectionBounds
   sectionPerspective: boolean
   plenum: boolean
+  walkCeiling: boolean
   layers: Record<SystemId, boolean>
   preset: CameraPreset
   facilityId: number | null
@@ -58,6 +59,7 @@ interface ShelterView {
   setBoxFace: (face: BoxFace, value: number) => void
   toggleProjection: () => void
   togglePlenum: () => void
+  toggleWalkCeiling: () => void
   toggleLayer: (id: SystemId) => void
   toggleHud: () => void
 }
@@ -91,6 +93,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   sectionPerspective: false,
   preset: 'surface',
   plenum: true,
+  walkCeiling: true,
   layers: allLayers,
   facilityId: null,
   roomId: null,
@@ -185,6 +188,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
         sectionZ: -3.75,
         sectionPerspective: false,
         plenum: true,
+        walkCeiling: true,
         hud: true,
       }
     }),
@@ -198,6 +202,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   toggleProjection: () =>
     set((s) => ({ sectionPerspective: !s.sectionPerspective, cameraRevision: s.cameraRevision + 1 })),
   togglePlenum: () => set((s) => ({ plenum: !s.plenum })),
+  toggleWalkCeiling: () => set((s) => ({ walkCeiling: !s.walkCeiling })),
   toggleLayer: (id) => set((s) => ({ layers: { ...s.layers, [id]: !s.layers[id] } })),
   toggleHud: () => set((s) => ({ hud: !s.hud })),
 }))

@@ -112,7 +112,8 @@ try {
       if (m.type() === 'info') console.log(m.text())
     })
   page.setDefaultTimeout(30000)
-  await page.goto('http://127.0.0.1:' + server.httpServer.address().port, { waitUntil: 'domcontentloaded' })
+  const origin = 'http://127.0.0.1:' + server.httpServer.address().port
+  await page.goto(origin, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('canvas[data-rendered=true][data-ready=settled]')
   const env = await page.evaluate(() => {
     const gl = document.querySelector('canvas').getContext('webgl2'),
@@ -125,6 +126,10 @@ try {
         .getEntriesByType('mark')
         .filter((e) => e.name.startsWith('ars-open-'))
         .map((e) => [e.name, e.startTime]),
+      assets: performance
+        .getEntriesByType('resource')
+        .filter((e) => /\.(webp|glb)(?:\?|$)/.test(e.name))
+        .map((e) => ({ path: new URL(e.name).pathname, bytes: e.encodedBodySize })),
       paint: performance.getEntriesByName('first-contentful-paint')[0]?.startTime,
       agent: navigator.userAgent,
     }
@@ -395,6 +400,41 @@ try {
       await wait(250)
     })
   }
+  async function selectPilot(name) {
+    const before = await read('revision')
+    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption('pilot-' + name)
+    await page.waitForFunction((revision) => {
+      const d = document.querySelector('canvas').dataset
+      return d.revision !== revision && d.ready === 'settled' && d.view === 'walkthrough'
+    }, before)
+    await cycle()
+  }
+  for (const name of ['bedroom', 'commons', 'bath']) {
+    await measure('漫游进入样板 ' + name, () => selectPilot(name))
+    await measure('样板稳态 ' + name, () => wait(2500))
+  }
+  await measure('切房阴影更新', async () => {
+    for (const [name, room] of [
+      ['bedroom', 'b2-single-1'],
+      ['commons', 'b2_commons'],
+      ['bath', 'b2_bath_laundry'],
+    ]) {
+      const previous = Number(await read('interior-shadow-updates'))
+      const csm = await read('csm-shadow-updates')
+      await selectPilot(name)
+      // A nearby leaf may still be sliding after the camera settles.
+      await wait(750)
+      const next = Number(await read('interior-shadow-updates'))
+      if (!Number.isFinite(next) || next <= previous || room !== (await read('interior-shadow-room')))
+        failures.push('未实际刷新房间阴影 ' + name)
+      if (csm === null || csm !== (await read('csm-shadow-updates')))
+        failures.push('切房时 CSM 状态异常 ' + name)
+      await wait(300)
+      if (next !== Number(await read('interior-shadow-updates')))
+        failures.push('静止时重复刷新室内阴影 ' + name)
+    }
+  })
   const total = await page.evaluate(() => window.surveyPerf.links - window.surveyPerf.coldLinks)
   console.log('就绪后全程链接', total)
   if (total !== 0) failures.push('就绪后全程链接 ' + total)
@@ -429,8 +469,11 @@ try {
       )
     const longest = tasks.reduce((a, b) => (a.dur > b.dur ? a : b))
     row.task = longest.dur / 1000
-    if (row.draws > 400 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
-    if (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) && (row.fps < 58 || row.p95 > 20))
+    if (row.draws > 370 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
+    if (
+      (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) || row.label.startsWith('样板稳态')) &&
+      (row.fps < 58 || row.p95 > 20)
+    )
       failures.push(row.label + ' 未达到稳态帧率预算')
     if (row.task > 50) failures.push(row.label + ' 主线程 ' + row.task.toFixed(2) + ' ms')
     console.log(
@@ -447,6 +490,58 @@ try {
       ].join(' | '),
     )
   }
+  const peak = Math.max(...reports.map((r) => r.draws))
+  console.log(
+    '全程峰值绘制',
+    peak,
+    '较 M2.5a 增量',
+    peak - 347,
+    '首屏 GPU 就绪变化 ms',
+    (env.ready - 2261.2).toFixed(1),
+    '新增资产下载 bytes',
+    env.assets.reduce((sum, a) => sum + a.bytes, 0),
+  )
+  const loaded = env.marks.filter(([name]) => name === 'ars-open-pilot-assets')
+  const start = env.marks.find(([name]) => name === 'ars-open-scene')
+  if (loaded.length !== 1 || !start || loaded[0][1] >= start[1]) failures.push('资产未在预编译前单次完成')
+  if (
+    env.assets.length !== 4 ||
+    new Set(env.assets.map((a) => a.path)).size !== 4 ||
+    env.assets.some((a) => !a.bytes)
+  )
+    failures.push('启动资产下载缺失或重复')
+
+  // A new WebGL context deliberately opens with the procedural chair. Swap the real array and mesh
+  // while the commons is on screen, after the ordinary warm-up and without another compile survey.
+  await page.goto(origin + '/?pilot=r3&pilotLate=1', { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector(
+    'canvas[data-rendered=true][data-pilot-chair=procedural][data-pilot-texture=procedural]',
+  )
+  await selectPilot('commons')
+  await wait(500)
+  const proceduralTriangles = Number(await read('triangles'))
+  const beforeLate = await page.evaluate(() => window.surveyPerf.links)
+  await page.evaluate(() => window.dispatchEvent(new Event('ars-load-late-assets')))
+  await page.waitForSelector('canvas[data-pilot-chair=glb][data-pilot-texture=oak-array]')
+  await cycle()
+  await cycle()
+  const late = await page.evaluate(() => ({
+    links: window.surveyPerf.links,
+    ready: window.surveyPerf.coldLinks,
+  }))
+  const glbTriangles = Number(await read('triangles'))
+  console.log(
+    '迟到资产，挂载后新增链接',
+    late.links - beforeLate,
+    '就绪后新增链接',
+    late.links - late.ready,
+    '共餐厅三角形',
+    proceduralTriangles,
+    '→',
+    glbTriangles,
+  )
+  if (glbTriangles <= proceduralTriangles) failures.push('迟到餐椅未进入实际绘制批次')
+  if (late.links !== beforeLate || late.links !== late.ready) failures.push('迟到资产触发新增链接')
   console.log('浏览器错误及警告', errors.length)
   if (errors.length || failures.length) throw Error([...failures, ...errors].join('\n'))
 } finally {

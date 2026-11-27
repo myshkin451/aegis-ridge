@@ -1,5 +1,7 @@
 import type { EquipmentUnit, Point3, RoomCameraAnchor } from '../../types/shelter'
 
+import { legacyVisualKind } from '../equipmentVisuals'
+
 export type { EquipmentUnit, Point3, RoomCameraAnchor }
 export interface RoomLayout {
   equipment: EquipmentUnit[]
@@ -33,6 +35,7 @@ export function unit(
   return {
     id: tagCode,
     tagCode,
+    visualKind: legacyVisualKind(tagCode),
     name,
     category,
     position,

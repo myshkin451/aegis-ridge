@@ -37,7 +37,7 @@ export function structure(id: UndergroundId) {
   for (const r of [route, footprint(BRANCH_CORRIDOR)])
     m.box('#707b7d', [r.x, -0.01, r.z], [r.w, 0.024, r.d], id === 'B4' ? 'grate' : 'epoxy')
   for (const z of [route.z0 + 0.14, route.z1 - 0.14])
-    m.box('#d0b286', [route.x, 0.0025, z], [route.w - 0.2, 0.001, 0.055], 'wood')
+    m.box('#d0b286', [route.x, 0.0025, z], [route.w - 0.2, 0.001, 0.055], 'epoxy')
   // Drainage grate sits outside the circulation strip, just inside the perimeter.
   for (const z of [plan.z0 + 0.13, plan.z1 - 0.13]) {
     m.box(steel, [plan.x, 0.022, z], [plan.w - 0.18, 0.035, 0.18], 'steel')
@@ -156,6 +156,7 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
     plenum = useShelterStore((s) => s.plenum)
   const view = useShelterStore((s) => s.cameraState)
   const walk = view === 'walkthrough'
+  const shellOrder = walk && id === 'B2' && floor === id ? -2 : 0
   const seen = walk || floor === 'ALL' || FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
   const builders = useMemo(
     () => ({
@@ -214,10 +215,25 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
       <group ref={fixedLeaves} visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
         <Model build={builders.leaves} interior />
       </group>
-      <Model build={builders.frame} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0} />
+      <Model
+        build={builders.frame}
+        delayMs={delayMs}
+        opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0}
+        opaqueOrder={shellOrder}
+      />
       <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
-      <Model build={builders.rear} delayMs={delayMs} opacity={Number(seen && mode !== 'xray')} />
-      <Model build={builders.front} delayMs={delayMs} opacity={Number(seen && closed)} />
+      <Model
+        build={builders.rear}
+        delayMs={delayMs}
+        opacity={Number(seen && mode !== 'xray')}
+        opaqueOrder={shellOrder}
+      />
+      <Model
+        build={builders.front}
+        delayMs={delayMs}
+        opacity={Number(seen && closed)}
+        opaqueOrder={shellOrder}
+      />
       <Model build={builders.wire} delayMs={delayMs} opacity={seen && mode === 'xray' ? 0.12 : 0} />
       <Model
         build={builders.plenum}
