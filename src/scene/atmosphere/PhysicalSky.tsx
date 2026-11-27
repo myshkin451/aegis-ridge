@@ -19,7 +19,7 @@ import {
 import { FLOORS } from '../../data/floors'
 import { pilotFixtures } from '../../data/roomLayouts/residential'
 import { floorAt } from '../../geometry/viewGeometry'
-import { bakeRoomEnvironment } from './roomEnvironment'
+import { bakeRoomEnvironment, reflectionBytes, reflectionRoomAt, reflectionRooms } from './roomEnvironment'
 import { photographs } from '../../data/photographs'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
@@ -251,7 +251,13 @@ export function PhysicalSky() {
     dome.scale.copy(sky.scale)
     env.add(dome)
     const cubeSize = 64
-    environments.set('interior-B2', bakeRoomEnvironment(pmrem, cubeSize))
+    let bytes = 0
+    for (const room of reflectionRooms) {
+      const target = bakeRoomEnvironment(pmrem, cubeSize, room)
+      environments.set(room, target)
+      bytes += reflectionBytes(target)
+    }
+    gl.domElement.dataset.interiorEnvironmentBytes = String(bytes)
     const conditions = [{ time: '07:40', cold: false }, ...Object.values(photographs)]
     for (const condition of conditions) {
       if (environments.has(condition.time)) continue
@@ -330,12 +336,14 @@ export function PhysicalSky() {
       hemi.groundColor.set(underground ? '#7d6c5d' : walk ? '#887c73' : '#8b8576')
       hemi.intensity = underground ? 0.32 : xray ? 0.48 : walk ? 1.36 : twilight ? 0.8 : 1.16
     }
-    const target =
-      underground && floor === 'B2'
-        ? environments.get('interior-B2')
-        : (environments.get(time) ?? environments.get('07:40'))
-    if (target) scene.environment = target.texture
-    scene.environmentIntensity = underground && floor === 'B2' ? 0.52 : walk ? 0.3 : 0.5
+    const room = walk
+      ? reflectionRoomAt(floor, camera.position.x, camera.position.y, camera.position.z)
+      : undefined
+    const target = environments.get(room ?? time) ?? environments.get('07:40')
+    if (target && scene.environment !== target.texture) scene.environment = target.texture
+    scene.environmentIntensity = room === 'living' ? 0.52 : walk ? 0.3 : 0.5
+    if (gl.domElement.dataset.interiorEnvironment !== (room ?? 'sky'))
+      gl.domElement.dataset.interiorEnvironment = room ?? 'sky'
     if (outer.current)
       outer.current.visible =
         exterior || (walk && nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z))

@@ -1,9 +1,22 @@
 import { chromium } from 'playwright'
 import { preview } from 'vite'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+const signed = { ready: 2723.1, peak: 358, bytes: 582854 }
+// Enumerate deployed assets independently of the loader. A silently missing fetch is a failure.
+async function publishedAssets(directory, url = '/assets/') {
+  const files = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...(await publishedAssets(path, url + entry.name + '/')))
+    else if (/\.(?:glb|webp)$/.test(entry.name)) files.push([url + entry.name, (await stat(path)).size])
+  }
+  return files
+}
+const published = new Map(await publishedAssets(join(root, 'dist/assets')))
 const manifest = JSON.parse(await readFile(new URL('../public/terrain/atlas.json', import.meta.url), 'utf8'))
 const tiles = await Promise.all(
   [...manifest.insets, ...manifest.tiles.slice().reverse()].map(async (t) => ({
@@ -129,7 +142,8 @@ try {
       assets: performance
         .getEntriesByType('resource')
         .filter((e) => /\.(webp|glb)(?:\?|$)/.test(e.name))
-        .map((e) => ({ path: new URL(e.name).pathname, bytes: e.encodedBodySize })),
+        .map((e) => ({ path: new URL(e.name).pathname, bytes: e.encodedBodySize, end: e.responseEnd })),
+      assetState: { ...document.querySelector('canvas').dataset },
       paint: performance.getEntriesByName('first-contentful-paint')[0]?.startTime,
       agent: navigator.userAgent,
     }
@@ -138,6 +152,18 @@ try {
   if (!/ANGLE.*Metal/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
     throw Error('实测需要硬件 ANGLE Metal')
   if (!(env.ready <= 8000 && env.paint <= 3000)) failures.push('首屏描线/材质时间超限')
+  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M2.5b 增加超过 500 ms')
+  const textureBytes = Number(env.assetState.pilotTextureBytes)
+  const environmentBytes = Number(env.assetState.interiorEnvironmentBytes)
+  if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 64000000))
+    failures.push('内容纹理与室内反射不符合 64 MB 预算')
+  if (
+    env.assetState.pilotFinishes !== '4' ||
+    env.assetState.pilotArt !== '1' ||
+    env.assetState.pilotChair !== 'glb' ||
+    env.assetState.pilotDomestic !== '7'
+  )
+    failures.push('首屏资源虽已请求，但未完整安装')
   const cdp = await page.context().newCDPSession(page)
   cdp.on('Tracing.dataCollected', ({ value }) => events.push(...value))
   await cdp.send('Tracing.start', {
@@ -380,13 +406,13 @@ try {
     })
   }
   // Exercise the M2 selection and authored camera route on the same warmed WebGL context.
-  for (const room of [
-    'l2_observatory',
-    'l1_garage',
-    'b1_workshop',
-    'b2_commons',
-    'b3_aquaponics',
-    'b4_switchgear',
+  for (const [room, reflection] of [
+    ['l2_observatory', 'station'],
+    ['l1_garage', 'station'],
+    ['b1_workshop', 'service'],
+    ['b2_commons', 'living'],
+    ['b3_aquaponics', 'farm'],
+    ['b4_switchgear', 'service'],
   ]) {
     await measure('室内 ' + room, async () => {
       await view('1', site)()
@@ -399,6 +425,7 @@ try {
       await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
       await wait(250)
     })
+    if ((await read('interior-environment')) !== reflection) failures.push(room + ' 室内反射不符')
   }
   async function selectPilot(name) {
     const before = await read('revision')
@@ -491,23 +518,28 @@ try {
     )
   }
   const peak = Math.max(...reports.map((r) => r.draws))
+  const download = env.assets.reduce((sum, a) => sum + a.bytes, 0)
+  if (download - signed.bytes > 4000000) failures.push('新增资产下载超过 4 MB')
   console.log(
     '全程峰值绘制',
     peak,
-    '较 M2.5a 增量',
-    peak - 347,
+    '较 M2.5b 增量',
+    peak - signed.peak,
     '首屏 GPU 就绪变化 ms',
-    (env.ready - 2261.2).toFixed(1),
-    '新增资产下载 bytes',
-    env.assets.reduce((sum, a) => sum + a.bytes, 0),
+    (env.ready - signed.ready).toFixed(1),
+    '资产总下载 / 本轮增量 B',
+    download,
+    download - signed.bytes,
+    '内容纹理及室内反射 B',
+    textureBytes + environmentBytes,
   )
   const loaded = env.marks.filter(([name]) => name === 'ars-open-pilot-assets')
   const start = env.marks.find(([name]) => name === 'ars-open-scene')
   if (loaded.length !== 1 || !start || loaded[0][1] >= start[1]) failures.push('资产未在预编译前单次完成')
   if (
-    env.assets.length !== 4 ||
-    new Set(env.assets.map((a) => a.path)).size !== 4 ||
-    env.assets.some((a) => !a.bytes)
+    env.assets.length !== published.size ||
+    new Set(env.assets.map((a) => a.path)).size !== published.size ||
+    env.assets.some((a) => !a.bytes || published.get(a.path) !== a.bytes || a.end > start?.[1])
   )
     failures.push('启动资产下载缺失或重复')
 
@@ -522,14 +554,17 @@ try {
   const proceduralTriangles = Number(await read('triangles'))
   const beforeLate = await page.evaluate(() => window.surveyPerf.links)
   await page.evaluate(() => window.dispatchEvent(new Event('ars-load-late-assets')))
-  await page.waitForSelector('canvas[data-pilot-chair=glb][data-pilot-texture=oak-array]')
+  await page.waitForSelector(
+    'canvas[data-pilot-chair=glb][data-pilot-finishes="4"][data-pilot-domestic="7"][data-pilot-art="1"]',
+  )
   await cycle()
   await cycle()
+  const glbTriangles = Number(await read('triangles'))
+  for (const name of ['bedroom', 'bath']) await selectPilot(name)
   const late = await page.evaluate(() => ({
     links: window.surveyPerf.links,
     ready: window.surveyPerf.coldLinks,
   }))
-  const glbTriangles = Number(await read('triangles'))
   console.log(
     '迟到资产，挂载后新增链接',
     late.links - beforeLate,

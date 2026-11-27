@@ -9,7 +9,8 @@ import {
   RepeatWrapping,
 } from 'three'
 import type { MeshStandardMaterialParameters } from 'three'
-import { hasOakAtlas, oakAtlas } from '../assets/pilotAssets'
+import { materialAtlas, materialScanMask, fieldPrintMask, walkingMaterials } from '../assets/pilotAssets'
+import { fieldPrints, finishScans, normalLayerOffset, printLayerOffset } from '../assets/finishScans'
 import { shadowUniforms } from '../atmosphere/shadowUniforms'
 import { FLOORS } from '../../data/floors'
 
@@ -21,6 +22,9 @@ export type Finish =
   | 'snow'
   | 'shotcrete'
   | 'corten'
+  | 'art_ridge'
+  | 'art_herbarium'
+  | 'art_water'
   | 'oak_int'
   | 'plaster'
   | 'fabric'
@@ -115,7 +119,52 @@ const legacyLarch = `float joint=1.-smoothstep(.002,.008+aa,abs(fract(axes.x/.16
     float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
     diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.24,.91,.65),vec3(.37,.36,.33),weather*.6);
     diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0008*fibre-.004*joint;`
+const metricScan = `
+      // Metric projection for millwork. Curved meshes blend three planes by their smooth normal.
+      #ifdef FLAT_SHADED
+      vec3 worldN=surfaceNormal;
+      #else
+      vec3 worldN=inverseTransformDirection(vNormal,viewMatrix);
+      #endif
+      vec3 weights = vec3(0.);
+      if (boxEdges) {
+        weights = axis.y>.64 ? vec3(0.,1.,0.) : axis.x>axis.z ? vec3(1.,0.,0.) : vec3(0.,0.,1.);
+      } else {
+        weights = pow(abs(worldN), vec3(4.));
+        weights /= max(dot(weights,vec3(1.)), .00001);
+      }
+      vec3 albedo=vec3(0.), tilt=vec3(0.); float scanRough=0.;
+      for (int i=0; i<3; ++i) {
+        float w=weights[i];
+        if (w<.001) continue;
+        // T × B points outward on both sides. Rotate the sampling frame and the normal together.
+        float side=worldN[i]<0. ? -1. : 1.;
+        vec3 T=i==0 ? vec3(0.,0.,-side) : vec3(i==1 ? 1. : side,0.,0.);
+        vec3 B=i==1 ? vec3(0.,0.,-side) : vec3(0.,1.,0.);
+        vec2 span=i==0 ? vExtent.zy : i==1 ? vExtent.xz : vExtent.xy;
+        if (scanSlot == 0 && boxEdges && span.x>span.y) {vec3 t=T; T=B; B=-t;}
+        vec2 st=vec2(dot(vMetric,T), dot(vMetric,B))/repeatMetres;
+        vec4 colorR=texture(finishLayers,vec3(st,float(scanSlot)));
+        albedo+=w*sRGBTransferEOTF(colorR).rgb;
+        scanRough+=w*colorR.a;
+        vec4 pairs=texture(finishLayers,vec3(st,float(${normalLayerOffset}+scanSlot/2)));
+        vec2 xy=((scanSlot%2)==0 ? pairs.rg : pairs.ba)*2.-1.;
+        float nz=sqrt(max(.01,1.-dot(xy,xy)));
+        tilt+=w*(T*xy.x+B*xy.y)/nz;
+      }
+      diffuseColor.rgb*=clamp(albedo/scanWhite,vec3(.17),vec3(2.35));
+      rough+=scanRough-roughness;
+      scanPerturb=mat3(viewMatrix)*tilt*.58;
+`
+
+const artPattern = `if (printSlot >= 0 && (printMask & (1 << printSlot)) != 0 && vBoxLocal.z > .49) {
+    vec2 printUv=clamp(vBoxLocal.xy+.5,vec2(.0005),vec2(.9995));
+    diffuseColor.rgb*=sRGBTransferEOTF(texture(finishLayers,vec3(printUv,float(${printLayerOffset}+printSlot)))).rgb;
+  }`
 const glsl = {
+  art_ridge: artPattern,
+  art_herbarium: artPattern,
+  art_water: artPattern,
   granite: `float cell=grain.r;
     vec3 mineral=cell<.55?vec3(.62,.51,.45):cell<.85?vec3(.83,.85,.83):vec3(.13,.12,.12);
     diffuseColor.rgb*=mix(vec3(.87),mineral*1.63,detail); relief+=grain.b*.0016;`,
@@ -146,41 +195,7 @@ const glsl = {
   corten: `float streak=texture2D(grains,axes*vec2(.25,.019)).b;
     diffuseColor.rgb*=vec3(1.12,.89,.73)*(.82+.18*mottle+.27*streak); relief+=streak*.002;`,
   wood: legacyLarch,
-  oak_int: `if (hasOak && washStrength < .99) {
-      // Metric projection for millwork. Curved meshes blend three planes by their smooth normal.
-      #ifdef FLAT_SHADED
-      vec3 worldN=surfaceNormal;
-      #else
-      vec3 worldN=inverseTransformDirection(vNormal,viewMatrix);
-      #endif
-      vec3 weights = vec3(0.);
-      if (boxEdges) {
-        weights = axis.y>.64 ? vec3(0.,1.,0.) : axis.x>axis.z ? vec3(1.,0.,0.) : vec3(0.,0.,1.);
-      } else {
-        weights = pow(abs(worldN), vec3(4.));
-        weights /= max(dot(weights,vec3(1.)), .00001);
-      }
-      vec3 albedo=vec3(0.), tilt=vec3(0.); float scanRough=0.;
-      for (int i=0; i<3; ++i) {
-        float w=weights[i];
-        if (w<.001) continue;
-        // T × B points outward on both sides. Rotate the sampling frame and the normal together.
-        float side=worldN[i]<0. ? -1. : 1.;
-        vec3 T=i==0 ? vec3(0.,0.,-side) : vec3(i==1 ? 1. : side,0.,0.);
-        vec3 B=i==1 ? vec3(0.,0.,-side) : vec3(0.,1.,0.);
-        vec2 span=i==0 ? vExtent.zy : i==1 ? vExtent.xz : vExtent.xy;
-        if (boxEdges && span.x>span.y) {vec3 t=T; T=B; B=-t;}
-        vec2 st=vec2(dot(vMetric,T), dot(vMetric,B))/1.8;
-        // The oak finish occupies layers 0–2. Only its color layer uses the sRGB transfer.
-        albedo+=w*sRGBTransferEOTF(texture(oakLayers,vec3(st,0.))).rgb;
-        vec3 scan=texture(oakLayers,vec3(st,1.)).rgb*2.-1.;
-        tilt+=w*(T*scan.x+B*scan.y)/max(.1,scan.z);
-        scanRough+=w*texture(oakLayers,vec3(st,2.)).r;
-      }
-      diffuseColor.rgb=albedo*clamp(diffuseColor.rgb/vec3(.356,.209,.096),.24,1.8);
-      rough+=scanRough-.57;
-      oakPerturb=mat3(viewMatrix)*tilt*.58;
-    } else if (washStrength < .99) {
+  oak_int: `if (walkFinish) {
       float ribbon=sin(axes.x*110.+1.3*sin(axes.y*2.2)+3.*mottle);
       diffuseColor.rgb*=1.+detail*(.035*ribbon+.065*(grain.b-.5)); relief+=.00016*ribbon;
     } else {
@@ -248,8 +263,15 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.uniforms.snowCover = weatherUniform
     shader.uniforms.roomMinutes = roomClockMinutes
     shader.uniforms.washStrength = roomWashStrength
-    shader.uniforms.hasOak = hasOakAtlas
-    shader.uniforms.oakLayers = oakAtlas
+    const slot = finishScans.findIndex((s) => s.finish === kind)
+    shader.uniforms.scanSlot = { value: slot }
+    shader.uniforms.repeatMetres = { value: finishScans[slot]?.metres ?? 1 }
+    shader.uniforms.scanWhite = { value: finishScans[slot]?.meanLinear ?? [1, 1, 1] }
+    shader.uniforms.printSlot = { value: fieldPrints.findIndex((print) => print.finish === kind) }
+    shader.uniforms.printMask = fieldPrintMask
+    shader.uniforms.scanMask = materialScanMask
+    shader.uniforms.finishLayers = materialAtlas
+    shader.uniforms.walkFinish = walkingMaterials
     const vary = 'varying vec3 vMetric; varying vec3 vBoxLocal; varying vec3 vExtent;'
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + vary)
@@ -266,7 +288,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray oakLayers; uniform bool hasOak; uniform float snowCover,roomMinutes,washStrength; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray finishLayers; uniform bool walkFinish; uniform int scanSlot,printSlot,scanMask,printMask; uniform vec3 scanWhite; uniform float repeatMetres; uniform float snowCover,roomMinutes,washStrength; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
           vary,
       )
       .replace(
@@ -278,14 +300,14 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         vec3 grain=texture2D(grains,axes*3.1).rgb;
         float mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
         float smooRock=1.-smoothstep(.66,.83,axis.y);
-        vec3 oakPerturb=vec3(0.);
+        vec3 scanPerturb=vec3(0.);
         float rough=0., relief=.00055*(grain.g-.5)*detail, edgeDistance=1.;
         if(boxEdges){vec3 e=(.5-abs(vBoxLocal))*vExtent;
         edgeDistance=max(min(e.x,e.y),min(max(e.x,e.y),e.z));
         float radius=clamp(min(vExtent.x,min(vExtent.y,vExtent.z))*.12,.005,.020);
         float edge=1.-clamp(edgeDistance/radius,0.,1.);
         relief-=radius*edge*edge*.48; diffuseColor.rgb*=1.+.09*edge;}
-        ${pattern}
+        ${family === 'solid' ? `if (walkFinish && scanSlot>=0 && (scanMask & (1 << scanSlot)) != 0) { ${metricScan} } else { ${pattern} }` : pattern}
         if(frosted){float frost=snowCover*smoothstep(.25,.89,surfaceNormal.y+.18*mottle)*smoothstep(-.15,.1,vMetric.y);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.003*grain.b;}`,
       )
@@ -298,7 +320,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         `#include <normal_fragment_maps>
         vec3 R1=cross(dFdy(-vViewPosition),normal), R2=cross(normal,dFdx(-vViewPosition));
         float det=dot(dFdx(-vViewPosition),R1);
-        normal=normalize(abs(det)*(normal+oakPerturb-normal*dot(normal,oakPerturb))-sign(det)*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);`,
+        normal=normalize(abs(det)*(normal+scanPerturb-normal*dot(normal,scanPerturb))-sign(det)*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);`,
       )
       .replace(
         '#include <emissivemap_fragment>',

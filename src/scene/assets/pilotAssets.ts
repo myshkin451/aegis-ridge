@@ -3,54 +3,26 @@ import {
   BufferGeometry,
   DataArrayTexture,
   InstancedMesh,
-  LinearFilter,
-  LinearMipmapLinearFilter,
   Mesh,
-  RepeatWrapping,
   Vector3,
 } from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
+import { loadFinishAtlas, type FinishAtlas } from './finishAtlas'
+import { fieldPrints, finishScans, mipBytes, scanSize } from './finishScans'
+import { loadDomesticAssets, installDomesticAssets, disposeDomesticAssets, setDomesticWalkthrough, type DomesticLibrary } from './domesticAssets'
+
 const root = import.meta.env.BASE_URL + 'assets/pilot/'
 const query = new URLSearchParams(typeof location === 'undefined' ? '' : location.search)
 export const pilotVariant = query.get('pilot') === 'r1' ? 'r1' : query.get('pilot') === 'r2' ? 'r2' : 'r3'
 export const simulateLateAssets = query.get('pilotLate') === '1'
-export const oakAtlas = { value: null as DataArrayTexture | null }
-export const hasOakAtlas = { value: false }
-type PilotAssets = { oak: DataArrayTexture | null; chair: BufferGeometry | null }
-
-async function loadOak() {
-  const size = 1024
-  const layerBytes = size * size * 4
-  const pixels = new Uint8Array(3 * layerBytes)
-  await Promise.all(
-    ['diff', 'nor_gl', 'rough'].map(async (channel, layer) => {
-      const response = await fetch(root + 'oak-' + channel + '.webp')
-      if (!response.ok) throw Error('Missing oak ' + channel)
-      const bitmap = await createImageBitmap(await response.blob(), {
-        colorSpaceConversion: 'none',
-        imageOrientation: 'flipY',
-      })
-      try {
-        if (bitmap.width !== size || bitmap.height !== size) throw Error('Oak layer size mismatch')
-        const canvas = new OffscreenCanvas(size, size)
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })!
-        ctx.drawImage(bitmap, 0, 0)
-        pixels.set(ctx.getImageData(0, 0, size, size).data, layer * layerBytes)
-      } finally {
-        bitmap.close()
-      }
-    }),
-  )
-  const atlas = new DataArrayTexture(pixels, size, size, 3)
-  atlas.name = 'oak_int · albedo sRGB / normal GL / roughness'
-  atlas.magFilter = LinearFilter
-  atlas.minFilter = LinearMipmapLinearFilter
-  atlas.wrapS = atlas.wrapT = RepeatWrapping
-  atlas.generateMipmaps = atlas.needsUpdate = true
-  return atlas
-}
+export const materialAtlas = { value: null as DataArrayTexture | null }
+export const materialScanMask = { value: 0 }
+export const fieldPrintMask = { value: 0 }
+export const walkingMaterials = { value: false }
+type PilotAssets = { finishes: FinishAtlas | null; chair: BufferGeometry | null; domestic: DomesticLibrary | null }
+let installed: PilotAssets | undefined
 
 /** Flatten source node transforms; installation dimensions and orientation come from project data. */
 async function loadChair() {
@@ -110,32 +82,50 @@ export function registerChairMesh(mesh: InstancedMesh) {
   return () => batches.delete(mesh)
 }
 export function setChairWalkthrough(walk: boolean) {
+  walkingMaterials.value = walk
+  setDomesticWalkthrough(walk)
   if (walking === walk) return
   walking = walk
   for (const [mesh, procedural] of batches) mesh.geometry = (walk && glb) || procedural
 }
 
 export async function loadPilotAssets(): Promise<PilotAssets> {
-  // A failed channel selects the complete procedural finish; a missing GLB leaves the chair installed.
-  const [oak, chair] = await Promise.all([
-    pilotVariant !== 'r1' ? loadOak().catch(() => null) : null,
+  const [finishes, chair, domestic] = await Promise.all([
+    pilotVariant !== 'r1' ? loadFinishAtlas(pilotVariant === 'r3').catch(() => null) : null,
     pilotVariant === 'r3' ? loadChair().catch(() => null) : null,
+    pilotVariant === 'r3' ? loadDomesticAssets().catch(() => null) : null,
   ])
-  return { oak, chair }
+  return { finishes, chair, domestic }
 }
+
 export function installPilotAssets(assets: PilotAssets) {
+  installed = assets
   glb = assets.chair
-  oakAtlas.value = assets.oak
-  hasOakAtlas.value = !!assets.oak
+  materialAtlas.value = assets.finishes?.texture ?? null
+  materialScanMask.value = assets.finishes?.scanMask ?? 0
+  fieldPrintMask.value = assets.finishes?.printMask ?? 0
+  installDomesticAssets(assets.domestic)
   for (const [mesh, fallback] of batches) mesh.geometry = (walking && glb) || fallback
 }
+
 export function releasePilotAssets(assets: PilotAssets) {
-  if (glb === assets.chair && oakAtlas.value === assets.oak) installPilotAssets({ oak: null, chair: null })
-  assets.oak?.dispose()
+  if (installed === assets) {
+    installPilotAssets({ finishes: null, chair: null, domestic: null })
+    installed = undefined
+  }
+  assets.finishes?.texture.dispose()
   assets.chair?.dispose()
+  if (assets.domestic) disposeDomesticAssets(assets.domestic)
 }
+
 export function reportPilotAssets(canvas: HTMLCanvasElement) {
+  const count = finishScans.filter((_, i) => materialScanMask.value & (1 << i)).length
+  const depth = materialAtlas.value?.image.depth ?? 0
   canvas.dataset.pilot = pilotVariant
-  canvas.dataset.pilotTexture = hasOakAtlas.value ? 'oak-array' : 'procedural'
+  canvas.dataset.pilotTexture = count ? 'finish-array' : 'procedural'
+  canvas.dataset.pilotFinishes = String(count)
+  canvas.dataset.pilotArt = fieldPrintMask.value === (1 << fieldPrints.length) - 1 ? '1' : '0'
+  canvas.dataset.pilotTextureBytes = String(mipBytes(scanSize, depth))
+  canvas.dataset.pilotDomestic = String(installed?.domestic?.size ?? 0)
   canvas.dataset.pilotChair = glb ? 'glb' : 'procedural'
 }

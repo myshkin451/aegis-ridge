@@ -19,7 +19,16 @@ import {
   Vector3,
 } from 'three'
 import { beddingGeometry } from '../rooms/beddingGeometry'
+import { foldedThrow } from '../rooms/foldedThrow'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import {
+  fallbackBasin,
+  fallbackPlant,
+  fallbackToilet,
+  isDomestic,
+  registerDomesticMesh,
+  type DomesticKind,
+} from '../assets/domesticAssets'
 import { proceduralChair, registerChairMesh } from '../assets/pilotAssets'
 import type { Material, Object3D } from 'three'
 import type { Point3 } from '../../types/shelter'
@@ -27,6 +36,7 @@ import { firGeometry, needleMaterial } from '../terrain/firGeometry'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { Finish } from '../materials/pbrLibrary'
 
+const standardBedding = { 'standard-pillow': 'pillow', 'standard-duvet': 'duvet' } as const
 type Shape =
   | 'box'
   | 'round'
@@ -39,8 +49,10 @@ type Shape =
   | 'cushion'
   | 'shade'
   | 'dining-chair'
-  | 'pillow'
-  | 'duvet'
+  | 'throw'
+  | 'standard-throw'
+  | keyof typeof standardBedding
+  | DomesticKind
 interface Stamp {
   matrix: Matrix4
   color: Color
@@ -163,19 +175,44 @@ export class ModelBuilder {
     const shapes = new Map<Shape, BufferGeometry>()
     const paints = new Map<string, MeshStandardMaterial>()
     for (const { shape, finish, stamps } of this.batches.values()) {
-      let geom = shapes.get(shape)
+      const ordinaryBedding = shape === 'standard-pillow' || shape === 'standard-duvet'
+      const fallbackShape = ordinaryBedding ? 'cushion' : shape
+      let geom = shapes.get(fallbackShape)
       if (!geom) {
-        switch (shape) {
+        switch (fallbackShape) {
           case 'dining-chair':
             geom = proceduralChair()
             break
+          case 'wc-bowl':
+            geom = fallbackToilet()
+            break
+          case 'houseplant':
+            geom = fallbackPlant()
+            break
+          case 'throw':
+          case 'standard-throw': {
+            const support = fallbackShape === 'throw' ? 'duvet' : 'cushion'
+            const quilt =
+              shapes.get(support) ??
+              (support === 'duvet' ? beddingGeometry('duvet') : new RoundedBoxGeometry(1, 1, 1, 2, 0.12))
+            shapes.set(support, quilt)
+            geometries.add(quilt)
+            // The deeply corrugated survey quilt needs 1.3 mm more clearance between sampling knots.
+            geom = foldedThrow(quilt, support === 'duvet' ? 0.018 : 0.012)
+            break
+          }
           case 'pillow':
           case 'duvet':
-            geom = beddingGeometry(shape)
+            geom = beddingGeometry(fallbackShape)
             break
+          case 'basin':
+            geom = fallbackBasin()
+            break
+          case 'sofa-cushion':
           case 'cushion':
             geom = new RoundedBoxGeometry(1, 1, 1, 2, 0.12)
             break
+          case 'pleated-shade':
           case 'shade':
             geom = new CylinderGeometry(0.34, 0.5, 1, 32, 1, true)
             break
@@ -193,7 +230,7 @@ export class ModelBuilder {
             break
           case 'fir':
           case 'distantFir':
-            geom = firGeometry(shape === 'distantFir')
+            geom = firGeometry(fallbackShape === 'distantFir')
             break
           case 'leaf': {
             geom = new BufferGeometry()
@@ -215,7 +252,7 @@ export class ModelBuilder {
             geom = new IcosahedronGeometry(0.5, 0)
             break
         }
-        shapes.set(shape, geom)
+        shapes.set(fallbackShape, geom)
         geometries.add(geom)
       }
       const closedFoliage = finish === 'foliage' && shape !== 'leaf'
@@ -248,6 +285,13 @@ export class ModelBuilder {
       mesh.receiveShadow = finish !== 'glass'
       mesh.computeBoundingSphere()
       if (shape === 'dining-chair') unregister.push(registerChairMesh(mesh))
+      if (shape === 'throw' || shape === 'standard-throw')
+        unregister.push(registerDomesticMesh(mesh, 'folded-throw'))
+      const installedShape = ordinaryBedding ? standardBedding[shape] : shape
+      if (isDomestic(installedShape)) {
+        mesh.userData.domesticKind = installedShape
+        unregister.push(registerDomesticMesh(mesh, installedShape))
+      }
       object.add(mesh)
       instances.push(mesh)
     }

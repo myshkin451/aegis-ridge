@@ -116,7 +116,7 @@ function rug(m: ModelBuilder, x: number, z: number, w: number, d: number, main: 
 
 function lamp(m: ModelBuilder, [x, y, z]: Point3, diameter: number, height: number, hanging: boolean) {
   m.part(
-    'shade',
+    'pleated-shade',
     'fabric',
     hanging ? '#c9af8f' : '#e6c398',
     [x, y + height / 2, z],
@@ -133,24 +133,13 @@ function lamp(m: ModelBuilder, [x, y, z]: Point3, diameter: number, height: numb
 function plant(m: ModelBuilder, x: number, y: number, z: number, scale: number) {
   m.part('round', 'ceramic', '#a97c63', [x, y + 0.13 * scale, z], [0.28 * scale, 0.26 * scale, 0.28 * scale])
   m.part('round', 'epoxy', '#544e3e', [x, y + 0.26 * scale, z], [0.24 * scale, 0.018 * scale, 0.24 * scale])
-  for (let i = 0; i < 13; i++) {
-    const a = i * 2.4
-    const reach = (0.09 + (i % 3) * 0.05) * scale
-    const tip: Point3 = [
-      x + reach * Math.sin(a),
-      y + (0.38 + (i % 4) * 0.085) * scale,
-      z + reach * Math.cos(a),
-    ]
-    m.beam([x, y + 0.23 * scale, z], tip, 0.008 * scale, 0.008 * scale, '#69745a', 'oak_int')
-    m.part(
-      'leaf',
-      'foliage',
-      ['#748460', '#8d9977', '#667d59'][i % 3],
-      tip,
-      [0.17 * scale, 0.14 * scale, 0.26 * scale],
-      [-0.5, a, 0.2],
-    )
-  }
+  m.part(
+    'houseplant',
+    'foliage',
+    '#718361',
+    [x, y + 0.47 * scale, z],
+    [0.66 * scale, 0.46 * scale, 0.6 * scale],
+  )
 }
 
 function communalShelves(m: ModelBuilder) {

@@ -25,7 +25,7 @@ export function PilotPreload({ children }: { children: ReactNode }) {
       }
       resources = result
       installPilotAssets(result)
-      if (result.oak) gl.initTexture(result.oak)
+      if (result.finishes) gl.initTexture(result.finishes.texture)
       reportPilotAssets(gl.domElement)
       performance.mark('ars-open-pilot-assets')
       setReady(true)

@@ -259,7 +259,9 @@ function weighingBench(m: ModelBuilder) {
   m.box(steel, [-0.45, 1.07, -0.04], [0.51, 0.036, 0.425], 'steel')
   m.box(dark, [-0.45, 1.26, 0.22], [0.065, 0.35, 0.07], 'steel')
   m.box('#809ca0', [-0.45, 1.39, 0.22], [0.26, 0.11, 0.1], 'glass')
-  logbook(m, 0.61, 0.95, 0.22)
+  // A sealed writing board occupies the dry outer corner. The pans and sample side stay stainless.
+  m.box('#ba946a', [0.65, 0.957, 0.26], [0.76, 0.034, 0.52], 'oak_int')
+  logbook(m, 0.61, 0.974, 0.22)
   for (const [x, z] of [
     [0.16, -0.21],
     [0.25, -0.4],

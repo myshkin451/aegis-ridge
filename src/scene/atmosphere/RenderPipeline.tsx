@@ -369,6 +369,20 @@ export function RenderPipeline() {
       .toArray()
       .map((n) => n.toFixed(4))
       .join(',')
+    if (
+      state.shot &&
+      canvas.dataset.ready === 'settled' &&
+      canvas.dataset.photoRevision !== canvas.dataset.revision
+    ) {
+      // Record the actual rendered pose, projection and exposure once per settled photograph.
+      canvas.dataset.photoSettings = JSON.stringify({
+        world: camera.matrixWorld.toArray(),
+        projection: camera.projectionMatrix.toArray(),
+        exposure: gl.toneMappingExposure,
+        dpr: gl.getPixelRatio(),
+      })
+      canvas.dataset.photoRevision = canvas.dataset.revision
+    }
     const context = gl.getContext() as WebGL2RenderingContext
     if (++startup.current === 1) {
       fence.current = context.fenceSync(context.SYNC_GPU_COMMANDS_COMPLETE, 0)

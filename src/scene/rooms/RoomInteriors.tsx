@@ -15,6 +15,10 @@ import { roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
 import type { SurveyRuntime } from '../camera/runtime'
 import { addLivingCoves, residentialFinishes } from './residentialFinishes'
+import { archiveSpines } from './archiveBindings'
+import { roomArtwork } from './artwork'
+import { cleanRoomPanels, gymFloor } from './floorFinishes'
+import { pilotVariant } from '../assets/pilotAssets'
 import { bedrooms } from '../../geometry/residentialPlan'
 
 function fixtures(id: UndergroundId) {
@@ -38,11 +42,13 @@ function fixtures(id: UndergroundId) {
 const freight = shaftPlans.find((s) => s.id === 'freight')!
 const commons = footprint(roomsOn('B2').find((r) => r.id === 'b2_commons')!.bounds)
 const mainCorridor = footprint(CORRIDOR)
+const library = footprint(roomsOn('B2').find((r) => r.id === 'b2_library')!.bounds)
 export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
   const build = useMemo(() => () => roomModels(id), [id])
   const root = useRef<Group>(null)
   const floor = FLOORS[id]
-  const walkB2 = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === 'B2')
+  const archive = useRef<Group>(null)
+  const walkingFloor = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === id)
   useFrame(({ camera }) => {
     if (!root.current) return
     const state = useShelterStore.getState()
@@ -61,14 +67,26 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
     if (state.cameraState === 'site') visible = nearBuilding || besideShaft
     else if (orbit || state.cameraState === 'walkthrough')
       visible = state.lastFloor === id || throughAtrium || besideShaft
+    if (archive.current)
+      archive.current.visible =
+        walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
     root.current.visible = visible && state.mode !== 'xray'
   })
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
       <Model build={build} interior />
       {id === 'B2' && (
-        <group name="B2 内墙饰面与样板陈设" visible={walkB2}>
+        <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
           <Model build={residentialFinishes} interior opaqueOrder={-4} />
+          {pilotVariant === 'r3' && <Model build={roomArtwork} interior opaqueOrder={-3} />}
+          <group ref={archive} visible={false}>
+            <Model build={archiveSpines} interior />
+          </group>
+        </group>
+      )}
+      {(id === 'B1' || id === 'B3') && (
+        <group visible={walkingFloor}>
+          <Model build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
         </group>
       )}
       <FloorSigns id={id} />

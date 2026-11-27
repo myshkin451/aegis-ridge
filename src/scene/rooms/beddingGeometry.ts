@@ -1,10 +1,8 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three'
 
 /** Closed, metre-scaled linens. The hem follows gravity outside the mattress and the pillow pinches at its seam. */
-export function beddingGeometry(kind: 'duvet' | 'pillow') {
-  const nx = 28,
-    nz = 36,
-    stride = nx + 1,
+export function beddingGeometry(kind: 'duvet' | 'pillow', nx = 28, nz = 36) {
+  const stride = nx + 1,
     layerSize = stride * (nz + 1)
   const positions: number[] = [],
     indices: number[] = []

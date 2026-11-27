@@ -1,5 +1,7 @@
+import { archiveVolumes } from './archiveBindings'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import type { ModelBuilder } from '../utils/modelBuilder'
+import { domesticFittings } from '../../data/domesticFittings'
 import { bedroomFurniture, pilotSolids } from '../../data/roomLayouts/residential'
 import { doors, leafOffset } from '../../geometry/doors'
 import { bedrooms } from '../../geometry/residentialPlan'
@@ -123,19 +125,9 @@ function shelves(m: ModelBuilder) {
     for (let level = 0; level < 6; level++) {
       const y = 0.16 + level * 0.45
       m.box(paleWood, [x, y, 0], [1.27, 0.045, 0.62], 'oak_int')
-      for (let i = 0; i < ((bay + level) % 4) + 9; i++)
-        book(
-          m,
-          x - 0.53 + i * 0.077,
-          y + 0.024,
-          0.085,
-          i + 2 * bay + level,
-          0.061 + ((bay + i) % 3) * 0.006,
-          0.28 + ((bay + level + i) % 4) * 0.027,
-          0.29,
-        )
     }
   }
+  for (const v of archiveVolumes) book(m, v.x, v.bottom, 0.085, v.edition, v.width, v.height, 0.29)
   m.box(timber, [5.16, 1.45, -0.015], [0.05, 2.9, 0.62], 'oak_int')
   m.box('#ffd29c', [0, 3.14, -0.19], [10.12, 0.023, 0.044], 'lamp')
 }
@@ -385,7 +377,7 @@ function sleepFitout(m: ModelBuilder, e: EquipmentUnit, i: number) {
   const { beds, desk } = bedroomFurniture(b)
   const towardHall = b.z0 === 0 ? 1 : -1
   const tone = fabricTones[i % fabricTones.length]
-  const quiltShape = i === 0 ? 'duvet' : 'cushion'
+  const quiltShape = i === 0 ? 'duvet' : 'standard-duvet'
   for (const { x, z, tiers } of beds) {
     for (let tier = 0; tier < tiers; tier++) {
       const y = 0.38 + tier * 1.05
@@ -401,15 +393,15 @@ function sleepFitout(m: ModelBuilder, e: EquipmentUnit, i: number) {
         rotation,
       )
       m.part(
-        quiltShape,
+        i === 0 ? 'throw' : 'standard-throw',
         'fabric',
         '#929985',
-        [x + 0.015, y + 0.242, z + towardHall * 0.74],
-        [1.07, i === 0 ? 0.145 : 0.054, 0.4],
+        [x, y + 0.194, z + towardHall * 0.22],
+        [1.06, i === 0 ? 0.22 : 0.09, 1.56],
         rotation,
       )
       m.part(
-        i === 0 ? 'pillow' : 'cushion',
+        i === 0 ? 'pillow' : 'standard-pillow',
         'fabric',
         linen,
         [x, y + 0.264, z - towardHall * 0.72],
@@ -478,13 +470,13 @@ function livingRoom(m: ModelBuilder, type: string) {
     m.box(timber, [0, 0.13, 0.54], [3.78, 0.25, 0.94], 'oak_int')
     for (let i = 0; i < 4; i++) {
       const x = -1.425 + i * 0.95
-      m.part('cushion', 'fabric', '#8e987e', [x, 0.365, 0.5], [0.94, 0.255, 0.95])
-      m.part('cushion', 'fabric', '#89947f', [x, 0.655, 0.89], [0.94, 0.42, 0.24], [0.1, 0, 0])
+      m.part('sofa-cushion', 'fabric', '#8e987e', [x, 0.365, 0.5], [0.94, 0.255, 0.95])
+      m.part('sofa-cushion', 'fabric', '#89947f', [x, 0.655, 0.89], [0.94, 0.42, 0.24], [0.1, 0, 0])
     }
-    m.part('cushion', 'fabric', '#939d83', [-1.42, 0.3, -0.49], [0.95, 0.53, 1.08])
-    m.part('cushion', 'fabric', '#859178', [-1.82, 0.47, -0.47], [0.15, 0.42, 1.09])
-    m.part('cushion', 'fabric', '#b47d64', [1.36, 0.62, 0.64], [0.46, 0.39, 0.16], [-0.22, -0.14, 0.08])
-    m.part('cushion', 'fabric', '#d3be9d', [-1.37, 0.6, 0.6], [0.45, 0.37, 0.16], [-0.24, 0.23, -0.09])
+    m.part('sofa-cushion', 'fabric', '#939d83', [-1.42, 0.3, -0.49], [0.95, 0.53, 1.08])
+    m.part('sofa-cushion', 'fabric', '#859178', [-1.82, 0.47, -0.47], [0.15, 0.42, 1.09])
+    m.part('sofa-cushion', 'fabric', '#b47d64', [1.36, 0.62, 0.64], [0.46, 0.39, 0.16], [-0.22, -0.14, 0.08])
+    m.part('sofa-cushion', 'fabric', '#d3be9d', [-1.37, 0.6, 0.6], [0.45, 0.37, 0.16], [-0.24, 0.23, -0.09])
   } else {
     m.box(timber, [0, 0.33, 0], [0.63, 0.63, 2.5], 'oak_int')
     m.box(dark, [0.18, 1.17, 0], [0.08, 1.15, 2.17], 'epoxy')
@@ -549,14 +541,13 @@ export function drawLaundryVanity(m: ModelBuilder) {
 
 function sanitary(m: ModelBuilder, type: string) {
   if (type === 'WC') {
-    m.part('cushion', 'ceramic', '#e1dece', [0, 0.48, 0.33], [0.55, 0.95, 0.2])
-    m.part('round', 'ceramic', '#dfddd0', [0, 0.22, -0.07], [0.53, 0.41, 0.62])
-    m.part('round', 'ceramic', '#ede9db', [0, 0.43, -0.09], [0.62, 0.055, 0.72])
-    m.part('round', 'ceramic', '#97988c', [0, 0.462, -0.09], [0.42, 0.012, 0.48])
-    m.box(steel, [0, 0.81, 0.218], [0.17, 0.062, 0.013], 'steel')
+    const fixture = domesticFittings.toilet
+    m.part('wc-bowl', 'ceramic', '#e6e2d7', fixture.centre, fixture.size)
+    m.box(steel, [0, 0.81, 0.214], [0.17, 0.062, 0.036], 'steel')
   } else if (type === 'BAS') {
-    m.part('cushion', 'ceramic', '#dddaca', [0, 0.76, 0], [0.71, 0.23, 0.59])
-    m.part('round', 'ceramic', '#adae9f', [0, 0.88, 0], [0.46, 0.013, 0.35])
+    const fixture = domesticFittings.publicBasin
+    m.part('basin', 'ceramic', '#e8e4d9', fixture.centre, fixture.size)
+    m.part('round', 'steel', steel, [0, 0.703, 0.027], [0.046, 0.012, 0.046])
     m.beam([0.27, 0.88, 0.1], [0.27, 1.07, 0.1], 0.032, 0.032, steel)
     m.beam([0.27, 1.07, 0.1], [0.06, 1.07, 0.1], 0.032, 0.032, steel)
     mirrorCabinet(m, 0.27, 1.85, 0.73)

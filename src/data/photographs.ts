@@ -82,6 +82,7 @@ export const photographs = {
   'pilot-bedroom': pilot('单人卧室 1', '19:30', 0.46, 7.64, [-0.78, 1.32, 10.68]),
   'pilot-commons': pilot('光纤下的共餐客厅', '10:30', -14.75, 2, [-9.7, 1.25, 8.6]),
   'pilot-bath': pilot('卫浴镜柜与瓷砖', '19:30', -3.04, 4.3, [-3.95, 1.3, 9.48]),
+  'detail-sanitary': pilot('公卫洁具近看', '19:30', -4.00, 0.05, [-3.94, 0.80, 1.94]),
 } satisfies Record<string, Photograph>
 export type ShotId = keyof typeof photographs
 export const photo = (id: ShotId): Photograph => photographs[id]
