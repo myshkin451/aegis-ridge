@@ -60,6 +60,7 @@ function freightCarModel() {
 export function UndergroundShell({ rt }: { rt: SurveyRuntime }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode)
+  const routeOverview = useShelterStore(s => s.routeOverview)
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough')
   const upper = floor === 'ALL' || floor === 'L1' || floor === 'L2'
   const buried = useRef<Group>(null),
@@ -81,10 +82,10 @@ export function UndergroundShell({ rt }: { rt: SurveyRuntime }) {
         <group ref={car} name="3t 贯通货梯轿厢" position-y={FLOORS[INITIAL_FREIGHT_STOP].elevation}>
           <Model build={freightCarModel} opacity={mode === 'xray' ? 0.43 : 1} interior />
         </group>
-        <group position-y={FLOORS.B4.elevation}>
+        <group position-y={FLOORS.B4.elevation} visible={!routeOverview}>
           <Model build={pitFloor} />
         </group>
-        <Model build={concrete} opacity={upper ? (mode === 'xray' ? 0.14 : 1) : 0} cutMaterial="concrete" />
+        <Model build={concrete} opacity={upper && !routeOverview ? (mode === 'xray' ? 0.14 : 1) : 0} cutMaterial="concrete" />
         <Model build={granite} opacity={Number(upper && mode !== 'xray')} cutMaterial="granite" />
         <Model build={bufferWire} opacity={Number(upper && mode === 'xray')} />
         <group name="上部竖井">

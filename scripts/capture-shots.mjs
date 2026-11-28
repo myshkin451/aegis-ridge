@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm3'
+const milestone = process.argv[2] ?? 'm4'
 if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -34,6 +34,7 @@ const pilots = [
   ],
   ['bath', '19:30', [-3.04, -14.4, 4.3], 'c006b2fe93030a82b90a6f18de173654af23ffcb12f18ceaa18791aba1014587'],
 ]
+const operationsStudy = milestone === 'm4'
 const baseline = join(root, 'docs/shots/m2.5b/pilot')
 const materialStudy = ['m2.5b', 'm2.5c'].includes(milestone)
 await mkdir(materialStudy ? join(directory, 'pilot') : directory, { recursive: true })
@@ -42,6 +43,7 @@ let server
 let browser
 try {
   const captures = []
+  const controlRects = new Map()
   const cameraSettings = new Map()
   await mkdir(join(staging, 'pilot'))
   for (const [name, , , expected] of materialStudy ? pilots : []) {
@@ -150,6 +152,24 @@ try {
         throw Error(id + ' 与其他档位的实际相机矩阵、投影或曝光不一致')
       cameraSettings.set(id, settings)
     }
+    if (operationsStudy) {
+      // M4 changes the scenario field in the title block and adds two actions to the tool row.
+      // Keep the full-frame difference for review; apply the existing visual tolerance to the model.
+      controlRects.set(
+        id,
+        await page.locator('.title-block, .view-tools').evaluateAll((items) =>
+          items.map((el) => {
+            const { left, top, right, bottom } = el.getBoundingClientRect()
+            return {
+              left: Math.floor(left),
+              top: Math.floor(top),
+              right: Math.ceil(right),
+              bottom: Math.ceil(bottom),
+            }
+          }),
+        ),
+      )
+    }
     await page.screenshot({ path: join(staging, file), timeout: 90000 })
     captures.push(file)
     const { calls, triangles, feet } = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
@@ -192,6 +212,60 @@ try {
         feet,
       )
   }
+  if (operationsStudy) {
+    const button = (name) => page.getByRole('button', { name, exact: true })
+    async function plate(name) {
+      await page.locator('canvas').dispatchEvent('pointerleave')
+      await page.waitForSelector('canvas[data-ready=settled]')
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      )
+      await page.screenshot({ path: join(staging, name), timeout: 90000 })
+      captures.push(name)
+    }
+    await page.keyboard.press('1')
+    await page.waitForSelector('canvas[data-view=site][data-mode=exterior][data-ready=settled]')
+    await button('工程体检').click()
+    await page.getByRole('slider', { name: '入住人数' }).press('End')
+    await page.getByLabel('工况', { exact: true }).selectOption('fallout')
+    await button('快进封锁').click()
+    await page.waitForSelector('.hud[data-lockdown=sealed][data-people="14"]')
+    await page.waitForSelector('canvas[data-lighting-circuit=emergency]')
+    await page.waitForTimeout(950) // Let the display-referred LUT reach its final weights.
+    await button('关闭工程面板').click()
+    await plate('lockdown.png')
+    await button('工程体检').click()
+    await page.locator('[data-diagnostic=oxygen]').click()
+    await page.locator('.diagnostic-detail').filter({ hasText: '11.76' }).waitFor()
+    await plate('health.png')
+    await button('进入 B2 中控室').click()
+    await page.waitForSelector(
+      'canvas[data-view=walkthrough][data-command-screen^="fallout/14/30/"][data-ready=settled]',
+    )
+    await plate('command.png')
+    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByLabel('房间索引').selectOption('b1_decon')
+    const room = page.getByRole('region', { name: '房间数据表' })
+    await room.getByRole('combobox', { name: '室内机位' }).selectOption({ label: '门旁压差表' })
+    await room.getByRole('button', { name: /进入漫游/ }).click()
+    await page.waitForSelector(
+      'canvas[data-decon-pressure-pa="30.0"][data-view=walkthrough][data-ready=settled]',
+    )
+    await plate('decon.png')
+    await page.getByLabel('工况', { exact: true }).selectOption('normal')
+    await button('模拟隔离检修').click()
+    await page.getByLabel('检修目标').selectOption('HV-B2-001')
+    await button('隔离所选目标').click()
+    await page.waitForSelector('.hud[data-isolation="HV-B2-001"]')
+    await button('查看全程搬运').click()
+    await page.waitForSelector('canvas[data-view=sectionBox][data-mode=xray][data-ready=settled]')
+    await plate('maintenance.png')
+    await button('结束隔离检修').click()
+    await button('关闭工程面板').click()
+    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByLabel('固定摄影机位').selectOption('pilot-bath')
+    await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
+  }
   if (!materialStudy) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
@@ -221,18 +295,43 @@ try {
       )
     })
     if (!fits) throw Error('手机漫游图例溢出或遮住小地图、摇杆')
+    if (operationsStudy) {
+      await page.getByRole('button', { name: '工程体检', exact: true }).click()
+      const sheet = page.getByTestId('operations-sheet')
+      await sheet.getByRole('slider', { name: '入住人数' }).press('Home')
+      await page.waitForSelector('.hud[data-people="5"]')
+      const fitsPhone = await sheet.evaluate((element) => {
+        const r = element.getBoundingClientRect()
+        return (
+          r.left >= 0 &&
+          r.right <= innerWidth &&
+          r.bottom <= innerHeight &&
+          document.documentElement.scrollWidth === innerWidth &&
+          element.scrollWidth <= element.clientWidth + 1
+        )
+      })
+      if (!fitsPhone) throw Error('工程体检超出手机视口')
+    }
   }
   if (errors.length) throw Error(errors.join('\n').slice(0, 4000))
   await page.close()
   const review = await browser.newPage()
   for (const [id] of shots) {
-    const result = await comparePhotographs(
-      review,
-      join(root, 'docs/shots', materialStudy ? 'm2.5b' : 'm2.5c', id + '.png'),
-      join(staging, id + '.png'),
+    const before = join(
+      root,
+      'docs/shots',
+      materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
+      id + '.png',
     )
-    console.log(id, '较签收图', result)
-    if (!materialStudy && id === 'shot-04') {
+    const after = join(staging, id + '.png')
+    const full = await comparePhotographs(review, before, after)
+    const result = operationsStudy
+      ? await comparePhotographs(review, before, after, controlRects.get(id))
+      : full
+    console.log(id, '全幅较签收图', full, '模型画面', result)
+    if (operationsStudy && id === 'shot-03') {
+      if (result.changed < 1) throw Error('极寒实拍缺少工况色彩与天气变化')
+    } else if (!materialStudy && !operationsStudy && id === 'shot-04') {
       if (result.changed < 0.3) throw Error('X 光夜景未呈现新管网')
     } else if (result.mean > (materialStudy && id === 'shot-05' ? 10 : 1.5)) {
       throw Error(id + ' 超过签收画面色差范围')
@@ -260,13 +359,14 @@ try {
         review,
         join(root, 'docs/shots/m2.5c', file),
         join(staging, file),
+        controlRects.get('pilot-' + name),
       )
       console.log(name, '较 M2.5c 签收样板', result)
       if (result.mean > 1.5) throw Error(name + ' 室内画面偏离签收基线')
     }
   }
   for (const file of captures)
-    if (materialStudy || file.startsWith('shot-')) await rename(join(staging, file), join(directory, file))
+    if (materialStudy || !file.startsWith('pilot/')) await rename(join(staging, file), join(directory, file))
   console.log('摄影验收通过，结果保存至 docs/shots/' + milestone + '/。')
 } finally {
   await browser?.close()

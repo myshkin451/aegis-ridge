@@ -154,6 +154,7 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
   const view = useShelterStore((s) => s.cameraState)
+  const routeOverview = useShelterStore(s => s.routeOverview)
   const walk = view === 'walkthrough'
   const shellOrder = walk && id === 'B2' && floor === id ? -2 : 0
   const seen = walk || floor === 'ALL' || FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
@@ -217,7 +218,7 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
       <Model
         walkSurface="wall" build={builders.frame}
         delayMs={delayMs}
-        opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0}
+        opacity={seen && !routeOverview ? (mode === 'xray' ? 0.065 : 1) : 0}
         opaqueOrder={shellOrder}
       />
       <Model walkSurface="wall" build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
@@ -237,7 +238,7 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
       <Model
         build={builders.plenum}
         delayMs={delayMs}
-        opacity={seen && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.09 : 1) : 0}
+        opacity={seen && !routeOverview && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.09 : 1) : 0}
       />
     </group>
   )

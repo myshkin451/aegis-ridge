@@ -1,6 +1,8 @@
 import { defaultBlueprint } from '../data/defaultBlueprint'
 import { useShelterStore } from '../store/useShelterStore'
 
+import { openMaintenance } from './OperationsSheet'
+
 const roomNames = new Map(defaultBlueprint.rooms.map((room) => [room.id, room.name]))
 
 export function MepReadout() {
@@ -57,6 +59,7 @@ export function MepReadout() {
           <dd>{network.traceWater(edge.id).size} 段</dd>
         </div>
       </dl>
+      <button onClick={() => openMaintenance(edge.id)}>隔离检修</button>
     </section>
   )
 }

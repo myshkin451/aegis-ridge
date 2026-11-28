@@ -5,34 +5,44 @@ async function pngURL(path) {
   return 'data:image/png;base64,' + (await readFile(path)).toString('base64')
 }
 
-export async function comparePhotographs(page, before, after) {
+export async function comparePhotographs(page, before, after, excludedRects = []) {
   const urls = await Promise.all([pngURL(before), pngURL(after)])
-  return page.evaluate(async (urls) => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 1440
-    canvas.height = 900
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    const pixels = []
-    for (const url of urls) {
-      const image = new Image()
-      image.src = url
-      await image.decode()
-      if (image.width !== canvas.width || image.height !== canvas.height) throw Error('摄影画幅失配')
-      ctx.drawImage(image, 0, 0)
-      pixels.push(ctx.getImageData(0, 0, canvas.width, canvas.height).data)
-    }
-    let changed = 0,
-      total = 0
-    for (let i = 0; i < pixels[0].length; i += 4) {
-      const r = Math.abs(pixels[0][i] - pixels[1][i])
-      const g = Math.abs(pixels[0][i + 1] - pixels[1][i + 1])
-      const b = Math.abs(pixels[0][i + 2] - pixels[1][i + 2])
-      total += r + g + b
-      if (Math.max(r, g, b) >= 5) changed++
-    }
-    const count = canvas.width * canvas.height
-    return { mean: +(total / (3 * count)).toFixed(4), changed: +((100 * changed) / count).toFixed(3) }
-  }, urls)
+  return page.evaluate(
+    async ({ urls, excludedRects }) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1440
+      canvas.height = 900
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      const pixels = []
+      for (const url of urls) {
+        const image = new Image()
+        image.src = url
+        await image.decode()
+        if (image.width !== canvas.width || image.height !== canvas.height) throw Error('摄影画幅失配')
+        ctx.drawImage(image, 0, 0)
+        pixels.push(ctx.getImageData(0, 0, canvas.width, canvas.height).data)
+      }
+      let changed = 0,
+        total = 0,
+        count = 0
+      for (let i = 0; i < pixels[0].length; i += 4) {
+        const x = (i / 4) % canvas.width,
+          y = Math.floor(i / (4 * canvas.width))
+        if (
+          excludedRects.some((rect) => x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom)
+        )
+          continue
+        count++
+        const r = Math.abs(pixels[0][i] - pixels[1][i])
+        const g = Math.abs(pixels[0][i + 1] - pixels[1][i + 1])
+        const b = Math.abs(pixels[0][i + 2] - pixels[1][i + 2])
+        total += r + g + b
+        if (Math.max(r, g, b) >= 5) changed++
+      }
+      return { mean: +(total / (3 * count)).toFixed(4), changed: +((100 * changed) / count).toFixed(3) }
+    },
+    { urls, excludedRects },
+  )
 }
 
 /** Read original lossless frames; only the companion overview is resampled. */

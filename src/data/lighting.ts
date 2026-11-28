@@ -140,3 +140,30 @@ export function lightingRoomAt(floor: FloorId, x: number, z: number): string {
 export function lightingTimeAt(time: string): LightingTime {
   return time >= '06:30' && time < '18:00' ? '10:30' : '19:30'
 }
+
+// Emergency luminaires share the installed ceiling circuit. The B1 decontamination doorway
+// has its own red warning lamp; occupied rooms keep a lower-output warm task light.
+export const emergencyLighting: Record<string, RoomLighting> = Object.fromEntries(
+  Object.entries(lighting).map(([id, periods]) => {
+    const base = periods['19:30']
+    const decon = id === 'b1_decon'
+    const egress = id.endsWith('-hall')
+    const position: Point3 = decon ? [-10.5, 2.67, -2.26] : base.spot.position
+    return [
+      id,
+      {
+        floor: base.floor,
+        spot: {
+          ...base.spot,
+          position,
+          kelvin: 3000,
+          intensity: decon ? 25 : egress ? 17 : 10,
+          spectrum: decon ? '#ff5d43' : undefined,
+        },
+        points: decon ? [{ ...emit(position, 3000, 4.5), spectrum: '#ff4b38' }] : [],
+        areas: [],
+      },
+    ]
+  }),
+)
+export const lightingCues = { publicLobbyOff: 5, interiorEmergency: 25 } as const

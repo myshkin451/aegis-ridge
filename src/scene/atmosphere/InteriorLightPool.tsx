@@ -3,8 +3,9 @@ import { useFrame } from '@react-three/fiber'
 import { Color, Group, Object3D, PointLight, RectAreaLight, SpotLight } from 'three'
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 import { FLOORS } from '../../data/floors'
-import { lighting, lightingRoomAt, lightingTimeAt } from '../../data/lighting'
+import { emergencyLighting, lighting, lightingCues, lightingRoomAt, lightingTimeAt } from '../../data/lighting'
 import { useShelterStore } from '../../store/useShelterStore'
+import { lockdownElapsed, useOperationsStore } from '../../store/useOperationsStore'
 import { floorAt } from '../../geometry/viewGeometry'
 import type { SurveyRuntime } from '../camera/runtime'
 
@@ -38,7 +39,7 @@ function makePool() {
 
 export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
   const pool = useMemo(makePool, [])
-  const previous = useMemo(() => ({ room: '', time: '', door: -1 }), [])
+  const previous = useMemo(() => ({ room: '', time: '', emergency: false, door: -1 }), [])
   useLayoutEffect(() => () => pool.spot.dispose(), [pool])
   useFrame(({ camera, gl }) => {
     const s = useShelterStore.getState()
@@ -46,10 +47,11 @@ export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
     const inside = s.cameraState === 'walkthrough' && !rt.moving && floor.startsWith('B')
     const room = inside ? lightingRoomAt(floor, camera.position.x, camera.position.z) : ''
     const period = lightingTimeAt(s.time)
+    const emergency = lockdownElapsed(useOperationsStore.getState()) >= lightingCues.interiorEmergency
     const moved = room !== previous.room
     const doorChanged = rt.doorRevision !== previous.door
-    if (moved || s.time !== previous.time) {
-      const preset = lighting[room]?.[period]
+    if (moved || s.time !== previous.time || emergency !== previous.emergency) {
+      const preset = emergency ? emergencyLighting[room] : lighting[room]?.[period]
       const base = FLOORS[floor].elevation
       const place = (object: Object3D, p: readonly number[]) => object.position.set(p[0], p[1] + base, p[2])
       for (const light of [pool.spot, ...pool.points, ...pool.areas]) light.intensity = 0
@@ -58,7 +60,8 @@ export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
         const key = preset.spot
         place(pool.spot, key.position)
         place(pool.spot.target, key.target)
-        pool.spot.color.copy(swatches[key.kelvin])
+        if (key.spectrum) pool.spot.color.set(key.spectrum)
+        else pool.spot.color.copy(swatches[key.kelvin])
         pool.spot.intensity = key.intensity
         pool.spot.distance = key.reach
         pool.spot.angle = key.angle
@@ -83,8 +86,10 @@ export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
       previous.room = room
       previous.time = s.time
     }
+    const lightingChanged = emergency !== previous.emergency
+    previous.emergency = emergency
     previous.door = rt.doorRevision
-    if (room && (moved || doorChanged)) {
+    if (room && (moved || doorChanged || lightingChanged)) {
       pool.spot.shadow.needsUpdate = true
       gl.shadowMap.needsUpdate = true
     }

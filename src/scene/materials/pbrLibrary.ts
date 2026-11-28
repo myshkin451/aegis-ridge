@@ -54,6 +54,8 @@ export const floorLight = {
 export const roomClockMinutes = { value: 460 }
 export const roomWashStrength = { value: 1 }
 export const weatherUniform = { value: 0 }
+export const emergencyCircuit = { value: 0 }
+export const lobbyCircuit = { value: 1 }
 function hash(x: number, y: number) {
   let n = Math.imul(x + 71, 374761393) + Math.imul(y + 31, 668265263)
   n = Math.imul(n ^ (n >>> 13), 1274126177)
@@ -268,6 +270,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.uniforms.isLamp = { value: kind === 'lamp' }
     shader.uniforms.grains = { value: map }
     shader.uniforms.snowCover = weatherUniform
+    shader.uniforms.emergencyCircuit = emergencyCircuit
+    shader.uniforms.lobbyCircuit = lobbyCircuit
     shader.uniforms.roomMinutes = roomClockMinutes
     shader.uniforms.washStrength = roomWashStrength
     const slot = finishScans.findIndex((s) => s.finish === kind)
@@ -295,7 +299,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray finishLayers; uniform bool walkFinish; uniform int scanSlot,printSlot,scanMask,printMask; uniform vec3 scanWhite; uniform float repeatMetres; uniform float snowCover,roomMinutes,washStrength; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray finishLayers; uniform bool walkFinish; uniform int scanSlot,printSlot,scanMask,printMask; uniform vec3 scanWhite; uniform float repeatMetres; uniform float snowCover,roomMinutes,washStrength,emergencyCircuit,lobbyCircuit; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
           vary,
       )
       .replace(
@@ -335,6 +339,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         #ifdef USE_INSTANCING_COLOR
           if(isLamp) totalEmissiveRadiance*=vColor.rgb;
         #endif
+        if(isLamp && vMetric.y>0. && vMetric.y<3.9 && vMetric.x>4. && abs(vMetric.z)<10.)
+          totalEmissiveRadiance*=lobbyCircuit;
         if(vMetric.y<${FLOORS.B1.elevation + FLOORS.B1.pitch} && abs(vMetric.x)<16.1 && abs(vMetric.z)<12.1) {
           vec3 wash=vMetric.y<${FLOORS.B3.elevation - 0.29}?vec3(.54,.76,1.):vMetric.y<${FLOORS.B2.elevation - 0.29}?vec3(1.,.41,.67):vMetric.y<${FLOORS.B1.elevation - 0.29}?vec3(1.,.33,.095):vec3(1.,.82,.63);
           float levelY=mod(vMetric.y-(${FLOORS.B4.elevation})+.002,${FLOORS.B4.pitch});
@@ -350,6 +356,11 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
             if(isLamp) totalEmissiveRadiance*=vec3(.65,.02,.012);
           }
           if (vMetric.y<${FLOORS.B3.elevation - 0.29} && washStrength<.99) wash=vec3(1.,.83,.68);
+          if (emergencyCircuit>.0) {
+            bool decon=vMetric.y>=${FLOORS.B1.elevation} && vMetric.x< -8. && vMetric.z< -2.;
+            wash=mix(wash,decon?vec3(.85,.12,.06):vec3(.56,.36,.20),emergencyCircuit);
+            if(isLamp) totalEmissiveRadiance*=mix(vec3(1.),decon?vec3(1.,.09,.04):vec3(.40,.27,.19),emergencyCircuit);
+          }
           totalEmissiveRadiance+=diffuseColor.rgb*wash*pool*washStrength;
         }`,
       )

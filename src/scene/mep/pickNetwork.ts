@@ -10,6 +10,7 @@ import {
   type Camera,
 } from 'three'
 import { FLOOR_ORDER } from '../../data/floors'
+import { isolateTarget, useOperationsStore } from '../../store/useOperationsStore'
 import { useShelterStore } from '../../store/useShelterStore'
 import { visibleHit } from '../rooms/picking'
 import { lensContainsNdc, serviceCorridor, walkRevealUniforms } from './lens'
@@ -50,9 +51,9 @@ export function surveyPicker(
     const state = useShelterStore.getState()
     if (state.hoveredValve) state.setHoveredValve(null)
   }
-  function hitAt(cursor: Vector2, type: PickSpan['kind']) {
+  function hitAt(cursor: Vector2, type: PickSpan['kind'], spans = model.spans) {
     const s = useShelterStore.getState()
-    if (!model.root.visible || rt.moving) return
+    if (!model.root.visible || s.routeOverview || rt.moving) return
     const cam = camera(),
       floor = model.uniforms.uFloor.value,
       height = canvas.clientHeight
@@ -68,7 +69,7 @@ export function surveyPicker(
     // Only walls hidden by the active lens or by the corridor ceiling reveal can be inspected through.
     const walk = s.cameraState === 'walkthrough',
       piercing = lensContainsNdc(cursor.x, cursor.y)
-    for (const span of model.spans) {
+    for (const span of spans) {
       if (
         span.kind !== type ||
         (span.plenum && !model.uniforms.uPlenum.value) ||
@@ -127,9 +128,11 @@ export function surveyPicker(
     if (dragged) return
     position(e)
     const point = document.pointerLockElement === canvas ? centre : uv
-    const pipe = hitAt(point, 'pipe')
+    const repairing = useOperationsStore.getState().panel === 'maintenance'
+    const pipe = hitAt(point, 'pipe', repairing ? model.serviceSpans : model.spans)
     if (pipe) {
-      useShelterStore.getState().setWaterTrace(pipe.id)
+      if (repairing) isolateTarget(pipe.id)
+      else useShelterStore.getState().setWaterTrace(pipe.id)
       // Other camera controls still need the release to end drag/pointer capture.
       e.preventDefault()
     }

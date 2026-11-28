@@ -91,10 +91,10 @@ function groundFacade() {
     m.box(glass, [x, 1.75, lobby.z1 - 0.1], [1.64, 2.94, 0.1], 'glass')
     m.box(mullion, [x - 0.82, 1.75, lobby.z1 - 0.08], [0.09, 3.18, 0.13], 'steel')
   }
+  for (const dx of [-2.8, 0, 2.8])
+    m.box('#f3d6a0', [lobby.x + dx, FLOORS.L1.pitch - SLAB - 0.45, lobby.z1 + 0.71], [2.24, 0.035, 0.08], 'lamp')
   m.box(cedar, [lobby.x, l1h - 0.15, lobby.z1], [lobby.w, 0.3, 0.3], 'wood')
   partition(m, 'L1', 'x', outerEntry.base[2], vestibule.x0, vestibule.x1, l1h)
-  for (let i = 0; i < 8; i++)
-    m.box(cedar, [lobby.x1 - 2.3 + i * 0.29, 1.68, l1.z1 + 0.1], [0.095, 3.2, 0.32], 'wood')
   return m
 }
 
@@ -260,41 +260,6 @@ function radome(m: ModelBuilder, x: number, y: number, z: number) {
     }
 }
 
-function solarWing(m: ModelBuilder, x: number, y: number, z: number, folded: boolean) {
-  const tilt = folded ? 0.018 : 0.19,
-    w = 5.8,
-    d = 3
-  m.box('#9ba5a4', [x, y, z], [w + 0.15, 0.16, d + 0.15], 'steel', [tilt, 0, 0])
-  for (let i = 0; i < 6; i++)
-    for (let j = 0; j < 3; j++) {
-      const dx = ((i - 2.5) * w) / 6,
-        dz = ((j - 1) * d) / 3
-      m.box(
-        (i + j) % 3 === 0 ? '#354f64' : '#405c70',
-        [x + dx, y + 0.11 - dz * Math.sin(tilt), z + dz * Math.cos(tilt)],
-        [w / 6 - 0.06, 0.045, d / 3 - 0.045],
-        'solar',
-        [tilt, 0, 0],
-      )
-    }
-  for (const dx of [-1.9, 1.9]) {
-    m.beam(
-      [x + dx, roof + 0.31, z],
-      [x + dx, y - 0.08 + 0.88 * Math.sin(tilt), z - 0.88],
-      0.12,
-      0.11,
-      mullion,
-    )
-    m.beam(
-      [x + dx, roof + 0.31, z],
-      [x + dx, y - 0.08 - 0.88 * Math.sin(tilt), z + 0.88],
-      0.12,
-      0.11,
-      mullion,
-    )
-  }
-}
-
 function roofscape() {
   const m = new ModelBuilder()
   m.box(mullion, [hall.x, roof - 0.36, hall.z], [hall.w + 0.7, 0.34, hall.d + 0.67], 'steel')
@@ -336,14 +301,6 @@ function roofscape() {
     m.part('round', 'steel', '#8a928f', [x, roof + 1.32, hall.z1 - 1], [0.1, 2.64, 0.1])
   return m
 }
-function wings(folded: boolean) {
-  const m = new ModelBuilder()
-  for (const x of [hall.x - 3.85, hall.x + 5.15])
-    solarWing(m, x, roof + (folded ? 0.64 : 1.4), l2.z0 + 1.05, folded)
-  return m
-}
-const extendedWings = () => wings(false)
-const foldedWings = () => wings(true)
 function dome() {
   const m = new ModelBuilder()
   radome(m, 0, 0, 0)
@@ -366,20 +323,6 @@ function turbine() {
 
 function stormShutters() {
   const m = new ModelBuilder()
-  for (const side of [-1, 1]) {
-    const z = side > 0 ? l2.z1 : l2.z0
-    for (let i = 0; i < 14; i++)
-      m.box(
-        i % 3 ? '#849599' : '#94a4a6',
-        [l2.x, 0.3 + i * 0.23, z + side * 0.49],
-        [l2.w + 0.84, 0.23, 0.11],
-        'steel',
-        [side * 0.22, 0, 0],
-      )
-    const x = side > 0 ? l2.x1 : l2.x0
-    for (let i = 0; i < 14; i++)
-      m.box('#899b9e', [x + side * 0.49, 0.3 + i * 0.23, l2.z], [0.1, 0.23, l2.d + 0.84], 'steel')
-  }
   const entryZ = l1.z1 + 0.04
   for (const dx of [-1.18, 1.18])
     m.box('#ffbf70', [vestibule.x + dx, 1.3 - FLOORS.L2.elevation, entryZ], [0.075, 2.6, 0.09], 'lamp')
@@ -453,11 +396,11 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
     a = useRef<Group>(null),
     b = useRef<Group>(null)
   useFrame(({ camera }, dt) => {
-    if (!reduceMotion() && !cold && upper && !wire && (floor === 'ALL' || walk)) {
+    if (!reduceMotion() && upper && !wire && (floor === 'ALL' || walk)) {
       const step = Math.min(dt, 0.08)
       if (radar.current) radar.current.rotation.y += step * 0.075
-      if (a.current) a.current.rotation.y += step * 0.47
-      if (b.current) b.current.rotation.y += step * 0.39
+      if (!cold && a.current) a.current.rotation.y += step * 0.47
+      if (!cold && b.current) b.current.rotation.y += step * 0.39
     }
     if (panels.current) panels.current.visible = !rt.garageTransfer && !walk && lower && !wire
     if (gardenLeaves.current) gardenLeaves.current.visible = !rt.garageTransfer && !walk && upper && !wire
@@ -505,12 +448,6 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
         <group ref={roofShell}>
           <Model walkSurface="wall" build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
           <group visible={upper && !wire && (floor === 'ALL' || walk)}>
-            <group visible={!cold}>
-              <Model build={extendedWings} />
-            </group>
-            <group visible={cold}>
-              <Model build={foldedWings} />
-            </group>
             <group ref={radar} position={[hall.x - 0.55, roof + 0.06, hall.z + 1.25]}>
               <Model build={dome} />
             </group>

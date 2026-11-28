@@ -81,6 +81,10 @@ function desired(atlas: TerrainAtlas, aspect: number) {
       height = 1.45 * Math.max(bounds.d, bounds.w / aspect)
     }
   }
+  if (s.surveyFocus && (view === 'floorOrbit' || view === 'sectionBox')) {
+    target.set(...s.surveyFocus.point)
+    height = s.surveyFocus.height
+  }
   const place = siteFacilities.find((f) => f.id === s.facilityId)
   if (place) {
     target = new Vector3(...facilityAnchor(place, atlas))

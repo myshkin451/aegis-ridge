@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const signed = { ready: 2955.7, peak: 364, bytes: 2528888 }
+const signed = { ready: 3017.8, peak: 367, bytes: 2528888 }
 // Enumerate deployed assets independently of the loader. A silently missing fetch is a failure.
 async function publishedAssets(directory, url = '/assets/') {
   const files = []
@@ -152,7 +152,7 @@ try {
   if (!/ANGLE.*Metal/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
     throw Error('实测需要硬件 ANGLE Metal')
   if (!(env.ready <= 8000 && env.paint <= 3000)) failures.push('首屏描线/材质时间超限')
-  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M2.5c 增加超过 500 ms')
+  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M3 增加超过 500 ms')
   const textureBytes = Number(env.assetState.pilotTextureBytes)
   const environmentBytes = Number(env.assetState.interiorEnvironmentBytes)
   if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 64000000))
@@ -556,6 +556,95 @@ try {
   })
   await view('1', site)()
   if (await read('mep-layers')) failures.push('现场室外仍绘制地下管网')
+  // Drive the same visible controls the operator uses. Keep the whole 30-second sequence inside Chrome Trace.
+  const button = (name) => page.getByRole('button', { name, exact: true })
+  const scenario = page.getByLabel('工况', { exact: true })
+  await measure('M4 打开工程体检', () => button('工程体检').click())
+  for (const id of ['cryo', 'bio', 'normal']) {
+    await measure('M4 切工况 ' + id, async () => {
+      await scenario.selectOption(id)
+      await page.waitForSelector('.hud[data-scenario="' + id + '"]')
+      await wait(1050)
+    })
+  }
+  await measure('M4 入住 10 → 14', async () => {
+    const before = await page.locator('[data-diagnostic=oxygen] strong').textContent()
+    const slider = page.getByRole('slider', { name: '入住人数' })
+    const bounds = await slider.boundingBox()
+    await page.mouse.move(bounds.x + (bounds.width * 5) / 9, bounds.y + bounds.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(bounds.x + bounds.width - 1, bounds.y + bounds.height / 2, { steps: 12 })
+    await page.mouse.up()
+    await page.waitForSelector('.hud[data-people="14"]')
+    const after = await page.locator('[data-diagnostic=oxygen] strong').textContent()
+    if (before === after) throw Error('人数已改变，供氧余量未更新')
+  })
+  await measure('M4 尘埃封锁 30 s', async () => {
+    await scenario.selectOption('fallout')
+    await page.waitForSelector('.hud[data-scenario=fallout][data-lockdown=running]')
+    await button('跟拍封锁编排').click()
+    const started = performance.now()
+    await page.waitForSelector('.hud[data-lockdown=sealed]', { timeout: 36000 })
+    if (performance.now() - started < 29000) throw Error('封锁在第 30 秒之前完成')
+    if (Number(await read('decon-pressure-pa')) <= 0) throw Error('B1 压差未升高')
+    await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
+    const [, level] = (await read('feet')).split(',').map(Number)
+    if (Math.abs(level + 10.2) > 0.1) throw Error('封锁跟拍没有抵达 B1')
+    await page.waitForSelector(
+      'canvas[data-lighting-circuit=emergency][data-command-screen^="fallout/14/30/"]',
+    )
+    if (
+      !(await page
+        .locator('.condition')
+        .textContent()
+        .then((t) => t.includes('封锁 · 第 1 天')))
+    )
+      throw Error('全密闭工程图签未更新')
+  })
+  await measure('M4 封锁稳态', () => wait(2500))
+  await measure('M4 B2 中控室', async () => {
+    await button('进入 B2 中控室').click()
+    await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
+    await wait(700)
+  })
+  await measure('M4 模拟隔离与接管', async () => {
+    await button('模拟隔离检修').click()
+    await page.getByLabel('检修目标').selectOption('HV-B2-001')
+    await button('隔离所选目标').click()
+    await page.waitForSelector('.hud[data-isolation="HV-B2-001"]')
+    await page.waitForSelector('canvas[data-ready=settled]')
+    await wait(400)
+    const paths = (await read('maintenance-routes')).split('/').map(Number)
+    if (paths.length !== 3 || !paths.every((n) => n > 0) || Number(await read('maintenance-segments')) < 3)
+      throw Error('隔离、接管与搬运路径未同时进入 3D 图层')
+    const report = page.locator('.maintenance-result')
+    await report.waitFor()
+    if (!(await report.innerText()).includes('HV-B2-001')) throw Error('检修表缺少隔离段')
+    await button('查看全程搬运').click()
+    await page.waitForSelector('canvas[data-view=sectionBox][data-mode=xray][data-ready=settled]')
+    if (
+      (await read('route-overview')) !== 'true' ||
+      (await read('mep-layers')) ||
+      Number(await read('maintenance-segments')) < 3 ||
+      (await page.getByLabel('剖切面位置').isVisible())
+    )
+      throw Error('全程图的检修路线、背景管线或剖切控制状态错误')
+  })
+  await measure('M4 搬运全景稳态', () => wait(2500))
+  await measure('M4 解除隔离', async () => {
+    await button('结束隔离检修').click()
+    await page.waitForSelector('.hud[data-isolation=""]')
+  })
+  await measure('M4 重播、快进与复位', async () => {
+    await button('重播封锁').click()
+    await page.waitForSelector('.hud[data-lockdown=running]')
+    await button('快进封锁').click()
+    await page.waitForSelector('.hud[data-lockdown=sealed]')
+    await button('重置封锁').click()
+    await page.waitForSelector('.hud[data-scenario=normal][data-lockdown=open]')
+    await page.waitForSelector('canvas[data-lighting-circuit=normal]')
+    await button('关闭工程面板').click()
+  })
   const total = await page.evaluate(() => window.surveyPerf.links - window.surveyPerf.coldLinks)
   console.log('就绪后全程链接', total)
   if (total !== 0) failures.push('就绪后全程链接 ' + total)
@@ -590,9 +679,12 @@ try {
       )
     const longest = tasks.reduce((a, b) => (a.dur > b.dur ? a : b))
     row.task = longest.dur / 1000
-    if (row.draws > 385 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
+    if (row.draws > 392 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
     if (
-      (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) || row.label.startsWith('样板稳态')) &&
+      (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) ||
+        row.label.startsWith('样板稳态') ||
+        row.label === 'M4 封锁稳态' ||
+        row.label === 'M4 搬运全景稳态') &&
       (row.fps < 58 || row.p95 > 20)
     )
       failures.push(row.label + ' 未达到稳态帧率预算')
@@ -617,7 +709,7 @@ try {
   console.log(
     '全程峰值绘制',
     peak,
-    '较 M2.5c 增量',
+    '较 M3 增量',
     peak - signed.peak,
     '首屏 GPU 就绪变化 ms',
     (env.ready - signed.ready).toFixed(1),

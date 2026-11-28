@@ -15,6 +15,7 @@ import { FLOORS, GRID } from '../../data/floors'
 import { altitude, worldToGrid } from '../../geometry/coords'
 import { aimedEquipment, taggedEquipment, visibleHit } from '../rooms/picking'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
+import { isolateTarget, useOperationsStore } from '../../store/useOperationsStore'
 import { useShelterStore } from '../../store/useShelterStore'
 import type { SurveyRuntime } from './runtime'
 
@@ -64,6 +65,10 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       startX = e.clientX
       startY = e.clientY
     }
+    function pickEquipment(roomId: string, tag: string) {
+      if (useOperationsStore.getState().panel === 'maintenance') isolateTarget(tag)
+      else useShelterStore.getState().focusRoom(roomId, tag)
+    }
     const click = (e: PointerEvent) => {
       if (e.defaultPrevented || Math.hypot(e.clientX - startX, e.clientY - startY) > 4 || rt.moving) return
       const s = useShelterStore.getState()
@@ -77,7 +82,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
         if (cut && (!hit || kit.ray.ray.origin.distanceTo(cut) < hit.distance - 0.002)) {
           const onCut = aimedEquipment(s.lastFloor, cut)
           if (onCut) {
-            s.focusRoom(onCut.room.id, onCut.unit.tagCode)
+            pickEquipment(onCut.room.id, onCut.unit.tagCode)
             return
           }
         }
@@ -85,7 +90,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       const tag = hit?.instanceId !== undefined && hit.object.userData.equipmentTags?.[hit.instanceId]
       const entry = tag && taggedEquipment.get(tag)
       if (entry) {
-        s.focusRoom(entry.room.id, entry.unit.tagCode)
+        pickEquipment(entry.room.id, entry.unit.tagCode)
         if (document.pointerLockElement) document.exitPointerLock()
         return
       }

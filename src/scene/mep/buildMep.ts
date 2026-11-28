@@ -124,6 +124,7 @@ export function buildMep(network: MepNetwork) {
     detail = new Batch(),
     outlines = new Batch()
   const spans: PickSpan[] = [],
+    serviceSpans: PickSpan[] = [],
     roomIndex = new Map<string, number>()
   const edges = new Map(network.edges.map((e, i) => [e.id, i]))
   const attached = new Map<string, MepEdge>()
@@ -164,8 +165,9 @@ export function buildMep(network: MepNetwork) {
       mid.lerpVectors(a, b, 0.5)
       const plenum = overhead(edge, a, b)
       macro.plenum = detail.plenum = plenum
-      if (edge.system === 'water')
-        spans.push({ a, b, edge, radius: edge.radius, kind: 'pipe', id: edge.id, plenum })
+      const span: PickSpan = { a, b, edge, radius: edge.radius, kind: 'pipe', id: edge.id, plenum }
+      serviceSpans.push(span)
+      if (edge.system === 'water') spans.push(span)
       // Align rectangular stock with its web vertical, including north/south tray runs.
       const face = new Vector3().crossVectors(side, dir).normalize()
       const stock = new Quaternion().setFromRotationMatrix(new Matrix4().makeBasis(side, dir, face))
@@ -405,7 +407,7 @@ export function buildMep(network: MepNetwork) {
   root.name = '六系统工程管网'
   root.userData.skipWalk = true
   root.add(drawing, physical, affected)
-  function mark(trace: string | null, valve: string | null) {
+  function mark(trace: string | null, valve: string | null, inspectionRoom?: string, inspectingRepair = false) {
     palette.mask.fill(0)
     const chain = trace ? network.traceWater(trace) : new Set<string>()
     for (const id of chain) {
@@ -413,9 +415,11 @@ export function buildMep(network: MepNetwork) {
       if (index !== undefined) palette.mask[index * 4] = 255
     }
     const downstream = (valve ? network.affectedRooms(valve) : []).filter((id) => roomIndex.has(id))
+    if (inspectionRoom && roomIndex.has(inspectionRoom) && !downstream.includes(inspectionRoom))
+      downstream.push(inspectionRoom)
     for (const id of downstream) palette.mask[roomIndex.get(id)! * 4] = 255
     palette.texture.needsUpdate = true
-    palette.uniforms.uTrace.value = Number(chain.size > 0)
+    palette.uniforms.uTrace.value = Number(chain.size > 0 || inspectingRepair)
     affected.visible = downstream.length > 0
     return { count: chain.size, rooms: downstream }
   }
@@ -438,6 +442,7 @@ export function buildMep(network: MepNetwork) {
     affected,
     uniforms: palette.uniforms,
     spans,
+    serviceSpans,
     mark,
     dispose,
     floorChannels,

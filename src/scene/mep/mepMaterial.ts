@@ -97,7 +97,7 @@ export function makeMepMaterial(count: number, plates: ReturnType<typeof makePla
         vec2 lookup = vec2(mod(aMeta.z, uMaskGrid.x), floor(aMeta.z / uMaskGrid.x));
         vMarked = texture2D(uMask, (lookup + .5) / uMaskGrid).r;
         vInk = aMeta.w < .5 ? mix(uDay[ink], uNightInk[ink], uNight) : instanceColor;
-        if(uLayer[ink] < .5 || (aPath.w >= 8. && uPlenum < .5) || (uFloor >= 0. && abs(uFloor - aMeta.y) > .1) || (aMeta.w > 3.5 && vMarked < .5)) {
+        if((uLayer[ink] < .5 && aMeta.w < 3.5) || (aPath.w >= 8. && uPlenum < .5) || (uFloor >= 0. && abs(uFloor - aMeta.y) > .1) || (aMeta.w > 3.5 && vMarked < .5)) {
           gl_Position = vec4(2., 2., 2., 1.);
         } else gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.);
       }`,

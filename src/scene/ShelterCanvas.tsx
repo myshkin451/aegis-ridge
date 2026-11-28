@@ -8,10 +8,13 @@ import { FibreDaylight } from './rooms/FibreDaylight'
 import { SurfaceStation } from './SurfaceStation'
 import { UndergroundShell } from './UndergroundShell'
 import { MultiScaleMountain } from './terrain/MultiScaleMountain'
+import { StationClosures } from './terrain/StationClosures'
 import { SiteFacilities, TunnelModels } from './terrain/SiteFacilities'
 import { AtlasLoader } from './terrain/loadAtlas'
 import { BuildingSection } from './BuildingSection'
 import { useShelterStore } from '../store/useShelterStore'
+import { LockdownTourCamera } from './atmosphere/LockdownTour'
+import { DeconGauge } from './atmosphere/DeconGauge'
 import { InteriorLightPool } from './atmosphere/InteriorLightPool'
 import { PhysicalSky } from './atmosphere/PhysicalSky'
 import { QualityControl, RenderPipeline, SunShadows } from './atmosphere/RenderPipeline'
@@ -27,26 +30,30 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
   const rt = useMemo(surveyRuntime, [])
   const xray = useShelterStore((s) => s.mode === 'xray')
+  const routeOverview = useShelterStore(s => s.routeOverview)
   const structure = useShelterStore((s) => s.layers.structure)
   return (
     <PilotPreload>
       <QualityControl onDprChange={onDprChange}>
         <PhysicalSky />
         <MultiScaleMountain atlas={atlas} />
-        <group visible={!xray || structure}>
+        <group visible={routeOverview || !xray || structure}>
           <BuildingSection>
             <UndergroundShell rt={rt} />
             <SurfaceStation atlas={atlas} rt={rt} />
-            <TunnelModels />
+            <group visible={!routeOverview}><TunnelModels /></group>
           </BuildingSection>
         </group>
-        <SiteFacilities atlas={atlas} />
+        <group visible={!routeOverview}><SiteFacilities atlas={atlas} /></group>
+        <StationClosures atlas={atlas} />
         <MepNetworkScene atlas={atlas} rt={rt} />
         <group visible={!xray}>
           <DrawingMarks />
         </group>
         <InteriorLights />
         <FibreDaylight />
+        <DeconGauge />
+        <LockdownTourCamera />
         <InteriorLightPool rt={rt} />
         <CameraStateMachine atlas={atlas} rt={rt} />
         <WalkthroughRig rt={rt} />

@@ -24,7 +24,8 @@ import { photographs } from '../../data/photographs'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
 import { nearSurfaceOpening } from '../../geometry/doors'
-import { randomSource } from '../../geometry/random'
+import { useOperationsStore } from '../../store/useOperationsStore'
+import { WeatherParticles } from './WeatherParticles'
 import { roomClockMinutes, roomWashStrength, weatherUniform } from '../materials/pbrLibrary'
 import { reduceMotion } from '../utils/Model'
 
@@ -88,19 +89,27 @@ function cloudSea() {
       side: DoubleSide,
       uniforms: {
         phase: { value: i * 17 },
+        lowMist: { value: 0 },
         drift: { value: [0.0017, 0.0031, 0.0044][i] },
         time: { value: 0 },
         sun: { value: new Vector3() },
         shade: { value: new Color() },
       },
-      vertexShader: `uniform float phase,time,drift; varying vec3 vP;${noise}
-        void main(){vec3 p=position; p.y+=49.*fb(p.xz*.0024+phase+vec2(time*drift,-time*drift*.24))+13.*fb(p.xz*.012+phase); vec4 w=modelMatrix*vec4(p,1.);vP=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
-      fragmentShader: `varying vec3 vP; uniform float phase,time,drift; uniform vec3 sun,shade;${noise}
+      vertexShader: `uniform float phase,time,drift,lowMist; varying vec3 vP;${noise}
+        void main(){vec3 p=position; p.y+=49.*fb(p.xz*.0024+phase+vec2(time*drift,-time*drift*.24))+13.*fb(p.xz*.012+phase); vec4 w=modelMatrix*vec4(p,1.);
+        if (lowMist>.5) { w.y=1.6+3.*fb(p.xz*.025+phase); }
+        vP=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+      fragmentShader:
+        `varying vec3 vP; uniform float phase,time,drift,lowMist; uniform vec3 sun,shade;${noise}
         void main(){vec2 p=vP.xz*vec2(.0068,.008)+phase+vec2(time*drift,time*drift*.34);
         float f=fb(p+fb(p*.41)*1.8),lit=clamp(.51+3.1*(f-fb(p+.22*sun.xz)),0.,1.);
         float edge=1.-smoothstep(3400.,4700.,length(vP.xz));
         float a=smoothstep(.22,.70,f)*edge;
         vec3 col=mix(shade,vec3(.99,.89,.80),lit)*(.84+.25*f);
+        if (lowMist>.5) {
+          col=mix(vec3(.36,.40,.27),vec3(.61,.65,.49),lit);
+          a*=.37*(1.-smoothstep(90.,360.,length(vP.xz)));
+        }
         gl_FragColor=vec4(col,a*(.68-phase*.005)); #include <colorspace_fragment>
         }`.replace('; #include', ';\n#include'),
     })
@@ -118,45 +127,6 @@ function cloudSea() {
       mats.forEach((m) => m.dispose())
     },
   }
-}
-function Spindrift() {
-  const geom = useMemo(() => {
-    const p: number[] = [],
-      random = randomSource(1503)
-    for (let i = 0; i < 6200; i++) {
-      const x = random() * 112,
-        y = random() * 55,
-        z = random() * 90
-      p.push(x, y, z, x + 0.44 + random() * 0.7, y - 0.23, z + 0.06)
-    }
-    const g = new BufferGeometry()
-    g.setAttribute('position', new Float32BufferAttribute(p, 3))
-    return g
-  }, [])
-  const material = useMemo(
-    () =>
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: { time: { value: 0 } },
-        vertexShader: `uniform float time; varying float fade;
-      void main(){vec3 p=mod(position+vec3(time*9.,-time*3.,time),vec3(112.,55.,90.))-vec3(56.,9.,45.);
-      vec4 mv=modelViewMatrix*vec4(p,1.);fade=smoothstep(1.,6.,-mv.z)*(1.-smoothstep(45.,120.,-mv.z));gl_Position=projectionMatrix*mv;}`,
-        fragmentShader: 'varying float fade; void main(){gl_FragColor=vec4(.90,.96,1.,.68*fade);}',
-      }),
-    [],
-  )
-  useFrame((_, dt) => {
-    if (!reduceMotion()) material.uniforms.time.value += Math.min(dt, 0.09)
-  })
-  useLayoutEffect(
-    () => () => {
-      geom.dispose()
-      material.dispose()
-    },
-    [geom, material],
-  )
-  return <lineSegments frustumCulled={false} geometry={geom} material={material} />
 }
 function linkedSkies() {
   const sky = new Sky()
@@ -225,6 +195,8 @@ function windowRidges() {
 export function PhysicalSky() {
   const time = useShelterStore((s) => s.time),
     cold = useShelterStore((s) => s.cold)
+  const scenario = useOperationsStore((s) => s.scenario)
+  const weather = scenario === 'normal' && cold ? 'cryo' : scenario
   const exterior = useShelterStore((s) => s.mode === 'exterior' && s.cameraState === 'site')
   const xray = useShelterStore((s) => s.mode === 'xray'),
     walk = useShelterStore((s) => s.cameraState === 'walkthrough')
@@ -283,7 +255,7 @@ export function PhysicalSky() {
     }
   }, [environments, gl, scene, sky])
   useLayoutEffect(() => {
-    weatherUniform.value = Number(cold)
+    weatherUniform.value = Number(weather === 'cryo')
     const [hours, minutes] = time.split(':').map(Number)
     roomClockMinutes.value = hours * 60 + minutes
     const u = sky.material.uniforms
@@ -291,19 +263,31 @@ export function PhysicalSky() {
     u.turbidity.value = cold ? 9 : 2.6
     u.rayleigh.value = cold ? 0.68 : 1.2
     u.mieCoefficient.value = cold ? 0.018 : 0.004
-    const haze = cold ? '#b5c8d2' : twilight ? '#667f9d' : sun.y < 0.16 ? '#8dabc1' : '#bdcbd0'
+    const haze =
+      weather === 'bio'
+        ? '#b7bca0'
+        : weather === 'fallout'
+          ? '#ad998a'
+          : cold
+            ? '#b5c8d2'
+            : twilight
+              ? '#667f9d'
+              : sun.y < 0.16
+                ? '#8dabc1'
+                : '#bdcbd0'
     const fog = scene.fog as FogExp2
     fog.color.set(haze)
-    fog.density = exterior ? (cold ? 0.009 : 0.00019) : 0
+    fog.density = exterior ? { normal: 0.00019, cryo: 0.009, bio: 0.0031, fallout: 0.0041 }[weather] : 0
     const paper = scene.background as Color
     paper.set(xray ? '#161c20' : walk ? '#373a3c' : section && twilight ? '#515f76' : '#dce2df')
-    for (const m of clouds.mats) {
+    for (const [i, m] of clouds.mats.entries()) {
+      m.uniforms.lowMist.value = Number(weather === 'bio' && i === 2)
       m.uniforms.sun.value.copy(sun)
       m.uniforms.shade.value.set(twilight ? '#62778e' : sun.y < 0.16 ? '#657d9a' : '#7389a4')
     }
     scene.environment = (environments.get(time) ?? environments.get('07:40')!).texture
     scene.environmentIntensity = walk ? 0.3 : 0.5
-  }, [environments, scene, sky, clouds, sun, cold, exterior, twilight, xray, walk, section, time])
+  }, [environments, scene, sky, clouds, sun, cold, weather, exterior, twilight, xray, walk, section, time])
   useLayoutEffect(
     () => () => {
       sky.geometry.dispose()
@@ -361,9 +345,7 @@ export function PhysicalSky() {
         </mesh>
         <primitive object={clouds.group} />
       </group>
-      <group visible={exterior && cold}>
-        <Spindrift />
-      </group>
+      <WeatherParticles visible={exterior} weather={weather} />
       <hemisphereLight ref={hemisphere} />
       <group
         ref={panel}

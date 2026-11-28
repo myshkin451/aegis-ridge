@@ -1,4 +1,5 @@
 import type { Point3 } from '../../types/shelter'
+import { deconInstrument } from '../../geometry/deconGauge'
 import { unit, type RoomLayout } from './schema'
 
 const anchor = (name: string, x: number, z: number, target: Point3) => ({
@@ -97,7 +98,10 @@ export const upperLayouts: Record<string, RoomLayout> = {
       }),
       unit('SUM-102', '回收液封闭缓冲槽', 'water', [-9.25, 0, -10.15], [1.5, 1.65, 2.18], 450, 0.75),
     ],
-    cameraAnchors: [anchor('沿拱门纵轴', -12.05, -4.3, [-12.05, 1.42, -9.7])],
+    cameraAnchors: [
+      anchor('沿拱门纵轴', -12.05, -4.3, [-12.05, 1.42, -9.7]),
+      anchor('门旁压差表', deconInstrument.centre[0] - 0.11, deconInstrument.centre[2] - 1.02, deconInstrument.centre),
+    ],
   },
   b1_logistics: {
     equipment: [

@@ -31,6 +31,8 @@ import {
 import { N8AOPostPass } from 'n8ao'
 import { useShelterStore } from '../../store/useShelterStore'
 import { shadowUniforms } from './shadowUniforms'
+import { ScenarioGrade } from './ScenarioGrade'
+import { useOperationsStore } from '../../store/useOperationsStore'
 import { sunAt } from './PhysicalSky'
 
 const tiers = [
@@ -274,6 +276,7 @@ export function RenderPipeline() {
     pipe: EffectComposer
     ao: N8AOPostPass
     camera: Camera
+    grade: ScenarioGrade
     shadows: ReturnType<typeof shadowPasses>
   } | null>(null)
   const startup = useRef(0),
@@ -308,14 +311,16 @@ export function RenderPipeline() {
       if (o.userData.finish === 'lamp' || o.userData.emits) bloom.selection.add(o)
     })
     pipe.addPass(new EffectPass(camera, bloom))
+    const grade = new ScenarioGrade()
     pipe.addPass(
       new EffectPass(
         camera,
         new SMAAEffect({ preset: SMAAPreset.LOW }),
         new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
+        grade,
       ),
     )
-    pipeline.current = { pipe, ao, camera, shadows: shadowPasses(scene) }
+    pipeline.current = { pipe, ao, camera, grade, shadows: shadowPasses(scene) }
     gl.toneMapping = AgXToneMapping
     gl.info.autoReset = false
     return () => {
@@ -356,6 +361,8 @@ export function RenderPipeline() {
       p.camera = camera
       canvas.dataset.pipelineRevision = String(state.cameraRevision)
     }
+    const scenario = useOperationsStore.getState().scenario
+    p.grade.transition(scenario === 'normal' && state.cold ? 'cryo' : scenario, dt)
     ao.enabled = tier.ao && state.mode !== 'xray'
     const closeInterior = state.cameraState === 'walkthrough' && camera.position.y < -6
     ao.configuration.aoRadius = closeInterior ? 0.36 : state.cameraState === 'walkthrough' ? 0.55 : 1.8

@@ -11,6 +11,7 @@ import { ModelBuilder } from '../utils/modelBuilder'
 import { floorLight } from '../materials/pbrLibrary'
 import { useShelterStore } from '../../store/useShelterStore'
 import { Inscription } from './Inscription'
+import { CommandScreens } from './CommandScreens'
 import { roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
 import type { SurveyRuntime } from '../camera/runtime'
@@ -75,6 +76,7 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
       <Model build={build} interior />
+      {id === 'B2' && <CommandScreens />}
       {id === 'B2' && (
         <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
           <Model walkSurface="wall" build={residentialFinishes} interior opaqueOrder={-4} />

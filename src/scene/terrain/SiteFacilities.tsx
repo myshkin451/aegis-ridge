@@ -268,8 +268,6 @@ function landscape(atlas: TerrainAtlas) {
             const u = (c - 4.5) * 2.08,
               v = (row - 1.5) * 3
             m.box(steel, p(u, 0.64, v), [0.12, 1.28, 0.12], 'steel')
-            m.box('#42596a', p(u, 1.35, v), [2.01, 0.075, 2.04], 'solar', [0.32, 0, 0])
-            m.box('#a1aaad', p(u, 1.39, v), [0.025, 0.02, 2.03], 'steel', [0.32, 0, 0])
           }
         break
       case 'helipad':

@@ -15,7 +15,7 @@ const faces: [BoxFace, number][] = [
   ['south', 2],
 ]
 export function SectionBoxTool({ rt }: { rt: SurveyRuntime }) {
-  const active = useShelterStore((s) => s.cameraState === 'sectionBox')
+  const active = useShelterStore((s) => s.cameraState === 'sectionBox' && !s.routeOverview)
   const box = useShelterStore((s) => s.box),
     get = useThree((s) => s.get)
   const cleanup = useRef<(() => void) | null>(null)

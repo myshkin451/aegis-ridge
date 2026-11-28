@@ -1,3 +1,4 @@
+import { commandPanels } from './commandConsoleGeometry'
 import { archiveVolumes } from './archiveBindings'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import type { ModelBuilder } from '../utils/modelBuilder'
@@ -153,15 +154,7 @@ function cart(m: ModelBuilder) {
   m.box(dark, [0.34, 0.955, 0], [0.053, 0.043, 0.5], 'steel')
 }
 function consoleDesk(m: ModelBuilder) {
-  const radius = 6.4,
-    count = 7
-  for (let i = 0; i < count; i++) {
-    const a = (i - 3) * 0.139
-    const locate = (x: number, y: number, z: number): Point3 => [
-      (radius - z) * Math.sin(a) + x * Math.cos(a),
-      y,
-      5.75 - (radius - z) * Math.cos(a) + x * Math.sin(a),
-    ]
+  for (const { angle: a, position: locate } of commandPanels) {
     const box = (
       color: string,
       p: Point3,
@@ -170,14 +163,9 @@ function consoleDesk(m: ModelBuilder) {
     ) => m.box(color, locate(p[0] * 0.84, p[1], p[2]), [size[0] * 0.84, size[1], size[2]], mat, [0, -a, 0])
     box(dark, [0, 0.44, 0], [0.88, 0.83, 0.61], 'steel')
     box('#a9b1ac', [0, 0.91, 0.09], [1.02, 0.11, 0.88])
-    box(steel, [0, 1.24, -0.2], [0.065, 0.6, 0.085], 'steel')
+    // Rear VESA post meets the back of the enclosure while keeping the LCD face clear.
+    box(steel, [0, 1.24, -0.311], [0.065, 0.6, 0.085], 'steel')
     box('#323d40', [0, 1.6, -0.24], [1, 0.68, 0.061])
-    box('#425e62', [0, 1.6, -0.2], [0.93, 0.6, 0.012])
-    for (let j = 0; j < 9; j++) {
-      const h = 0.09 + 0.19 * (0.5 + 0.5 * Math.sin(j * 1.32 + i * 0.62))
-      box(j > 6 ? '#cda878' : '#9abbb1', [-0.37 + j * 0.09, 1.4 + h / 2, -0.19], [0.058, h, 0.007])
-    }
-    box('#9baea7', [0, 1.82, -0.19], [0.7, 0.014, 0.009])
     box('#535f5e', [0, 0.982, 0.23], [0.59, 0.026, 0.2])
   }
   for (const x of [-2.12, 0, 2.12]) chair(m, x, 0.95)

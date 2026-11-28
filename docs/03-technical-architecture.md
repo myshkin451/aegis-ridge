@@ -64,7 +64,7 @@
 │   │   ├── siteFacilities.ts       # 19 处“藏于科研”外围设施与三条出路元数据
 │   │   ├── roomTemplates.ts        # 可替换房间模块库
 │   │   ├── mepNetwork.ts           # 6 大管网拓扑与 GB 7231 识别信息
-│   │   ├── scenarios.ts            # 4 种情景参数、3D LUT 配置与 30 秒封锁时间线
+│   │   ├── lockdown.ts             # 30 秒封锁时间线及构件、仪表与照明状态
 │   │   └── crew.ts                 # 10 位专家主副职、居住舱与巡检路线
 │   ├── engine/                     # 纯 TypeScript 工程与物理引擎（零 React/Three 依赖）
 │   │   ├── feasibility.ts          # 电、核堆堆侧废热/岩体温升、水、分层农学、氧气、新风
@@ -72,7 +72,8 @@
 │   │   ├── maintenance.ts          # 模拟隔离检修、备用回路接管、阀门下游影响与搬运路径
 │   │   └── __tests__/              # 完整引擎物理与违规检测 Vitest 单测
 │   ├── store/
-│   │   └── useShelterStore.ts      # 相机状态、剖切面/盒、楼层、时间轴、工况、MEP、检修、编辑态
+│   │   ├── useShelterStore.ts      # 相机、剖切、楼层、时刻、工况与 MEP 图层
+│   │   └── useOperationsStore.ts   # 人数、封锁时钟、隔离对象和共享体检报告
 │   ├── scene/
 │   │   ├── ShelterCanvas.tsx       # WebGL2 Canvas、AgX、N8AO、CSM、4 档质量分级、PMREM(0.04)
 │   │   ├── materials/
@@ -85,7 +86,9 @@
 │   │   ├── atmosphere/
 │   │   │   ├── PhysicalSky.tsx         # 24h 物理天空、空气透视雾与山谷逆温云海
 │   │   │   ├── RenderPipeline.tsx      # CSM、N8AO、选择性 Bloom、SMAA、AgX 与四档画质
-│   │   │   └── WeatherAndLockdown.tsx  # M4：多工况与 30 秒封锁编排驱动
+│   │   │   ├── ScenarioGrade.ts       # 四套三维颜色查找表的常驻插值通道
+│   │   │   ├── WeatherParticles.tsx   # 暴雪、孢子与沉降粒子的共享批次
+│   │   │   └── LockdownTour.tsx       # 30 秒封锁跟拍及 B1 压差表机位
 │   │   ├── camera/
 │   │   │   ├── CameraStateMachine.tsx  # 6 状态相机、投影变形、竖井下潜、掀顶落地与深链接
 │   │   │   ├── WalkthroughRig.tsx      # three-mesh-bvh 胶囊碰撞、点地移动、气闸长按压差
@@ -103,7 +106,7 @@
 │   └── ui/
 │       ├── Instruments.tsx         # 工程图签、视图、线型图例、即时读数、房间数据表
 │       ├── ElevationRuler.tsx      # 标高实尺与平面切面游标，窄屏横排
-│       └── TimeAndScenarioBar.tsx  # 紧凑 24h 时间轴与 4 工况切换（嵌套于图签/次级条）
+│       └── OperationsSheet.tsx     # 工程体检、工况、人数与隔离检修数据表
 └── tests/                          # 几何、坐标、高程与蓝图不变量测试
 ```
 
@@ -242,3 +245,9 @@ B2 使用居住反射，L1／L2 共用科研站反射，B1／B4 共用机房反�
 3. **消除 PMREM 控制台警告**：`PMREMGenerator.fromScene(studio, 0.04)`（将 `0.06` 修正为 `0.04`）。
 4. **清理冗余依赖**：从 `package.json` 与 `vite.config.ts` 移除未使用的 `@tailwindcss/vite` / `tailwindcss`，全面采用 `src/styles/` 精密令牌样式。
 5. **GPU 资源释放与零 `useFrame setState`**：严禁在 `useFrame` 中触发 React state 更新；所有材质、贴图、BVH、Geometry 卸载时严格 `dispose()`。
+
+### M4 工程运行数据与渲染
+
+`src/engine/operations.ts` 以工况、时刻、人数、密闭状态、隔离对象与 M3 管网为输入，返回同一次体检和检修结果。纯 TS 引擎可在 Vitest 中单独运行。静态几何审查复用同一份蓝图和管网的结果。运行状态放在 `useOperationsStore`，只有操作点、网络或密闭边界改变时才重新求解。
+
+B2 的七个显示面共享一张 CanvasTexture，指标和故障计数取自 HUD 使用的报告。封锁倒计时只更新总览区域。检修图层按隔离段、接管支路和搬运折线更新同一个实例缓冲。四套颜色查找表在开场创建，在常驻后处理通道内插值；天气共享实例几何，室外防护构件按材质合批。30 秒动画、快进与跟拍取同一个时钟。

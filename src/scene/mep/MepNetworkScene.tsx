@@ -6,6 +6,8 @@ import { getFloorElevation } from '../../geometry/coords'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
 import { systems, useShelterStore } from '../../store/useShelterStore'
 import type { SurveyRuntime } from '../camera/runtime'
+import { useOperationsStore } from '../../store/useOperationsStore'
+import { maintenanceOverlay } from './maintenanceOverlay'
 import { buildMep } from './buildMep'
 import { surveyPicker } from './pickNetwork'
 import { reduceMotion } from '../utils/Model'
@@ -17,6 +19,8 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
   const model = useMemo(() => buildMep(network), [network])
   useLayoutEffect(() => {
     const canvas = gl.domElement
+    const work = maintenanceOverlay(network, model.uniforms.uLow.value, model.uniforms.uHigh.value)
+    model.root.add(work.mesh)
     const pass = surveyPicker(model, rt, canvas, () => get().camera, get().scene)
     function layers() {
       const s = useShelterStore.getState(),
@@ -41,11 +45,27 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
         else if (s.cameraState === 'floorOrbit' && s.orbitCut)
           u.uHigh.value.y = getFloorElevation(s.lastFloor) + s.cutHeight
       }
-      model.drawing.visible = s.cameraState !== 'walkthrough'
-      model.physical.visible = !model.drawing.visible
-      const traced = model.mark(s.waterTrace, s.hoveredValve)
+      model.drawing.visible = !s.routeOverview && s.cameraState !== 'walkthrough'
+      model.physical.visible = !s.routeOverview && s.cameraState === 'walkthrough'
+      const ops = useOperationsStore.getState()
+      const maintenance = ops.report.maintenance
+      work.update(maintenance, ops.location, s.floor)
+      const traced = model.mark(
+        s.waterTrace,
+        s.hoveredValve,
+        ops.location?.roomId ?? maintenance?.roomId,
+        Boolean(maintenance),
+      )
+      if (s.routeOverview) model.affected.visible = false
+      canvas.dataset.routeOverview = String(s.routeOverview)
+      canvas.dataset.maintenanceSegments = String(work.mesh.count)
+      canvas.dataset.maintenanceRoutes = [
+        maintenance?.isolatedEdgeIds.length ?? 0,
+        maintenance?.backupEdgeIds.length ?? 0,
+        maintenance?.route.length ?? 0,
+      ].join('/')
       const available = model.floorChannels.get(u.uFloor.value)
-      const applied = model.root.visible
+      const applied = model.root.visible && !s.routeOverview
         ? systems.filter((id, i) => u.uLayer.value[i] && (!available || available.has(id)))
         : []
       const d = canvas.dataset
@@ -57,8 +77,12 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
     }
     useShelterStore.getState().setMepNetwork(network)
     layers()
+    const stopWork = useOperationsStore.subscribe((s, p) => {
+      if (s.report.maintenance !== p.report.maintenance || s.location !== p.location) layers()
+    })
     const stop = useShelterStore.subscribe((s, p) => {
       if (
+        s.routeOverview !== p.routeOverview ||
         s.layers !== p.layers ||
         s.floor !== p.floor ||
         s.cameraState !== p.cameraState ||
@@ -75,6 +99,9 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
     })
     return () => {
       stop()
+      stopWork()
+      model.root.remove(work.mesh)
+      work.dispose()
       pass.dispose()
       model.dispose()
       useShelterStore.getState().setMepNetwork(null)
@@ -82,7 +109,7 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
   }, [network, model, rt, gl, get])
   useFrame(({ camera }, dt) => {
     const s = useShelterStore.getState()
-    if (model.root.visible) {
+    if (model.root.visible && !s.routeOverview) {
       const near =
         s.cameraState === 'walkthrough' ||
         (s.cameraState === 'floorOrbit' && s.mode !== 'xray' && camera.position.distanceTo(rt.target) < 12)

@@ -9,6 +9,8 @@ import { boxLimits } from '../geometry/viewGeometry'
 import type { BoxFace, CameraStateId } from '../types/shelter'
 import { systems, useShelterStore } from '../store/useShelterStore'
 import { ElevationRuler } from './ElevationRuler'
+import { ConditionField, OperationsSheet, openMaintenance } from './OperationsSheet'
+import { useOperationsStore } from '../store/useOperationsStore'
 import { MepReadout } from './MepReadout'
 
 const names: Record<CameraStateId, string> = {
@@ -142,9 +144,12 @@ function Sheet({ close }: { close: () => void }) {
           ))}
         </select>
       </label>
-      <button onClick={s.enterRoom}>
-        {dive ? '竖井下潜' : '掀顶落地'}　进入漫游 <kbd>5</kbd>
-      </button>
+      <div className="sheet-actions">
+        <button onClick={s.enterRoom}>
+          {dive ? '竖井下潜' : '掀顶落地'}　进入漫游 <kbd>5</kbd>
+        </button>
+        <button onClick={() => openMaintenance(unit.tagCode)}>隔离检修</button>
+      </div>
     </section>
   )
 }
@@ -210,6 +215,13 @@ function WalkHud() {
   )
 }
 export function Instruments() {
+  const panel = useOperationsStore((s) => s.panel)
+  const scenario = useOperationsStore((s) => s.scenario)
+  const people = useOperationsStore((s) => s.people)
+  const isolatedId = useOperationsStore((s) => s.isolatedId)
+  const lockdown = useOperationsStore((s) =>
+    s.lockdownStartedAt !== null ? 'running' : s.lockdownSeconds === 30 ? 'sealed' : 'open',
+  )
   const s = useShelterStore(),
     [open, setOpen] = useState<'views' | 'help' | null>(null),
     [legend, setLegend] = useState<boolean | null>(null),
@@ -261,6 +273,10 @@ export function Instruments() {
           setOpen(null)
           return
         }
+        if (useOperationsStore.getState().panel) {
+          useOperationsStore.getState().open(null)
+          return
+        }
         if (v.waterTrace) {
           v.setWaterTrace(null)
           return
@@ -303,7 +319,7 @@ export function Instruments() {
     return () => window.removeEventListener('keydown', keys)
   }, [open])
   const night = xray || walk || s.time === '19:30' || s.time === '22:00'
-  const title = s.shot
+  const title = s.routeOverview ? '检修搬运全程' : s.shot
     ? photo(s.shot).title
     : (siteFacilities.find((f) => f.id === s.facilityId)?.name ??
       (xray ? '竖井与平硐透视' : drawings[s.cameraState]))
@@ -314,7 +330,14 @@ export function Instruments() {
       ? '正交投影'
       : '透视 · ' + lens + ' mm'
   return (
-    <div className={'hud' + (night ? ' night' : '')} hidden={!s.hud}>
+    <div
+      className={'hud' + (night ? ' night' : '')}
+      hidden={!s.hud}
+      data-scenario={scenario}
+      data-people={people}
+      data-lockdown={lockdown}
+      data-isolation={isolatedId ?? ''}
+    >
       <header className="title-block" aria-label="工程图签">
         <h1>磐石山脊高山生态与气象观测站</h1>
         <strong className="station-code">ARS-01</strong>
@@ -324,9 +347,7 @@ export function Instruments() {
         </div>
         <span className="numeric">{projection}</span>
         <span className="numeric">{walk ? <span id="flight-level" /> : '±0.000 = 海拔 1450.000 m'}</span>
-        <span className="condition">
-          {s.time} · {s.cold ? '极寒 −60℃' : '日常'}
-        </span>
+        <ConditionField />
       </header>
       <div className="view-tools" ref={menu}>
         <nav className="tabs" aria-label="视图切换">
@@ -345,6 +366,18 @@ export function Instruments() {
           ))}
         </nav>
         <div className="tool-row">
+          {(['health', 'maintenance'] as const).map((kind) => (
+            <button
+              key={kind}
+              aria-pressed={panel === kind}
+              onClick={() => {
+                setOpen(null)
+                useOperationsStore.getState().open(panel === kind ? null : kind)
+              }}
+            >
+              {kind === 'health' ? '工程体检' : '模拟隔离检修'}
+            </button>
+          ))}
           <button aria-expanded={open === 'views'} onClick={() => setOpen(open === 'views' ? null : 'views')}>
             机位与图幅 ▾
           </button>
@@ -471,7 +504,7 @@ export function Instruments() {
         )}
       </div>
       {!walk && <ElevationRuler />}
-      {context && (
+      {context && !s.routeOverview && (
         <aside className={'legend' + (walk ? ' walk-legend' : '') + (showLayers ? ' open' : '')}>
           <button className="legend-title" aria-expanded={showLayers} onClick={() => setLegend(!showLayers)}>
             线型图例 <span>{showLayers ? '−' : '＋'}</span>
@@ -514,7 +547,7 @@ export function Instruments() {
           <small>＋ 花岗岩　△ 混凝土　▽ 水位</small>
         </div>
       )}
-      {s.cameraState === 'sectionBox' && (
+      {s.cameraState === 'sectionBox' && !s.routeOverview && (
         <div className="cut-tools">
           <label>
             剖切盒{' '}
@@ -577,8 +610,14 @@ export function Instruments() {
         </div>
       </div>
       {walk && <WalkHud />}
-      {s.roomId && !s.hoveredValve && <Sheet close={() => s.focusRoom(null)} />}
-      <MepReadout />
+      {panel ? (
+        <OperationsSheet key={panel} />
+      ) : (
+        <>
+          {s.roomId && !s.hoveredValve && <Sheet close={() => s.focusRoom(null)} />}
+          <MepReadout />
+        </>
+      )}
     </div>
   )
 }

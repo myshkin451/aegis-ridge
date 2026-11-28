@@ -41,6 +41,10 @@ interface ShelterView {
   preset: CameraPreset
   facilityId: number | null
   equipmentTag: string | null
+  surveyFocus: { point: Point3; height: number } | null
+  routeOverview: boolean
+  frameRoute: (points: Point3[]) => void
+  inspect: (roomId: string, equipmentTag?: string, edgeId?: string) => void
   anchorIndex: number
   landingTarget: Point3 | null
   roomId: string | null
@@ -70,6 +74,19 @@ interface ShelterView {
   toggleLayer: (id: SystemId) => void
   toggleHud: () => void
 }
+function fitSurvey(points: Point3[], minimumHeight = 8) {
+  const low: Point3 = [Infinity, Infinity, Infinity],
+    high: Point3 = [-Infinity, -Infinity, -Infinity]
+  for (const p of points)
+    for (let k = 0; k < 3; k++) {
+      low[k] = Math.min(low[k], p[k])
+      high[k] = Math.max(high[k], p[k])
+    }
+  return {
+    point: low.map((v, k) => (v + high[k]) / 2) as Point3,
+    height: Math.max(minimumHeight, ...low.map((v, k) => (high[k] - v) * 1.1)),
+  }
+}
 function viewFields(s: ShelterView, view: CameraStateId) {
   const whole = view === 'site' || view === 'section' || view === 'sectionBox'
   return {
@@ -82,6 +99,8 @@ function viewFields(s: ShelterView, view: CameraStateId) {
     hoveredValve: null,
     roomId: null,
     equipmentTag: null,
+    routeOverview: false,
+    surveyFocus: null,
     anchorIndex: 0,
     landingTarget: null,
     facilityId: null,
@@ -113,6 +132,8 @@ export const useShelterStore = create<ShelterView>((set) => ({
   facilityId: null,
   roomId: null,
   equipmentTag: null,
+  routeOverview: false,
+  surveyFocus: null,
   anchorIndex: 0,
   landingTarget: null,
   cameraRevision: 0,
@@ -160,6 +181,45 @@ export const useShelterStore = create<ShelterView>((set) => ({
       equipmentTag: equipmentTag ?? null,
       anchorIndex: s.roomId === roomId ? s.anchorIndex : 0,
     })),
+  frameRoute: (points) =>
+    set((s) =>
+      points.length
+        ? {
+            ...viewFields(s, 'sectionBox'),
+            mode: 'xray',
+            routeOverview: true,
+            surveyFocus: fitSurvey(points, 48),
+          }
+        : s,
+    ),
+  inspect: (roomId, equipmentTag, edgeId) =>
+    set((s) => {
+      const room = defaultBlueprint.rooms.find((r) => r.id === roomId)
+      const unit = room?.equipment.find((u) => u.tagCode === equipmentTag)
+      const edge = s.mepNetwork?.edges.find((e) => e.id === edgeId)
+      const floor = edge?.floor ?? room?.floorId
+      if (!floor) return s
+      let surveyFocus = null
+      if (edge) {
+        surveyFocus = fitSurvey(edge.points)
+      } else if (unit) {
+        const [x, y, z] = unit.position
+        surveyFocus = {
+          point: [x, FLOORS[floor].elevation + y + unit.moduleSizeM[1] / 2, z] as Point3,
+          height: Math.max(8, ...unit.moduleSizeM.map((m) => m * 2)),
+        }
+      }
+      return {
+        ...viewFields(s, 'floorOrbit'),
+        floor,
+        lastFloor: floor,
+        roomId: room?.id ?? null,
+        equipmentTag: equipmentTag ?? null,
+        surveyFocus,
+        plenum: true,
+        layers: edge ? { ...s.layers, [edge.system]: true } : s.layers,
+      }
+    }),
   selectAnchor: (anchorIndex) => set({ anchorIndex }),
   enterRoom: () =>
     set((s) => {
