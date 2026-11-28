@@ -1,3 +1,4 @@
+import { defaultBlueprint } from '../../data/defaultBlueprint'
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import CameraControls from 'camera-controls'
@@ -74,16 +75,12 @@ function desired(atlas: TerrainAtlas, aspect: number) {
     bearing = view === 'plan' ? v(0, 1, 0.00001) : v(-0.42, 1, 0.99)
     height = 36
     lens = 35
-    const room = s.installedRooms.find((item) => item.id === s.roomId)
+    const room = defaultBlueprint.rooms.find((item) => item.id === s.roomId)
     if (room) {
       const bounds = footprint(room.bounds)
       target.set(bounds.x, level + 0.62, bounds.z)
       height = 1.45 * Math.max(bounds.d, bounds.w / aspect)
     }
-  }
-  if (s.surveyFocus && (view === 'floorOrbit' || view === 'sectionBox')) {
-    target.set(...s.surveyFocus.point)
-    height = s.surveyFocus.height
   }
   const place = siteFacilities.find((f) => f.id === s.facilityId)
   if (place) {

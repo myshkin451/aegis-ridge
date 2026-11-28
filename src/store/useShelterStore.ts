@@ -4,7 +4,6 @@ import { defaultBox, moveFace } from '../geometry/viewGeometry'
 import type { SectionBounds } from '../geometry/viewGeometry'
 import { defaultBlueprint } from '../data/defaultBlueprint'
 import { FLOORS } from '../data/floors'
-import type { MepNetwork } from '../data/mepNetwork'
 import { photo } from '../data/photographs'
 import type { ShotId } from '../data/photographs'
 import type {
@@ -17,9 +16,6 @@ import type {
   ViewMode,
 } from '../types/shelter'
 
-export const systems = ['power', 'data', 'water', 'air', 'freight', 'structure'] as const
-export type SystemId = (typeof systems)[number]
-const allLayers = { power: true, data: true, water: true, air: true, freight: true, structure: true }
 interface ShelterView {
   mode: ViewMode
   cameraState: CameraStateId
@@ -32,21 +28,9 @@ interface ShelterView {
   sectionPerspective: boolean
   plenum: boolean
   walkCeiling: boolean
-  layers: Record<SystemId, boolean>
-  installedRooms: typeof defaultBlueprint.rooms
-  mepNetwork: MepNetwork | null
-  waterTrace: string | null
-  hoveredValve: string | null
-  setMepNetwork: (network: MepNetwork | null) => void
-  setWaterTrace: (edgeId: string | null) => void
-  setHoveredValve: (valveId: string | null) => void
   preset: CameraPreset
   facilityId: number | null
   equipmentTag: string | null
-  surveyFocus: { point: Point3; height: number } | null
-  routeOverview: boolean
-  frameRoute: (points: Point3[]) => void
-  inspect: (roomId: string, equipmentTag?: string, edgeId?: string) => void
   anchorIndex: number
   landingTarget: Point3 | null
   roomId: string | null
@@ -74,21 +58,7 @@ interface ShelterView {
   toggleProjection: () => void
   togglePlenum: () => void
   toggleWalkCeiling: () => void
-  toggleLayer: (id: SystemId) => void
   toggleHud: () => void
-}
-function fitSurvey(points: Point3[], minimumHeight = 8) {
-  const low: Point3 = [Infinity, Infinity, Infinity],
-    high: Point3 = [-Infinity, -Infinity, -Infinity]
-  for (const p of points)
-    for (let k = 0; k < 3; k++) {
-      low[k] = Math.min(low[k], p[k])
-      high[k] = Math.max(high[k], p[k])
-    }
-  return {
-    point: low.map((v, k) => (v + high[k]) / 2) as Point3,
-    height: Math.max(minimumHeight, ...low.map((v, k) => (high[k] - v) * 1.1)),
-  }
 }
 function viewFields(s: ShelterView, view: CameraStateId) {
   const whole = view === 'site' || view === 'section' || view === 'sectionBox'
@@ -98,12 +68,8 @@ function viewFields(s: ShelterView, view: CameraStateId) {
     floor: whole ? ('ALL' as const) : s.lastFloor,
     orbitCut: false,
     shot: null,
-    waterTrace: null,
-    hoveredValve: null,
     roomId: null,
     equipmentTag: null,
-    routeOverview: false,
-    surveyFocus: null,
     anchorIndex: 0,
     landingTarget: null,
     facilityId: null,
@@ -125,19 +91,9 @@ export const useShelterStore = create<ShelterView>((set) => ({
   preset: 'surface',
   plenum: true,
   walkCeiling: true,
-  layers: allLayers,
-  installedRooms: defaultBlueprint.rooms,
-  mepNetwork: null,
-  waterTrace: null,
-  hoveredValve: null,
-  setMepNetwork: (mepNetwork) => set({ mepNetwork, waterTrace: null, hoveredValve: null }),
-  setWaterTrace: (waterTrace) => set({ waterTrace, roomId: null, equipmentTag: null }),
-  setHoveredValve: (hoveredValve) => set((s) => (hoveredValve === s.hoveredValve ? s : { hoveredValve })),
   facilityId: null,
   roomId: null,
   equipmentTag: null,
-  routeOverview: false,
-  surveyFocus: null,
   anchorIndex: 0,
   landingTarget: null,
   cameraRevision: 0,
@@ -181,49 +137,9 @@ export const useShelterStore = create<ShelterView>((set) => ({
   focusRoom: (roomId, equipmentTag) =>
     set((s) => ({
       roomId,
-      waterTrace: null,
       equipmentTag: equipmentTag ?? null,
       anchorIndex: s.roomId === roomId ? s.anchorIndex : 0,
     })),
-  frameRoute: (points) =>
-    set((s) =>
-      points.length
-        ? {
-            ...viewFields(s, 'sectionBox'),
-            mode: 'xray',
-            routeOverview: true,
-            surveyFocus: fitSurvey(points, 48),
-          }
-        : s,
-    ),
-  inspect: (roomId, equipmentTag, edgeId) =>
-    set((s) => {
-      const room = s.installedRooms.find((r) => r.id === roomId)
-      const unit = room?.equipment.find((u) => u.tagCode === equipmentTag)
-      const edge = s.mepNetwork?.edges.find((e) => e.id === edgeId)
-      const floor = edge?.floor ?? room?.floorId
-      if (!floor) return s
-      let surveyFocus = null
-      if (edge) {
-        surveyFocus = fitSurvey(edge.points)
-      } else if (unit) {
-        const [x, y, z] = unit.position
-        surveyFocus = {
-          point: [x, FLOORS[floor].elevation + y + unit.moduleSizeM[1] / 2, z] as Point3,
-          height: Math.max(8, ...unit.moduleSizeM.map((m) => m * 2)),
-        }
-      }
-      return {
-        ...viewFields(s, 'floorOrbit'),
-        floor,
-        lastFloor: floor,
-        roomId: room?.id ?? null,
-        equipmentTag: equipmentTag ?? null,
-        surveyFocus,
-        plenum: true,
-        layers: edge ? { ...s.layers, [edge.system]: true } : s.layers,
-      }
-    }),
   selectAnchor: (anchorIndex) => set({ anchorIndex }),
   enterLobby: (id, floor) => set(s => {
     const spec = elevatorSpecs[id]
@@ -234,7 +150,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   }),
   enterRoom: () =>
     set((s) => {
-      const room = s.installedRooms.find((r) => r.id === s.roomId)
+      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
       const anchor = room?.cameraAnchors[s.anchorIndex]
       if (!room || !anchor) return s
       const y = FLOORS[room.floorId].elevation
@@ -248,7 +164,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
     }),
   refocus: () =>
     set((s) => {
-      const room = s.installedRooms.find((r) => r.id === s.roomId)
+      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
       if (!room) return { cameraRevision: s.cameraRevision + 1 }
       return {
         ...viewFields(s, s.cameraState === 'plan' ? 'plan' : 'floorOrbit'),
@@ -271,7 +187,6 @@ export const useShelterStore = create<ShelterView>((set) => ({
         lastFloor: p.floor ?? 'B2',
         floor: p.floor ?? 'ALL',
         cutHeight: 1.2,
-        layers: allLayers,
         sectionZ: -3.75,
         sectionPerspective: false,
         plenum: true,
@@ -290,11 +205,5 @@ export const useShelterStore = create<ShelterView>((set) => ({
     set((s) => ({ sectionPerspective: !s.sectionPerspective, cameraRevision: s.cameraRevision + 1 })),
   togglePlenum: () => set((s) => ({ plenum: !s.plenum })),
   toggleWalkCeiling: () => set((s) => ({ walkCeiling: !s.walkCeiling })),
-  toggleLayer: (id) =>
-    set((s) => ({
-      layers: { ...s.layers, [id]: !s.layers[id] },
-      hoveredValve: null,
-      waterTrace: id === 'water' ? null : s.waterTrace,
-    })),
   toggleHud: () => set((s) => ({ hud: !s.hud })),
 }))

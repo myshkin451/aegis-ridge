@@ -136,6 +136,7 @@ export function BuildingSection({ children }: { children: ReactNode }) {
   const h = useShelterStore((s) => s.cutHeight),
     floor = useShelterStore((s) => s.lastFloor)
   const orbitCut = useShelterStore((s) => s.orbitCut)
+  const walkingFloor = useShelterStore((s) => s.cameraState === 'walkthrough' && s.floor !== 'ALL')
   const kind =
     mode === 'xray'
       ? null
@@ -161,13 +162,16 @@ export function BuildingSection({ children }: { children: ReactNode }) {
             : limits[i]
     })
     cut.group.visible = !!kind
+    // A floor walk draws the intact shell. Both split mountains are hidden here,
+    // including during the fly-in, so these six neutral planes are never sampled.
+    gl.localClippingEnabled = !walkingFloor || kind !== null
     for (const child of cut.group.children) {
       child.visible = enabled(child.userData.face)
       const p = child.userData.plane as Plane | undefined
       if (p) child.position.copy(p.normal).multiplyScalar(-p.constant)
     }
     gl.shadowMap.needsUpdate = true
-  }, [cut, kind, box, z, floor, h, gl])
+  }, [cut, kind, box, z, floor, h, gl, walkingFloor])
   return (
     <CutContext.Provider value={cut}>
       {children}

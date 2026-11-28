@@ -1,14 +1,7 @@
-import { existsSync, readdirSync } from 'node:fs'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
-const crewDirectory = new URL('./public/assets/crew/', import.meta.url)
-const portraits = existsSync(crewDirectory)
-  ? readdirSync(crewDirectory).filter(file => /^crew_(0[1-9]|10)\.png$/.test(file))
-  : []
-
 export default defineConfig({
-  define: { __CREW_PORTRAITS__: JSON.stringify(portraits) },
   plugins: [react()],
   build: {
     rollupOptions: {

@@ -69,7 +69,6 @@ it('restores the study camera, floor and local section independently of previous
   store.getState().setView('plan')
   store.getState().setCutHeight(140)
   expect(store.getState().cutHeight).toBeLessThan(FLOORS.B3.pitch)
-  store.getState().toggleLayer('water')
   store.getState().photograph('shot-03')
   store.getState().photograph('shot-01')
   expect(store.getState()).toMatchObject({
@@ -79,7 +78,6 @@ it('restores the study camera, floor and local section independently of previous
     sectionZ: -3.75,
     cutHeight: 1.2,
     lastFloor: 'B2',
-    layers: { water: true },
   })
 })
 it('slides beside a wall, stops at the edge of a slab and respects a pressure door until it opens', () => {

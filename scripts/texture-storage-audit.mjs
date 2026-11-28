@@ -1,15 +1,16 @@
 // Pass this closure directly to Playwright page.addInitScript before navigation.
 export function installTextureAudit() {
-  const kinds = ['texture', 'renderbuffer']
+  const kinds = ['texture', 'renderbuffer', 'buffer']
   const stats = Object.fromEntries(kinds.map((k) => [k, { liveBytes: 0, peakBytes: 0, releasedBytes: 0 }]))
   const contexts = new WeakMap(), unknown = new Set()
-  let peakBytes = 0
+  let peakBytes = 0, liveBytes = 0
   function account(kind, oldBytes, newBytes) {
     const s = stats[kind]
     s.liveBytes += newBytes - oldBytes
     s.releasedBytes += oldBytes
     s.peakBytes = Math.max(s.peakBytes, s.liveBytes)
-    peakBytes = Math.max(peakBytes, stats.texture.liveBytes + stats.renderbuffer.liveBytes)
+    liveBytes += newBytes - oldBytes
+    peakBytes = Math.max(peakBytes, liveBytes)
   }
   function context(gl) {
     let s = contexts.get(gl)
@@ -25,14 +26,20 @@ export function installTextureAudit() {
       [12, 'RGB32F RGB32I RGB32UI'],
       [16, 'RGBA32F RGBA32I RGBA32UI'],
     ]) for (const name of names.split(' ')) if (typeof gl[name] === 'number') pixelBytes.set(gl[name], bytes)
-    s = { unit: 0, bindings: new Map(), rb: null, textures: new Map(), renderbuffers: new Map(), pixelBytes }
+    s = { unit: 0, bindings: new Map(), rb: null, textures: new Map(), renderbuffers: new Map(), pixelBytes,
+      buffers: new Map(), boundBuffers: new Map(), vao: null, elementBuffers: new Map() }
     contexts.set(gl, s)
     gl.canvas?.addEventListener('webglcontextlost', () => {
       for (const t of s.textures.values()) for (const level of t.levels.values()) account('texture', level.bytes, 0)
       for (const bytes of s.renderbuffers.values()) account('renderbuffer', bytes, 0)
+      for (const bytes of s.buffers.values()) account('buffer', bytes, 0)
       s.textures.clear()
       s.renderbuffers.clear()
       s.bindings.clear()
+      s.buffers.clear()
+      s.boundBuffers.clear()
+      s.elementBuffers.clear()
+      s.vao = null
       s.unit = 0
       s.rb = null
     })
@@ -177,10 +184,55 @@ export function installTextureAudit() {
     s.renderbuffers.delete(rb)
     if (s.rb === rb) s.rb = null
   })
+  // ELEMENT_ARRAY_BUFFER belongs to the current VAO (including the default VAO).
+  // Other bufferData targets use the context's generic binding. Indexed bind calls
+  // also update that generic binding, even when only a subrange is indexed.
+  after('bindVertexArray', (gl, vao) => { context(gl).vao = vao })
+  after('deleteVertexArray', (gl, vao) => {
+    if (!vao) return
+    const s = context(gl)
+    s.elementBuffers.delete(vao)
+    if (s.vao === vao) s.vao = null
+  })
+  after('bindBuffer', (gl, target, buffer) => {
+    const s = context(gl)
+    if (target === gl.ELEMENT_ARRAY_BUFFER) s.elementBuffers.set(s.vao, buffer)
+    else s.boundBuffers.set(target, buffer)
+  })
+  const bindIndexed = (gl, target, _index, buffer) => { context(gl).boundBuffers.set(target, buffer) }
+  after('bindBufferBase', bindIndexed)
+  after('bindBufferRange', bindIndexed)
+  after('bufferData', (gl, target, source, _usage, offset = 0, length = 0) => {
+    const s = context(gl)
+    const buffer = target === gl.ELEMENT_ARRAY_BUFFER ? s.elementBuffers.get(s.vao) : s.boundBuffers.get(target)
+    if (!buffer || source == null) return
+    let bytes
+    if (typeof source === 'number') bytes = source
+    else {
+      // For a typed view, offset and length are in elements, relative to that view.
+      // DataView uses bytes. A zero or omitted length uploads the remainder.
+      const stride = source.BYTES_PER_ELEMENT ?? 1
+      const available = source.byteLength - offset * stride
+      bytes = length ? length * stride : available
+      if (offset < 0 || bytes > available) return
+    }
+    if (!Number.isSafeInteger(bytes) || bytes < 0) return
+    account('buffer', s.buffers.get(buffer) ?? 0, bytes)
+    s.buffers.set(buffer, bytes)
+  })
+  // bufferSubData and copyBufferSubData modify contents without replacing storage.
+  after('deleteBuffer', (gl, buffer) => {
+    if (!buffer) return
+    const s = context(gl)
+    account('buffer', s.buffers.get(buffer) ?? 0, 0)
+    s.buffers.delete(buffer)
+    for (const [target, bound] of s.boundBuffers) if (bound === buffer) s.boundBuffers.delete(target)
+    for (const [vao, bound] of s.elementBuffers) if (bound === buffer) s.elementBuffers.delete(vao)
+  })
   window.arsTextureAudit = () => ({
     ...Object.fromEntries(kinds.map((k) => [k, { ...stats[k] }])),
     peakBytes,
-    liveBytes: stats.texture.liveBytes + stats.renderbuffer.liveBytes,
+    liveBytes,
     unknownFormats: [...unknown],
   })
 }

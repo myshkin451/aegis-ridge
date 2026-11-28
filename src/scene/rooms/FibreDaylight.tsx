@@ -66,6 +66,8 @@ export function FibreDaylight() {
     return aim
   }, [])
   const sunHeight = Math.max(0, sunAt(time).y)
+  // A warm greenhouse downlight supplements the optical feed between sunset and quiet hours.
+  const growLight = walking && !closed && time >= '17:30' && time < '23:00'
   beam.material.uniforms.sunlight.value = closed ? 0 : sunHeight
   return (
     <>
@@ -79,10 +81,10 @@ export function FibreDaylight() {
       <spotLight
         position={[x, y + 0.04, z]}
         target={target}
-        color={sunHeight < 0.3 ? '#ffd9a4' : '#fff3d6'}
-        intensity={closed ? 0 : 76 * sunHeight}
+        color={growLight ? '#f1d597' : sunHeight < 0.3 ? '#ffd9a4' : '#fff3d6'}
+        intensity={closed ? 0 : 76 * sunHeight + (growLight ? 23 : 0)}
         distance={3.5}
-        angle={0.26}
+        angle={growLight ? 0.62 : 0.26}
         penumbra={0.43}
         decay={2}
       />

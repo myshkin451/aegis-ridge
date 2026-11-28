@@ -1,3 +1,4 @@
+import { roomsOn } from '../data/defaultBlueprint'
 import { useLayoutEffect, useMemo } from 'react'
 import { BufferGeometry, Float32BufferAttribute } from 'three'
 import { FLOORS, FLOOR_ORDER, GRID, UNDERGROUND } from '../data/floors'
@@ -44,11 +45,10 @@ const compactRoom: Record<string, string> = {
   b4_drainage: '集水外排',
   b4_geothermal: '地热分配',
   b4_switchgear: '双母线配电',
-  b4_reactor: '主能源机房',
+  b4_reactor: '柴油机房与油库',
   b4_cbrn_hvac: '三防新风',
 }
 function Marks({ floor, plan }: { floor: keyof typeof FLOORS; plan: boolean }) {
-  const rooms = useShelterStore(s => s.installedRooms)
   const h = useShelterStore((s) => s.cutHeight),
     z = useShelterStore((s) => s.sectionZ)
   const y = FLOORS[floor].elevation + h + 0.04
@@ -75,12 +75,12 @@ function Marks({ floor, plan }: { floor: keyof typeof FLOORS; plan: boolean }) {
     <>
       <Rules points={pts} color="#484e4c" />
       {plan
-        ? rooms.filter(r => r.floorId === floor).map((r, i) => {
+        ? roomsOn(floor).map((r, i) => {
             const p = footprint(r.bounds)
             return (
               <Inscription
                 key={r.id}
-                text={floor + '-' + String(i + 1).padStart(2, '0') + '　' + (r.templateId === r.id ? compactRoom[r.id] : r.name)}
+                text={floor + '-' + String(i + 1).padStart(2, '0') + '　' + compactRoom[r.id]}
                 width={Math.min(p.w - 0.75, 7.2)}
                 height={0.87}
                 position={[p.x, y, p.z]}

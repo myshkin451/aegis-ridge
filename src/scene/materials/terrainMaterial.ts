@@ -1,17 +1,18 @@
-import { MeshStandardMaterial, NoBlending, Vector3, Vector4, type DataArrayTexture } from 'three'
+import { MeshStandardMaterial, NoBlending, Vector2, Vector3, type DataArrayTexture } from 'three'
 import { terrainScanMetres } from '../assets/terrainScans'
 import { shadowUniforms } from '../atmosphere/shadowUniforms'
 import type { makeSurveyTextures } from '../terrain/surveyTextures'
 import { weatherUniform } from './pbrLibrary'
 
 const sunDirection = { value: new Vector3(1, 0, 0) }
-const solarSector = { value: new Vector4(0, 1, 0, 0) }
+const solarSector = { value: new Vector2(0, 0) }
 
-export function setTerrainSun(direction: Vector3) {
+export function setTerrainSun(direction: Vector3, survey: ReturnType<typeof makeSurveyTextures>) {
   sunDirection.value.copy(direction)
   const sector = ((Math.atan2(direction.z, direction.x) * 8) / Math.PI + 16) % 16
   const first = Math.floor(sector)
-  solarSector.value.set(first, (first + 1) % 16, sector - first, Math.asin(direction.y))
+  survey.setBearing(first)
+  solarSector.value.set(sector - first, Math.asin(direction.y))
 }
 
 const varyings = `
@@ -25,7 +26,7 @@ uniform highp sampler2DArray terrainHorizons;
 uniform sampler2D macroNormal;
 uniform float scanMetres[5], snowCover;
 uniform vec3 surveySun;
-uniform vec4 solarSector;
+uniform vec2 solarSector;
 
 vec3 landHash(vec2 p) {
   vec3 q = fract(p.xyx * vec3(.1031, .1030, .0973));
@@ -107,27 +108,20 @@ FinishSample projectFinish(int index, vec3 p, vec3 dx, vec3 dy, vec3 n, float ph
 vec2 surveyUv(vec2 p, float span, float intervals) {
   return ((p/span+.5)*intervals+.5)/(intervals+1.);
 }
-float horizonAngle(vec2 p, float span, float layer) {
-  vec2 uv = surveyUv(p, span, 200.);
-  float a = texture(terrainHorizons, vec3(uv, layer+solarSector.x)).r;
-  float b = texture(terrainHorizons, vec3(uv, layer+solarSector.y)).r;
-  return mix(a, b, solarSector.z) * 1.5707963;
+vec2 horizonSky(vec2 p, float span, float layer) {
+  vec3 field = texture(terrainHorizons, vec3(surveyUv(p,span,200.),layer)).rgb;
+  return vec2(mix(field.r,field.g,solarSector.x) * 1.5707963,field.b);
 }
 vec2 skyVisibility(vec2 p) {
   float radius = max(abs(p.x), abs(p.y));
   float innerWeight = 1.-smoothstep(1140.,1200.,radius);
-  float angle = 0., sky = 0.;
-  if (innerWeight > 0.) {
-    angle += innerWeight*horizonAngle(p, 2400., 0.);
-    sky += innerWeight*texture(terrainHorizons,vec3(surveyUv(p,2400.,200.),32.)).r;
-  }
-  if (innerWeight < 1.) {
-    angle += (1.-innerWeight)*horizonAngle(p, 10000., 16.);
-    sky += (1.-innerWeight)*texture(terrainHorizons,vec3(surveyUv(p,10000.,200.),33.)).r;
-  }
+  vec2 field=vec2(0.);
+  if (innerWeight > 0.) field += innerWeight*horizonSky(p,2400.,0.);
+  if (innerWeight < 1.) field += (1.-innerWeight)*horizonSky(p,10000.,1.);
+  float angle=field.x, sky=field.y;
   // Filter the finite solar disc, the byte quantisation and subpixel shadow edges.
   float penumbra = .008 + min(.026, .5*fwidth(angle));
-  return vec2(smoothstep(-penumbra, penumbra, solarSector.w-angle), sky);
+  return vec2(smoothstep(-penumbra, penumbra, solarSector.y-angle), sky);
 }
 `
 
@@ -137,9 +131,11 @@ vec3 slopeNormal = normalize(inverseTransformDirection(normalize(vNormal), viewM
 vec3 dpdx = dFdx(p), dpdy = dFdy(p);
 float range = length(vViewPosition);
 float macroFraction = smoothstep(300., 400., range);
-vec2 macroXZ = texture(macroNormal, surveyUv(p.xz, 10000., 1000.)).rg*2.-1.;
-vec3 mappedNormal = vec3(macroXZ.x, sqrt(max(.001, 1.-dot(macroXZ,macroXZ))), macroXZ.y);
-slopeNormal = normalize(mix(slopeNormal, mappedNormal, macroFraction));
+if (macroFraction > 0.) {
+  vec2 macroXZ = textureGrad(macroNormal, surveyUv(p.xz, 10000., 1000.), dpdx.xz/10010., dpdy.xz/10010.).rg*2.-1.;
+  vec3 mappedNormal = vec3(macroXZ.x, sqrt(max(.001, 1.-dot(macroXZ,macroXZ))), macroXZ.y);
+  slopeNormal = normalize(mix(slopeNormal, mappedNormal, macroFraction));
+}
 
 float slope = vLandSurvey.r*90., curvature = vLandSurvey.g*2.-1.;
 float flow = vLandSurvey.b, north = vLandSurvey.a;

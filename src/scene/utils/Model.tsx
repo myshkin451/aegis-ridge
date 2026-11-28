@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Group, Mesh, InstancedMesh, Matrix4, MeshStandardMaterial } from 'three'
+import { Group, Mesh, MeshStandardMaterial } from 'three'
 import { attachCut, useBuildingCut } from '../BuildingSection'
-import type { WalkSurface } from '../mep/lens'
 import type { CutMaterial } from '../materials/sectionShader'
 import type { BuiltModel, ModelBuilder } from './modelBuilder'
 
@@ -48,16 +47,12 @@ export function Model({
   cutMaterial = 'structure',
   interior = false,
   opaqueOrder = 0,
-  walkSurface,
-  hiddenEquipment,
 }: {
   build: () => ModelBuilder
   opacity?: number
   delayMs?: number
   interior?: boolean
   opaqueOrder?: number
-  hiddenEquipment?: ReadonlySet<string>
-  walkSurface?: WalkSurface
   cutMaterial?: CutMaterial
 }) {
   const cut = useBuildingCut()
@@ -71,8 +66,6 @@ export function Model({
   useLayoutEffect(() => {
     const built = build().build()
     const parent = mount.current!
-    if (walkSurface)
-      for (const { material } of built.materials) material.userData.walkSurface = walkSurface
     if (interior) {
       // Match the three permanent sun cascades for fit-outs installed after the initial scene traversal.
       for (const { material } of built.materials) if (material instanceof MeshStandardMaterial) {
@@ -96,34 +89,10 @@ export function Model({
       model.current = null
       gl.shadowMap.needsUpdate = true
     }
-  }, [build, invalidate, gl, interior, walkSurface])
+  }, [build, invalidate, gl, interior])
   useLayoutEffect(() => {
     if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
   }, [cut, cutMaterial, build])
-  useLayoutEffect(() => {
-    if (!hiddenEquipment?.size || !model.current) return
-    const hidden = new Matrix4().makeScale(0, 0, 0)
-    const saved = new Map<InstancedMesh, [number, Matrix4][]>()
-    for (const mesh of model.current.object.children) {
-      if (!(mesh instanceof InstancedMesh) || !mesh.userData.batchTags?.some((tag: string) => hiddenEquipment.has(tag))) continue
-      const entries: [number, Matrix4][] = []
-      mesh.userData.equipmentTags.forEach((tag: string, index: number) => {
-        if (!hiddenEquipment.has(tag)) return
-        const original = new Matrix4()
-        mesh.getMatrixAt(index, original)
-        entries.push([index, original])
-        mesh.setMatrixAt(index, hidden)
-      })
-      mesh.instanceMatrix.needsUpdate = true
-      saved.set(mesh, entries)
-    }
-    return () => {
-      for (const [mesh, entries] of saved) {
-        for (const [index, matrix] of entries) mesh.setMatrixAt(index, matrix)
-        mesh.instanceMatrix.needsUpdate = true
-      }
-    }
-  }, [hiddenEquipment, build])
   useLayoutEffect(() => {
     if (model.current) orderOpaque(model.current, opaqueOrder)
   }, [opaqueOrder, build])

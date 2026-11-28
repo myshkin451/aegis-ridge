@@ -30,7 +30,7 @@ describe('outdoor survey, planted footprints and rendered LOD batches', () => {
   let stand: ReturnType<typeof buildAlpineVegetation>
   let template: Awaited<ReturnType<GLTFLoader['parseAsync']>>
   const map = new Texture()
-  const batch = (name: string) => stand.group.getObjectByName(name) as InstancedMesh
+  const plots = (name: string) => stand.group.children.filter((mesh) => mesh.name === name) as InstancedMesh[]
 
   beforeAll(async () => {
     const bytes = readFileSync(new URL('../public/assets/vegetation/boulder-lods.glb', import.meta.url))
@@ -156,17 +156,17 @@ describe('outdoor survey, planted footprints and rendered LOD batches', () => {
       const nearbyCable = suspended.filter(([x, , z]) => Math.abs(x - p.x) < 12 && Math.abs(z - p.z) < 12)
       if (road > 12 && facilities > 12 && !nearbyCable.length) continue
       stand.update(new Vector3(p.x, p.y + 3, p.z), 0)
-      const mesh = batch('fir-crowns'),
-        vertices = mesh.geometry.getAttribute('position')
-      let located = false
-      for (let i = 0; i < mesh.count; i++) {
-        mesh.getMatrixAt(i, matrix)
-        if (Math.abs(matrix.elements[12] - p.x) < 0.001 && Math.abs(matrix.elements[14] - p.z) < 0.001) {
-          located = true
-          break
+      const crowns = plots('fir-crowns')
+      const located = crowns.some((mesh) => {
+        for (let i = 0; i < mesh.count; i++) {
+          mesh.getMatrixAt(i, matrix)
+          if (Math.abs(matrix.elements[12] - p.x) < 0.001 && Math.abs(matrix.elements[14] - p.z) < 0.001)
+            return true
         }
-      }
+        return false
+      })
       expect(located).toBe(true)
+      const vertices = crowns[0].geometry.getAttribute('position')
       for (let j = 0; j < vertices.count; j++) {
         point.fromBufferAttribute(vertices, j).applyMatrix4(matrix)
         if (road <= 12) minRoadGap = Math.min(minRoadGap, roadClearance(point.x, point.z))
@@ -193,21 +193,23 @@ describe('outdoor survey, planted footprints and rendered LOD batches', () => {
     }
     stand.update(new Vector3(54, 26, 64), 0)
     for (const name of ['meadow-grass', 'meadow-shrub']) {
-      const mesh = batch(name)
-      expect(mesh.count).toBeGreaterThan(20)
-      expect(mesh.castShadow).toBe(false)
-      // The opening precompiler force-enables shadows for tagged furniture finishes.
-      expect(mesh.userData.finish).toBeUndefined()
+      const meshes = plots(name)
+      expect(meshes.reduce((n, mesh) => n + mesh.count, 0)).toBeGreaterThan(20)
+      for (const mesh of meshes) {
+        expect(mesh.castShadow).toBe(false)
+        // The opening precompiler force-enables shadows for tagged furniture finishes.
+        expect(mesh.userData.finish).toBeUndefined()
+      }
     }
     for (const name of ['fir-trunks', 'fir-crowns', 'fir-octa', 'rock-0', 'rock-1', 'rock-2']) {
-      expect(batch(name).castShadow).toBe(true)
+      for (const mesh of plots(name)) expect(mesh.castShadow).toBe(true)
     }
   })
 
   it('embeds every rock in the rendered triangles, clear of infrastructure, across three declining triangle budgets', () => {
-    const lods = [0, 1, 2].map((n) => batch('rock-' + n))
-    expect(lods[0].geometry.index!.count).toBeGreaterThan(lods[1].geometry.index!.count)
-    expect(lods[1].geometry.index!.count).toBeGreaterThan(lods[2].geometry.index!.count)
+    const lods = [0, 1, 2].map((n) => plots('rock-' + n))
+    expect(lods[0][0].geometry.index!.count).toBeGreaterThan(lods[1][0].geometry.index!.count)
+    expect(lods[1][0].geometry.index!.count).toBeGreaterThan(lods[2][0].geometry.index!.count)
     const visited = new Set<string>(),
       below = new Vector3(),
       point = new Vector3(),
@@ -215,7 +217,7 @@ describe('outdoor survey, planted footprints and rendered LOD batches', () => {
     for (const x of [-500, 0, 500])
       for (const z of [-500, 0, 500]) {
         stand.update(new Vector3(x, terrainY(x, z) + 3, z), 11)
-        for (const mesh of lods)
+        for (const mesh of lods.flat())
           for (let i = 0; i < mesh.count; i++) {
             mesh.getMatrixAt(i, matrix)
             const key = matrix.elements.slice(12, 15).join(',') + mesh.name

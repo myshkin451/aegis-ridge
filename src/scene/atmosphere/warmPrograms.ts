@@ -37,6 +37,8 @@ export function precompileSurvey(
   // Exercise their real draw paths on a tiny buffer, before opening the interactive viewport.
   setChairWalkthrough(true)
   const size = gl.getSize(new Vector2())
+  const restoreClipping = gl.localClippingEnabled
+  gl.localClippingEnabled = true
   const objects: [Object3D, boolean, boolean, boolean][] = []
   const lods: LOD[] = []
   const lights: (DirectionalLight | SpotLight)[] = []
@@ -107,10 +109,25 @@ export function precompileSurvey(
     finalPass.render(gl, pipe.inputBuffer, pipe.outputBuffer, 0, false)
     finalPass.renderToScreen = true
   }
+  // Floor walks have no active cuts. Run those unclipped colour / spot depth
+  // programs before interaction, in both the opaque and fading material states.
+  const warmWalk = (roomShadows: boolean) => {
+    gl.localClippingEnabled = false
+    try {
+      if (roomShadows) {
+        for (const light of lights) light.shadow.needsUpdate = light instanceof SpotLight
+        gl.shadowMap.needsUpdate = true
+      }
+      pipe.render(0)
+    } finally {
+      gl.localClippingEnabled = true
+    }
+  }
   for (const caster of indoorCasters) caster.castShadow = false
   for (const light of lights) light.shadow.needsUpdate = light instanceof DirectionalLight
   gl.shadowMap.needsUpdate = true
   pipe.render(0)
+  warmWalk(false)
   warmLinearOutput()
   exposure.warm(gl, pipe.outputBuffer.texture)
   performance.mark('ars-open-opaque')
@@ -133,6 +150,7 @@ export function precompileSurvey(
   for (const light of lights) light.shadow.needsUpdate = light instanceof SpotLight
   gl.shadowMap.needsUpdate = true
   pipe.render(0)
+  warmWalk(true)
   warmLinearOutput()
   depthOfField.enabled = false
   gl.setRenderTarget(null)
@@ -166,6 +184,7 @@ export function precompileSurvey(
   }
   gl.setRenderTarget(null)
   pipe.setSize(size.x, size.y, false)
+  gl.localClippingEnabled = restoreClipping
   for (const light of lights) light.shadow.needsUpdate = light instanceof DirectionalLight
   setChairWalkthrough(useShelterStore.getState().cameraState === 'walkthrough')
 }

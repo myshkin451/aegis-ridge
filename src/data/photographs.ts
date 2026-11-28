@@ -1,3 +1,4 @@
+import { commonsCameras } from './roomLayouts/commons'
 import { getFloorElevation } from '../geometry/coords'
 import type { CameraStateId, FloorId, Point3 } from '../types/shelter'
 
@@ -29,6 +30,11 @@ function pilot(title: string, time: string, x: number, z: number, look: Point3):
     height: 1.65,
   }
 }
+function commons(index: number): Photograph {
+  const frame = commonsCameras[index]
+  return { ...pilot(frame.name, '19:30', frame.position[0], frame.position[2], frame.target), lens: index === 0 ? 79 : 43 }
+}
+
 export const photographs = {
   'shot-01': {
     title: '蓝调时刻剖面',
@@ -98,7 +104,9 @@ export const photographs = {
     height: 12.5,
   },
   'pilot-bedroom': pilot('单人卧室 1', '19:30', 0.46, 7.64, [-0.78, 1.32, 10.68]),
-  'pilot-commons': pilot('光纤下的共餐客厅', '10:30', -14.75, 2, [-9.7, 1.25, 8.6]),
+  'pilot-commons': commons(0),
+  'b2-living-dining': commons(0),
+  'b2-open-kitchen': commons(1),
   'pilot-bath': pilot('卫浴镜柜与瓷砖', '19:30', -3.04, 4.3, [-3.95, 1.3, 9.48]),
   'detail-sanitary': pilot('公卫洁具近看', '19:30', -4.00, 0.05, [-3.94, 0.80, 1.94]),
 } satisfies Record<string, Photograph>

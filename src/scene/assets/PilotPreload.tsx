@@ -1,5 +1,7 @@
 import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { useThree } from '@react-three/fiber'
+import { loadCommonsLibrary, type CommonsLibrary } from './commonsLibrary'
+import { CommonsLibraryContext } from './CommonsAssets'
 import { preloadFoliage } from '../terrain/foliageAssets'
 import { useShelterStore } from '../../store/useShelterStore'
 import {
@@ -11,12 +13,28 @@ import {
   simulateLateAssets,
 } from './pilotAssets'
 
-/** Mount the survey (including CSM material registration) only after the two asset paths settle. */
+/** Register scene materials for shadows and GPU prewarming after the offline assets have decoded. */
 export function PilotPreload({ children }: { children: ReactNode }) {
   const gl = useThree((s) => s.gl)
   const [ready, setReady] = useState(false)
   const [foliageReady, setFoliageReady] = useState(false)
+  const [commons, setCommons] = useState<CommonsLibrary | null>(null)
   const [failure, setFailure] = useState<Error | null>(null)
+  useLayoutEffect(() => {
+    let mounted = true
+    let resources: CommonsLibrary | undefined
+    void loadCommonsLibrary(gl).then((library) => {
+      if (!mounted) return library.dispose()
+      resources = library
+      setCommons(library)
+    }).catch((error) => {
+      if (mounted) setFailure(error instanceof Error ? error : new Error(String(error)))
+    })
+    return () => {
+      mounted = false
+      resources?.dispose()
+    }
+  }, [gl])
   useLayoutEffect(() => {
     let mounted = true
     let release: (() => void) | undefined
@@ -64,5 +82,6 @@ export function PilotPreload({ children }: { children: ReactNode }) {
     }
   }, [gl])
   if (failure) throw failure
-  return ready && foliageReady ? children : null
+  return ready && foliageReady && commons ?
+    <CommonsLibraryContext.Provider value={commons}>{children}</CommonsLibraryContext.Provider> : null
 }

@@ -1,7 +1,9 @@
-import { useShallow } from 'zustand/shallow'
-import { useMemo, useRef } from 'react'
+import { CommonsFurnishings } from './CommonsFurnishings'
+import { commonsSurfaces } from './commonsJoinery'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { Group } from 'three'
+import { Group, Vector3 } from 'three'
+import { commonsEquipmentVisibility, insideCommons } from './commonsVisibility'
 import { circadianAt, lightingCues } from '../../data/lighting'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { roomsOn } from '../../data/defaultBlueprint'
@@ -15,8 +17,7 @@ import { ModelBuilder } from '../utils/modelBuilder'
 import { floorLight } from '../materials/pbrLibrary'
 import { useShelterStore } from '../../store/useShelterStore'
 import { Inscription } from './Inscription'
-import { CommandScreens } from './CommandScreens'
-import { drawEquipment, roomModels } from './roomModels'
+import { roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
 import { addLivingCoves, residentialFinishes } from './residentialFinishes'
 import { archiveSpines } from './archiveBindings'
@@ -48,30 +49,34 @@ const commons = footprint(roomsOn('B2').find((r) => r.id === 'b2_commons')!.boun
 const mainCorridor = footprint(CORRIDOR)
 const library = footprint(roomsOn('B2').find((r) => r.id === 'b2_library')!.bounds)
 export function RoomInteriors({ id }: { id: FloorId }) {
-  const rooms = useOperationsStore(useShallow(s => s.rooms.filter(r => r.floorId === id)))
   const build = useMemo(() => () => roomModels(id), [id])
-  const changes = useMemo(() => {
-    const base = roomsOn(id), added: (typeof rooms)[number]['equipment'] = [], hidden = new Set<string>()
-    for (const room of rooms.filter(r => r.templateId !== r.id)) {
-      const original = base.find(r => r.id === room.id)!
-      for (const unit of original.equipment) if (!room.equipment.includes(unit)) hidden.add(unit.tagCode)
-      added.push(...room.equipment.filter(e => !original.equipment.includes(e)))
-    }
-    const install = () => {
-      const model = new ModelBuilder()
-      for (const unit of added) drawEquipment(model, id, unit)
-      return model
-    }
-    return { hidden, build: added.length ? install : null }
-  }, [id, rooms])
   const root = useRef<Group>(null)
+  const equipment = useRef<Group>(null)
+  const equipmentVisibility = useRef<ReturnType<typeof commonsEquipmentVisibility> | null>(null)
+  const lastEye = useMemo(() => new Vector3(Infinity, Infinity, Infinity), [])
+  useLayoutEffect(() => {
+    if (!equipment.current || (id !== 'B2' && id !== 'B3')) return
+    const visibility = commonsEquipmentVisibility(equipment.current, id)
+    equipmentVisibility.current = visibility
+    return () => { visibility.update(null); equipmentVisibility.current = null }
+  }, [id])
   const archive = useRef<Group>(null)
-  const hasArchive = rooms.some(r => r.id === 'b2_library' && r.templateId === r.id)
   const walkingFloor = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === id)
-  useFrame(({ camera }) => {
+  useFrame(({ camera, gl }) => {
     if (!root.current) return
     const state = useShelterStore.getState()
     const p = camera.position
+    if (equipmentVisibility.current) {
+      const crop = gl.domElement.dataset.rendered && state.cameraState === 'walkthrough' &&
+        state.lastFloor === 'B2' && insideCommons(p)
+      if (crop && !lastEye.equals(p)) {
+        equipmentVisibility.current.update(p)
+        lastEye.copy(p)
+      } else if (!crop && Number.isFinite(lastEye.x)) {
+        equipmentVisibility.current.update(null)
+        lastEye.set(Infinity, Infinity, Infinity)
+      }
+    }
     const aboveGround = id === 'L1' || id === 'L2'
     const nearBuilding = aboveGround && Math.hypot(p.x, p.z) < 40 && Math.abs(p.y - FLOORS[id].elevation) < 18
     const orbit = state.cameraState === 'floorOrbit' || state.cameraState === 'plan'
@@ -87,26 +92,27 @@ export function RoomInteriors({ id }: { id: FloorId }) {
       visible = state.lastFloor === id || throughAtrium
     if (archive.current)
       archive.current.visible =
-        hasArchive && walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
+        walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
     root.current.visible = visible && state.mode !== 'xray'
   })
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
-      <Model build={build} interior hiddenEquipment={changes.hidden} />
-      {changes.build && <Model build={changes.build} interior />}
-      {id === 'B2' && <CommandScreens />}
+      <group ref={equipment}>
+        <Model build={build} interior opaqueOrder={id === 'B2' && walkingFloor ? -5 : 0} />
+      </group>
+      {id === 'B2' && <><Model build={commonsSurfaces} interior opaqueOrder={walkingFloor ? -4 : 0} /><CommonsFurnishings /></>}
       {id === 'B2' && (
         <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
-          <Model walkSurface="wall" build={residentialFinishes} interior opaqueOrder={-4} />
-          {pilotVariant === 'r3' && <Model walkSurface="wall" build={roomArtwork} interior opaqueOrder={-3} />}
+          <Model build={residentialFinishes} interior opaqueOrder={-4} />
+          {pilotVariant === 'r3' && <Model build={roomArtwork} interior opaqueOrder={-3} />}
           <group ref={archive} visible={false}>
             <Model build={archiveSpines} interior />
           </group>
         </group>
       )}
       {(id === 'B1' || id === 'B3') && (
-        <group visible={walkingFloor && (id === 'B3' || rooms.some(r => r.id === 'b1_gym' && r.templateId === r.id))}>
-          <Model walkSurface="wall" build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
+        <group visible={walkingFloor}>
+          <Model build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
         </group>
       )}
       <FloorSigns id={id} />
@@ -119,7 +125,7 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
   const view = useShelterStore((s) => s.cameraState)
   return (
     <>
-      <Model walkSurface="ceiling" build={build} />
+      <Model build={build} />
       <group visible={view === 'walkthrough'}>
         <Inscription text={id + ' · 客梯'} position={[elevatorSpecs.passenger.x, 2.65, elevatorSpecs.passenger.front + 0.14]}
           width={1.14} height={0.18} />
@@ -168,11 +174,12 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
         const living = ['b2_quarters', 'b2_commons', 'b2_library', 'b2_bath_laundry'].includes(room.id)
         for (const p of clearCeilingPatches(room))
           m.box(
-            living ? '#eae5da' : '#c5c6bd',
+            room.id === 'b2_commons' ? '#535751' : living ? '#eae5da' : '#c5c6bd',
             [p.x, h + 0.025, p.z],
             [p.w - 0.02, 0.05, p.d - 0.02],
-            living ? 'plaster' : 'stone',
+            room.id === 'b2_commons' ? 'formed_concrete' : living ? 'plaster' : 'stone',
           )
+        if (room.id === 'b2_commons') continue
         if (living) {
           for (const bay of room.id === 'b2_quarters' ? bedrooms : [r]) addLivingCoves(m, bay, h)
           continue
@@ -209,7 +216,7 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
   const walkB2 = useShelterStore((s) => id === 'B2' && s.lastFloor === id && s.cameraState === 'walkthrough')
   return (
     <group name={id + ' 吊顶与灯槽'} visible={id !== 'B2' || showCeiling}>
-      <Model walkSurface="ceiling" build={build} opaqueOrder={walkB2 ? -3 : 0} />
+      <Model build={build} opaqueOrder={walkB2 ? -3 : 0} />
     </group>
   )
 }

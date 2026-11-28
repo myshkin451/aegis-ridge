@@ -347,9 +347,17 @@ export function PhysicalSky() {
     const emergency = Boolean(room && emergencyCircuit.value)
     const dim = room && floor === 'B2' && cycle.night && !emergency
     if (emergency && hemisphere.current) hemisphere.current.intensity = 0.075
+    if (room === 'b2_commons' && !emergency) {
+      roomWashStrength.value = .012
+      if (hemisphere.current) {
+        hemisphere.current.color.set('#d4dcde')
+        hemisphere.current.groundColor.set('#968978')
+        hemisphere.current.intensity = .16
+      }
+    }
     if (dim && hemisphere.current) hemisphere.current.intensity = room === 'b2_command' ? 0.018 : 0.035
     roomSpecular.value = room && !showReflection ? 0 : 1
-    scene.environmentIntensity = emergency ? 0.08 : dim ? 0.025 : room && floor === 'B2' ? 0.57 : walk ? 0.32 : 0.5
+    scene.environmentIntensity = emergency ? 0.08 : dim ? 0.025 : room === 'b2_commons' ? 0.22 : room && floor === 'B2' ? 0.57 : walk ? 0.32 : 0.5
     const mix = mixer.current.mix.toFixed(3).replace(/1\.000/, '1')
     if (gl.domElement.dataset.reflectionMix !== mix) gl.domElement.dataset.reflectionMix = mix
     if (gl.domElement.dataset.interiorEnvironment !== (room ?? 'sky'))

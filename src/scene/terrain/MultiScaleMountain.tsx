@@ -68,8 +68,7 @@ export function MultiScaleMountain({
       frontPlane,
       back: hillside(surface, backPlane),
       front,
-      // The intact northern survey edge shares the same one-plane program as the moving cut.
-      whole: hillside(surface, surface ? new Plane(new Vector3(0, 0, 1), atlas.tiles[0].span / 2) : undefined),
+      whole: hillside(surface),
       face: sectionMaterial('soil'),
     }
   }, [atlas, surface])
@@ -87,7 +86,7 @@ export function MultiScaleMountain({
   )
   const time = useShelterStore((s) => s.time)
   useLayoutEffect(() => {
-    if (surface) setTerrainSun(sunAt(time))
+    if (surface) setTerrainSun(sunAt(time), surface.survey)
   }, [time, surface])
   const cameraState = useShelterStore((s) => s.cameraState)
   const site = floor === 'ALL' && cameraState !== 'sectionBox',

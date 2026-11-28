@@ -15,7 +15,20 @@ export function roomArtwork() {
     box('#ffffff', 0.018, width, height, 0.004, finish)
   }
   framed('art_herbarium', [0.563, 1.76, 11.742], Math.PI, 0.46, 0.69)
-  framed('art_ridge', [-6.161, 1.98, 6.03], -Math.PI / 2, 2.13, 1.42)
+  function etching(finish: 'art_spurs' | 'art_fold', x: number, z: number, yaw: number) {
+    const width = .914, height = 1.20, rail = .019
+    const normal = Math.sin(yaw)
+    // These frames are on east/west walls. Butt joints leave clear reveals around the warm paper.
+    m.box('#fffdf5', [x + normal * .018, 1.78, z], [width, height, .012], finish, [0, yaw, 0])
+    for (const side of [-1, 1]) {
+      m.box('#443626', [x + normal * .016, 1.78 + side * (height + rail) / 2, z],
+        [width + rail * 2, rail, .044], 'oak_int', [0, yaw, 0])
+      m.box('#443626', [x + normal * .016, 1.78, z + side * (width + rail) / 2],
+        [rail, height, .044], 'oak_int', [0, yaw, 0])
+    }
+  }
+  etching('art_spurs', -15.692, 8.47, Math.PI / 2)
+  etching('art_fold', -6.209, 8.98, -Math.PI / 2)
   framed('art_water', [-3.38, 2.09, 11.742], Math.PI, 0.51, 0.765)
   return m
 }

@@ -68,8 +68,6 @@ function batch(
   mesh.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3).setUsage(
     DynamicDrawUsage,
   )
-  // Instance bounds change with camera LOD. Distance filtering bounds the active set in all passes.
-  mesh.frustumCulled = false
   mesh.castShadow = casts
   mesh.receiveShadow = true
   group.add(mesh)
@@ -82,6 +80,22 @@ interface Stamp {
   z: number
   matrix: Matrix4
   color: Color
+}
+// Split dense stands spatially. Each camera (including each sun cascade) can reject
+// whole plots while off-screen trees still cast their shadows into the view.
+function plots<T extends Stamp>(stamps: T[], capacity: number): T[][] {
+  if (stamps.length <= capacity) return stamps.length ? [stamps] : []
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity
+  for (const p of stamps) {
+    minX = Math.min(minX, p.x)
+    minZ = Math.min(minZ, p.z)
+    maxX = Math.max(maxX, p.x)
+    maxZ = Math.max(maxZ, p.z)
+  }
+  const axis = maxX - minX > maxZ - minZ ? 'x' : 'z'
+  stamps.sort((a, b) => a[axis] - b[axis])
+  const mid = Math.floor(stamps.length / 2)
+  return [...plots(stamps.slice(0, mid), capacity), ...plots(stamps.slice(mid), capacity)]
 }
 function emit(mesh: InstancedMesh, stamp: Stamp, matrix = stamp.matrix) {
   mesh.setMatrixAt(mesh.count, matrix)
@@ -179,47 +193,58 @@ export function buildAlpineVegetation(
   const trunkGeometry = new CylinderGeometry(0.12, 0.56, 1, 7)
   const billboard = new PlaneGeometry(1.1, 1.1),
     tuft = crossedCards()
-  const trunks = batch(group, 'fir-trunks', trunkGeometry, bark, trees.length, true)
-  const crowns = batch(group, 'fir-crowns', assets.crown, branch, trees.length, true)
+  const crownDepth = treeShadowMaterial('branch', assets.branch, time)
+  const silhouetteDepth = treeShadowMaterial('impostor', assets.impostor, time)
+  const treePlots = plots(trees, 120).map((stamps) => {
+    const trunks = batch(group, 'fir-trunks', trunkGeometry, bark, stamps.length, true)
+    const crowns = batch(group, 'fir-crowns', assets.crown, branch, stamps.length, true)
+    crowns.customDepthMaterial = crownDepth
+    return { stamps, trunks, crowns }
+  })
   const silhouettes = batch(group, 'fir-octa', billboard, far, trees.length, true)
-  crowns.customDepthMaterial = treeShadowMaterial('branch', assets.branch, time)
-  silhouettes.customDepthMaterial = treeShadowMaterial('impostor', assets.impostor, time)
-  const stones = assets.rockLods.map((geometry, i) =>
-    batch(group, 'rock-' + i, geometry, stone, rocks.length, true),
+  silhouettes.customDepthMaterial = silhouetteDepth
+  const stonePlots = plots(rocks, 96).map((stamps) => ({
+    stamps,
+    lods: assets.rockLods.map((geometry, i) => batch(group, 'rock-' + i, geometry, stone, stamps.length, true)),
+  }))
+  const meadowPlots = (['grass', 'shrub'] as const).flatMap((kind) =>
+    plots(tufts.filter((p) => p.kind === kind), 950).map((stamps) => ({
+      stamps,
+      mesh: batch(group, 'meadow-' + kind, tuft, kind === 'grass' ? grass : shrub, stamps.length, false),
+    })),
   )
-  const grasses = batch(
-    group,
-    'meadow-grass',
-    tuft,
-    grass,
-    tufts.filter((p) => p.kind === 'grass').length,
-    false,
-  )
-  const shrubs = batch(group, 'meadow-shrub', tuft, shrub, tufts.length - grasses.instanceMatrix.count, false)
-  const batches = [trunks, crowns, silhouettes, ...stones, grasses, shrubs]
+  const batches = group.children as InstancedMesh[]
 
   const last = new Vector3(Infinity, Infinity, Infinity)
   function update(eye: Vector3, seconds: number) {
     time.value = seconds
-    if (last.distanceToSquared(eye) < 576) return
+    if (last.distanceToSquared(eye) < 576) return false
     last.copy(eye)
     for (const mesh of batches) mesh.count = 0
     const distance2 = (p: Stamp) => (eye.x - p.x) ** 2 + (eye.y - p.y) ** 2 + (eye.z - p.z) ** 2
     const detail = Math.min(150, treeDistance * 0.48)
-    for (const p of trees) {
-      const d = distance2(p)
-      if (d < detail * detail) {
-        emit(crowns, p)
-        emit(trunks, p, p.trunk)
-      } else if (d < (650 + 2 * treeDistance) ** 2) emit(silhouettes, p, p.impostor)
+    for (const { stamps, trunks, crowns } of treePlots) {
+      for (const p of stamps) {
+        const d = distance2(p)
+        if (d < detail * detail) {
+          emit(crowns, p)
+          emit(trunks, p, p.trunk)
+        } else if (d < (650 + 2 * treeDistance) ** 2) emit(silhouettes, p, p.impostor)
+      }
     }
-    for (const p of rocks) {
-      const d = distance2(p)
-      if (d < 720 ** 2) emit(stones[d < 65 ** 2 ? 0 : d < 176 ** 2 ? 1 : 2], p)
-    }
-    for (const p of tufts) if (distance2(p) < 140 ** 2) emit(p.kind === 'grass' ? grasses : shrubs, p)
+    for (const { stamps, lods } of stonePlots)
+      for (const p of stamps) {
+        const d = distance2(p)
+        if (d < 720 ** 2) emit(lods[d < 65 ** 2 ? 0 : d < 176 ** 2 ? 1 : 2], p)
+      }
+    for (const { stamps, mesh } of meadowPlots)
+      for (const p of stamps) if (distance2(p) < 140 ** 2) emit(mesh, p)
     for (const mesh of batches) {
-      if (!mesh.count) continue
+      mesh.visible = mesh.count > 0
+      if (!mesh.visible) continue
+      mesh.computeBoundingSphere()
+      // Wind and snow can displace card tips beyond their undeformed local bounds.
+      if (mesh.material !== stone && mesh.material !== bark) mesh.boundingSphere!.radius += 1
       mesh.instanceMatrix.clearUpdateRanges()
       mesh.instanceMatrix.addUpdateRange(0, mesh.count * 16)
       mesh.instanceMatrix.needsUpdate = true
@@ -227,6 +252,7 @@ export function buildAlpineVegetation(
       mesh.instanceColor!.addUpdateRange(0, mesh.count * 3)
       mesh.instanceColor!.needsUpdate = true
     }
+    return true
   }
   // Seed all three LODs around the station for prewarming, including indoor deep links.
   update(new Vector3(), 0)
@@ -242,8 +268,8 @@ export function buildAlpineVegetation(
         far,
         grass,
         shrub,
-        crowns.customDepthMaterial!,
-        silhouettes.customDepthMaterial!,
+        crownDepth,
+        silhouetteDepth,
         trunkGeometry,
         billboard,
         tuft,

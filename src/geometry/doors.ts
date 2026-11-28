@@ -63,7 +63,7 @@ export const doors: Doorway[] = [
   front('B2', 'b2_medical', -12, -2, 'airlock'),
   door('B2', 'b2_library', 'z', 4, -7, 1.55, 'acoustic', [branch, 'b2_library']),
   front('B2', 'b2_command', 10, -2, 'fire'),
-  front('B2', 'b2_commons', -11, 0, 'fire'),
+  front('B2', 'b2_commons', -12.16, 0, 'fire'),
   door('B2', 'b2_bath_laundry', 'x', -4, 0, 1.15, 'sliding', [main, 'b2-public-wc']),
   door('B2', 'b2_quarters', 'x', -1, 0, 1.2, 'acoustic', [main, 'b2-west-vestibule']),
   door('B2', 'hall-west', 'x', -1, quietHall.z0, 1.2, 'acoustic', ['b2-west-vestibule', 'b2-quiet-hall']),

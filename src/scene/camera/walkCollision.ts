@@ -34,15 +34,8 @@ function passageRadius(x: number, y: number, z: number, doors: Doorway[], openin
 
 export class WalkCollision {
   readonly tree: MeshBVH
-  private fittings?: MeshBVH
-  setFittings(geometry: BufferGeometry) {
-    this.fittings?.geometry.dispose()
-    this.fittings = new MeshBVH(geometry, { maxLeafTris: 12 })
-  }
   raycastFirst(ray: Ray, side: typeof DoubleSide, near: number, far: number) {
-    const shell = this.tree.raycastFirst(ray, side, near, far)
-    const equipment = this.fittings?.raycastFirst(ray, side, near, shell?.distance ?? far)
-    return equipment ?? shell
+    return this.tree.raycastFirst(ray, side, near, far)
   }
   private ray = new Ray()
   private bounds = new Box3()
@@ -87,7 +80,7 @@ export class WalkCollision {
         Math.max(tri.a.y, tri.b.y, tri.c.y) > floor + WALK.step &&
         tri.closestPointToSegment(segment) < WALK.radius + clearance - 0.001,
     }
-    return !(this.tree.shapecast(contact) || this.fittings?.shapecast(contact))
+    return !this.tree.shapecast(contact)
   }
   landing(feet: Vector3) {
     if (this.stands(feet.x, feet.y, feet.z)) return true
@@ -151,7 +144,6 @@ export class WalkCollision {
         },
       }
       this.tree.shapecast(slide)
-      this.fittings?.shapecast(slide)
       if (this.elevators?.hitsSide(p.x, p.y, p.z, WALK.radius, WALK.height)) {
         // Slide along the side of the car, matching the capsule response along a static shaft wall.
         if (!this.elevators.hitsSide(feet.x, p.y, p.z, WALK.radius, WALK.height)) p.x = feet.x
@@ -181,6 +173,5 @@ export class WalkCollision {
   }
   dispose() {
     this.geometry.dispose()
-    this.fittings?.geometry.dispose()
   }
 }

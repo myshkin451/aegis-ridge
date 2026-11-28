@@ -1,5 +1,4 @@
 import type { FloorId, EquipmentUnit, FurniturePlacement } from '../../types/shelter'
-import { diningChairs } from '../../data/roomLayouts/residential'
 import { roomsOn } from '../../data/defaultBlueprint'
 import { legacyVisualKind } from '../../data/equipmentVisuals'
 import { ModelBuilder } from '../utils/modelBuilder'
@@ -7,12 +6,10 @@ import { upperVisuals } from './upper'
 import { bedroomNumbers, residentialVisuals } from './residential'
 import { plantVisuals } from './plant'
 
-import { moduleVisuals } from './moduleVisuals'
-
 type EquipmentDraw = (builder: ModelBuilder, equipment: EquipmentUnit) => void
 type Visual = { type: 'procedural'; draw: EquipmentDraw } | { type: 'glb'; shape: 'dining-chair' }
 const registry: Record<string, Visual> = Object.fromEntries(
-  Object.entries({ ...upperVisuals, ...residentialVisuals, ...plantVisuals, ...moduleVisuals }).map(([kind, draw]) => [
+  Object.entries({ ...upperVisuals, ...residentialVisuals, ...plantVisuals }).map(([kind, draw]) => [
     kind,
     { type: 'procedural', draw },
   ]),
@@ -47,7 +44,7 @@ export function drawEquipment(builder: ModelBuilder, _floor: FloorId, unit: Equi
         moduleSizeM: unit.moduleSizeM,
         rotationY: 0,
       })
-    const furniture = unit.furniture ?? (kind === 'dining-table' ? diningChairs : [])
+    const furniture = unit.furniture ?? []
     for (const fitting of furniture) drawFurniture(builder, fitting)
   })
 }

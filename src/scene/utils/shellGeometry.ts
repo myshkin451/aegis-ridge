@@ -108,10 +108,9 @@ export function elevatorThresholds(m: ModelBuilder, floor: FloorId) {
   }
 }
 
-const bedroomSleeves = roomsOn('B2')
-  .flatMap((room) => room.servicePorts ?? [])
-  .filter((port) => port.system === 'acoustic-sleeve')
-  .sort((a, b) => a.position[0] - b.position[0])
+const bedroomSleeves = bedrooms.map(({ x0, z0, z1 }) => ({
+  position: [x0 + 0.38, 3.45, z0 === 0 ? z1 : z0] as Point3,
+})).sort((a, b) => a.position[0] - b.position[0])
 
 export function partition(
   m: ModelBuilder,

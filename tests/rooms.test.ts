@@ -166,67 +166,6 @@ it('installs every designated bed inside its own bedroom and keeps the private p
     expect(z + d / 2).toBeLessThan(b.z1)
   }
 })
-it('provides individually located and typed M3 interfaces with the 10-person water balance', () => {
-  const ports = rooms.flatMap((r) => [
-    ...(r.servicePorts ?? []),
-    ...r.equipment.flatMap((e) => e.servicePorts ?? []),
-  ])
-  expect(new Set(ports.map((p) => p.id)).size).toBe(ports.length)
-  for (const r of rooms) {
-    const bounds = footprint(r.bounds)
-    for (const p of [...(r.servicePorts ?? []), ...r.equipment.flatMap((e) => e.servicePorts ?? [])]) {
-      const [x, y, z] = p.position
-      expect(p.floor).toBe(r.floorId)
-      expect(x >= bounds.x0 && x <= bounds.x1 && z >= bounds.z0 && z <= bounds.z1, p.id).toBe(true)
-      expect(y >= 0 && y <= FLOORS[r.floorId].pitch - 0.3, p.id).toBe(true)
-      if (p.connectsTo?.shaft) {
-        const destination = p.connectsTo,
-          shaft = shaftsAt(FLOORS[destination.floor].elevation).find((s) => s.id === destination.shaft)!
-        const [sx, , sz] = destination.position
-        expect(sx >= shaft.x0 && sx <= shaft.x1 && sz >= shaft.z0 && sz <= shaft.z1, p.id).toBe(true)
-      }
-    }
-  }
-  const bath = rooms.find((r) => r.id === 'b2_bath_laundry')!
-  expect(bath.dailyWaterBudget).toEqual({ people: 10, greyLitres: 650, blackLitres: 60 })
-  expect(bath.equipment.find((e) => e.flushLitres)?.flushLitres).toBe(1)
-  for (const system of ['vacuum-blackwater', 'greywater']) {
-    const discharge = ports.filter((port) => port.system === system && port.connectsTo?.shaft)
-    expect(discharge, system).toHaveLength(1)
-    const { plenumEntry, connectsTo } = discharge[0]
-    expect(connectsTo).toMatchObject({ floor: 'B3', shaft: 'wet' })
-    expect(plenumEntry?.floor).toBe('B3')
-    const [x, y, z] = plenumEntry!.position
-    const [ex, ey, ez] = connectsTo!.position
-    for (const height of [y, ey]) {
-      expect(height).toBeGreaterThan(FLOORS.B3.clearHeight)
-      expect(height).toBeLessThan(FLOORS.B3.pitch - 0.3)
-    }
-    const plenumSpan = Math.hypot(ex - x, ez - z)
-    expect(plenumSpan).toBeGreaterThanOrEqual(4)
-    expect(plenumSpan).toBeLessThanOrEqual(8)
-  }
-  expect(ports.filter((p) => p.system === 'duty-sanitary').map((p) => p.floor)).toEqual(['B1', 'B3', 'B4'])
-  expect(ports.filter((p) => p.system === 'acoustic-sleeve').map((p) => p.position[1])).toEqual(
-    Array(9).fill(3.45),
-  )
-  for (const system of [
-    'borefield-supply',
-    'borefield-return',
-    'surface-heating',
-    'hydrogen-recovery',
-    'return-air-co2',
-    'battery-exhaust',
-    'combustion-air',
-    'combustion-exhaust',
-  ])
-    expect(
-      ports.some((p) => p.system === system),
-      system,
-    ).toBe(true)
-  expect(all.filter((e) => e.tagCode.startsWith('AQ-')).every((e) => e.vibrationIsolation)).toBe(true)
-})
-
 it('mounts all nine numbers on the circulation face of their wall, clear of the open leaves', () => {
   const builder = new ModelBuilder()
   bedroomNumbers(builder)

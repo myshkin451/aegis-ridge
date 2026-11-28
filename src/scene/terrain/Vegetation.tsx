@@ -73,8 +73,8 @@ function AlpineStand({ atlas, visible }: Props) {
   )
   const still = useMemo(reduceMotion, [])
   useLayoutEffect(() => () => stand.dispose(), [stand])
-  useFrame(({ camera, clock }) => {
-    if (visible) stand.update(camera.position, still ? 0 : clock.elapsedTime)
+  useFrame(({ camera, clock, gl }) => {
+    if (visible && stand.update(camera.position, still ? 0 : clock.elapsedTime)) gl.shadowMap.needsUpdate = true
   }, -0.3)
   return <primitive object={stand.group} visible={visible} dispose={null} />
 }

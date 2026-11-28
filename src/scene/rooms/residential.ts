@@ -1,3 +1,4 @@
+import { commonsCoffeeDetails, commonsDining, commonsGarden, commonsReturn, commonsHearth, commonsIsland, commonsKitchen, commonsSofaDetails } from './commonsJoinery'
 import { commandPanels } from './commandConsoleGeometry'
 import { archiveVolumes } from './archiveBindings'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
@@ -44,13 +45,6 @@ function chair(m: ModelBuilder, x: number, z: number, dx = 0, dz = 1) {
   for (const a of [-0.16, 0.16])
     for (const b of [-0.15, 0.15]) m.box(dark, [x + a, 0.214, z + b], [0.037, 0.428, 0.036], 'steel')
 }
-function mug(m: ModelBuilder, x: number, y: number, z: number, color: string) {
-  round(m, [x, y + 0.065, z], [0.105, 0.13, 0.105], color)
-  round(m, [x, y + 0.133, z], [0.08, 0.006, 0.08], '#5c463b')
-  for (const dy of [0.04, 0.1]) m.box(color, [x + 0.06, y + dy, z], [0.046, 0.012, 0.015], 'steel')
-  m.box(color, [x + 0.083, y + 0.07, z], [0.012, 0.067, 0.015], 'steel')
-}
-
 function isolation(m: ModelBuilder) {
   for (const x of [-1.57, 1.57]) {
     m.box('#c9d2ce', [x, 0.43, 0], [0.095, 0.86, 4.23], 'epoxy')
@@ -189,10 +183,10 @@ function atriumGlass(m: ModelBuilder, eq: EquipmentUnit) {
   for (let col = 0; col < 2; col++)
     for (let row = 0; row < 3; row++)
       m.box(
-        '#c6e0da',
+        '#738177',
         [(-0.25 + col * 0.5) * width, 0.033, ((-1 + row) * depth) / 3],
         [width / 2 - 0.045, 0.057, depth / 3 - 0.045],
-        'glass',
+        'atrium-glass',
       )
   for (let i = 0; i <= 2; i++)
     m.box(steel, [((i - 1) * (width - 0.055)) / 2, 0.028, 0], [0.055, 0.056, depth], 'steel')
@@ -201,70 +195,6 @@ function atriumGlass(m: ModelBuilder, eq: EquipmentUnit) {
   for (const x of [-width / 2 + 0.11, width / 2 - 0.11])
     for (const z of [-depth / 2 + 0.11, depth / 2 - 0.11])
       round(m, [x, 0.062, z], [0.045, 0.006, 0.045], dark)
-}
-function dining(m: ModelBuilder) {
-  for (const z of [-1.52, 0, 1.52]) {
-    m.box(dark, [0, 0.36, z], [0.19, 0.7, 0.16], 'steel')
-    m.box(dark, [0, 0.04, z], [1.16, 0.08, 0.23], 'steel')
-  }
-  for (let i = 0; i < 7; i++)
-    m.box(i % 2 ? paleWood : '#c1a07a', [(i - 3) * 0.173, 0.754, 0], [0.168, 0.082, 4.46], 'oak_int')
-  // A game paused over lunch, two cups left opposite one another.
-  for (let x = 0; x < 8; x++)
-    for (let z = 0; z < 8; z++)
-      m.box(
-        (x + z) % 2 ? timber : paper,
-        [(x - 3.5) * 0.061, 0.8, 1.05 + (z - 3.5) * 0.061],
-        [0.061, 0.009, 0.061],
-        'oak_int',
-      )
-  for (const [x, z, color] of [
-    [0, 0, 0],
-    [2, 1, 0],
-    [4, 3, 0],
-    [6, 1, 0],
-    [2, 6, 1],
-    [3, 5, 1],
-    [5, 4, 1],
-    [7, 6, 1],
-  ])
-    m.part(
-      'cone',
-      'oak_int',
-      color ? '#e2cfa5' : '#584b3b',
-      [(x - 3.5) * 0.061, 0.832, 1.05 + (z - 3.5) * 0.061],
-      [0.043, 0.056, 0.043],
-    )
-  mug(m, -0.44, 0.795, 0.86, '#6c9292')
-  mug(m, 0.39, 0.795, 1.43, '#a36c54')
-  for (const z of [-1.65, -0.7])
-    for (const x of [-0.38, 0.38]) round(m, [x, 0.803, z], [0.23, 0.011, 0.23], paper)
-}
-function kitchen(m: ModelBuilder) {
-  // Along the east service wall. Drawer fronts face the dining table to the west.
-  for (let i = 0; i < 4; i++) {
-    const z = (i - 1.5) * 0.84
-    m.box(i % 3 ? '#a7b7a8' : '#91a39a', [0, 0.46, z], [0.65, 0.83, 0.815], 'epoxy')
-    m.box(dark, [-0.338, 0.72, z], [0.022, 0.031, 0.32], 'steel')
-  }
-  m.box('#cfcdc0', [0, 0.92, 0], [0.74, 0.085, 3.46], 'stone')
-  m.box(dark, [0, 0.977, -0.83], [0.59, 0.022, 1.47], 'epoxy')
-  for (const z of [-1.16, -0.52]) round(m, [0, 1, z], [0.43, 0.026, 0.43], steel)
-  m.box(steel, [0, 0.978, 0.86], [0.59, 0.024, 0.79], 'steel')
-  m.box(dark, [0, 0.994, 0.86], [0.45, 0.016, 0.64], 'epoxy')
-  m.beam([0.29, 0.98, 0.92], [0.29, 1.27, 0.92], 0.035, 0.035, steel)
-  m.beam([0.29, 1.27, 0.92], [0.06, 1.27, 0.92], 0.035, 0.035, steel)
-  for (const z of [-1.5, -0.16]) m.box(steel, [0.31, 1.26, z], [0.033, 0.56, 0.037], 'steel')
-  m.box('#c4c7bf', [0.035, 1.58, -0.83], [0.65, 0.13, 1.57], 'steel')
-}
-function optic(m: ModelBuilder) {
-  round(m, [0, 0.07, 0], [0.65, 0.13, 0.65], dark)
-  round(m, [0, 1.77, -0.09], [0.235, 3.38, 0.235], steel)
-  for (const y of [0.27, 1.32, 2.82]) round(m, [0, y, -0.09], [0.31, 0.069, 0.31], dark)
-  round(m, [0, 1.52, 0.1], [0.17, 0.39, 0.17], steel, [Math.PI / 2, 0, 0])
-  round(m, [0, 1.52, 0.32], [0.18, 0.065, 0.18], dark, [Math.PI / 2, 0, 0])
-  m.box(steel, [0, 3.23, 0.01], [0.39, 0.33, 0.46], 'steel')
-  m.box('#93aaa9', [0, 3.23, 0.25], [0.31, 0.21, 0.021], 'glass')
 }
 function strength(m: ModelBuilder) {
   for (const x of [-0.8, 0.8]) {
@@ -453,38 +383,6 @@ function sleepFitout(m: ModelBuilder, e: EquipmentUnit, i: number) {
   m.box(i % 2 ? '#b3c8ce' : '#abc2ba', [0, 1.78, back + towardHall * 0.025], [1.34, 0.67, 0.009], 'lamp')
 }
 
-function livingRoom(m: ModelBuilder, type: string) {
-  if (type === 'SOF') {
-    m.box(timber, [0, 0.13, 0.54], [3.78, 0.25, 0.94], 'oak_int')
-    for (let i = 0; i < 4; i++) {
-      const x = -1.425 + i * 0.95
-      m.part('sofa-cushion', 'fabric', '#8e987e', [x, 0.365, 0.5], [0.94, 0.255, 0.95])
-      m.part('sofa-cushion', 'fabric', '#89947f', [x, 0.655, 0.89], [0.94, 0.42, 0.24], [0.1, 0, 0])
-    }
-    m.part('sofa-cushion', 'fabric', '#939d83', [-1.42, 0.3, -0.49], [0.95, 0.53, 1.08])
-    m.part('sofa-cushion', 'fabric', '#859178', [-1.82, 0.47, -0.47], [0.15, 0.42, 1.09])
-    m.part('sofa-cushion', 'fabric', '#b47d64', [1.36, 0.62, 0.64], [0.46, 0.39, 0.16], [-0.22, -0.14, 0.08])
-    m.part('sofa-cushion', 'fabric', '#d3be9d', [-1.37, 0.6, 0.6], [0.45, 0.37, 0.16], [-0.24, 0.23, -0.09])
-  } else {
-    m.box(timber, [0, 0.33, 0], [0.63, 0.63, 2.5], 'oak_int')
-    m.box(dark, [0.18, 1.17, 0], [0.08, 1.15, 2.17], 'epoxy')
-    m.box('#4d6269', [0.134, 1.17, 0], [0.009, 1.07, 2.09], 'epoxy')
-  }
-}
-
-export function drawCoffeeTable(m: ModelBuilder) {
-  for (const [x, z] of [
-    [-0.28, -0.16],
-    [0.28, -0.13],
-    [0, 0.2],
-  ])
-    m.beam([x * 1.18, 0.025, z * 1.24], [x, 0.36, z], 0.053, 0.068, timber, 'oak_int')
-  m.part('round', 'oak_int', paleWood, [0, 0.376, 0], [1.03, 0.065, 0.66])
-  m.box('#7d8879', [-0.12, 0.422, -0.02], [0.27, 0.032, 0.19], 'fabric', [0, 0.17, 0])
-  m.box('#d7cbb4', [-0.11, 0.44, -0.022], [0.26, 0.012, 0.184], 'plaster', [0, 0.17, 0])
-  m.part('round', 'ceramic', '#b87f62', [0.19, 0.444, 0.015], [0.14, 0.067, 0.14])
-}
-
 /** The mirror backing faces the room, with a slightly inset silvered face below the diffuser. */
 function mirrorCabinet(m: ModelBuilder, x: number, top: number, width: number) {
   m.box(timber, [x + 0.04, top - 0.34, 0], [0.086, 0.69, width], 'oak_int')
@@ -604,21 +502,23 @@ export const residentialVisuals: Record<string, (m: ModelBuilder, e: EquipmentUn
   HMI: consoleDesk,
   IT: (m, e) => serverRack(m, Number(e.tagCode.split('-')[1]) - 201),
   GL: atriumGlass,
-  'dining-table': dining,
-  kitchen: kitchen,
+  'dining-table': commonsDining,
+  kitchen: commonsKitchen,
+  ISL: commonsIsland,
+  RET: commonsReturn,
+  FIR: commonsHearth,
+  GRN: commonsGarden,
   FO: (m) => {
     round(m, [0, 0.21, 0], [0.41, 0.15, 0.41], steel)
     round(m, [0, 0.11, 0], [0.32, 0.08, 0.32], dark)
     m.part('round', 'glass', '#e3dcb9', [0, 0.059, 0], [0.24, 0.053, 0.24])
   },
-  OPT: optic,
-  SOF: (m) => livingRoom(m, 'SOF'),
-  AV: (m) => livingRoom(m, 'AV'),
+  SOF: commonsSofaDetails,
   WC: (m) => sanitary(m, 'WC'),
   BAS: (m) => sanitary(m, 'BAS'),
   SH: (m) => sanitary(m, 'SH'),
   WM: (m) => sanitary(m, 'WM'),
   CAB: (m, e) => sleepFitout(m, e, Number(e.tagCode.split('-')[1]) - 201),
-  'coffee-table': drawCoffeeTable,
+  'coffee-table': commonsCoffeeDetails,
   'laundry-vanity': drawLaundryVanity,
 }

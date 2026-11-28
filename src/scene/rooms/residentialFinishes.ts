@@ -13,7 +13,7 @@ import { ModelBuilder } from '../utils/modelBuilder'
 const plaster = '#eae5da',
   oak = '#c2a078',
   skirting = '#9b7856'
-const livingRooms = roomsOn('B2').filter((r) => r.id === 'b2_library' || r.id === 'b2_commons')
+const livingRooms = roomsOn('B2').filter((r) => r.id === 'b2_library')
 
 /** Thin interior finishes stop at the surveyed reveals and at the glass observation windows. */
 function wallFace(
@@ -127,58 +127,6 @@ function lamp(m: ModelBuilder, [x, y, z]: Point3, diameter: number, height: numb
   }
 }
 
-function plant(m: ModelBuilder, x: number, y: number, z: number, scale: number) {
-  m.part('round', 'ceramic', '#a97c63', [x, y + 0.13 * scale, z], [0.28 * scale, 0.26 * scale, 0.28 * scale])
-  m.part('round', 'epoxy', '#544e3e', [x, y + 0.26 * scale, z], [0.24 * scale, 0.018 * scale, 0.24 * scale])
-  m.part(
-    'houseplant',
-    'foliage',
-    '#718361',
-    [x, y + 0.47 * scale, z],
-    [0.66 * scale, 0.46 * scale, 0.6 * scale],
-  )
-}
-
-function communalShelves(m: ModelBuilder) {
-  // Cookbooks from the shared kitchen, a pottery bowl and the plant kept above the sofa.
-  for (const y of [1.56, 2.19]) {
-    m.box(oak, [-11.1, y, 11.56], [3.82, 0.041, 0.37], 'oak_int')
-    for (const x of [-12.45, -9.75]) m.box('#867563', [x, y - 0.078, 11.69], [0.035, 0.15, 0.065], 'steel')
-  }
-  for (let i = 0; i < 13; i++) {
-    const h = 0.24 + (i % 4) * 0.043,
-      x = -12.62 + i * 0.085
-    m.box(
-      ['#8c6755', '#8b9378', '#b3a183', '#667571'][i % 4],
-      [x, 1.583 + h / 2, 11.53],
-      [0.071, h, 0.224],
-      'fabric',
-    )
-    m.box('#d0c2a7', [x, 1.583 + h * 0.72, 11.415], [0.047, 0.018, 0.006], 'plaster')
-  }
-  m.part('shade', 'ceramic', '#aa7a5f', [-10.91, 1.659, 11.54], [0.4, 0.15, 0.4], [Math.PI, 0, 0])
-  plant(m, -9.72, 1.582, 11.53, 0.82)
-  for (let i = 0; i < 4; i++) {
-    m.part(
-      'round',
-      'ceramic',
-      i % 2 ? '#a3ac95' : '#d1c9b5',
-      [-11.66 + i * 0.26, 2.303, 11.51],
-      [0.16, 0.19, 0.16],
-    )
-  }
-  // Cup rail over the kitchen counter.
-  m.box(oak, [-6.25, 1.98, 2.2], [0.29, 0.045, 2.7], 'oak_int')
-  for (let i = 0; i < 5; i++)
-    m.part(
-      'round',
-      'ceramic',
-      i % 2 ? '#c4a98b' : '#d9d7c5',
-      [-6.3, 2.07, 1.25 + i * 0.26],
-      [0.14, 0.13, 0.14],
-    )
-}
-
 export function residentialFinishes() {
   const m = new ModelBuilder()
   for (const r of bedrooms) finishRoom(m, r, FLOORS.B2.clearHeight)
@@ -186,8 +134,7 @@ export function residentialFinishes() {
     finishRoom(m, footprint(room.bounds), room.clearHeightOverride!, false, room.corridorGlazing)
   for (const r of [publicBath, laundry]) finishRoom(m, r, FLOORS.B2.clearHeight, true)
   rug(m, -0.27, 9.13, 0.8, 1.94, '#9f775f')
-  rug(m, -11.51, 9.67, 4.38, 2.58, '#878a76')
-  communalShelves(m)
+  rug(m, -13.30, 9.76, 4.49, 2.95, '#a49681')
   // A folded hand towel on the dry side, two hooks and a patterned bathmat beside the showers.
   m.beam([-3.76, 1.56, 11.65], [-2.63, 1.56, 11.65], 0.028, 0.028, '#8a7d67')
   for (let i = 0; i < 2; i++) {
@@ -197,11 +144,6 @@ export function residentialFinishes() {
     m.box('#d7ccba', [x, 1.11, 11.6], [0.32, 0.024, 0.003], 'fabric')
   }
   rug(m, -3.84, 7.3, 0.69, 1.62, '#9f9c88')
-  for (const p of pilotFixtures.pendants) lamp(m, p, 0.61, 0.22, true)
-  const [fx, fy, fz] = pilotFixtures.floorLamp
-  m.part('round', 'steel', '#7c7260', [fx, 0.052, fz], [0.37, 0.065, 0.37])
-  m.beam([fx, 0.075, fz], [fx, fy + 0.02, fz], 0.033, 0.033, '#a78d64')
-  lamp(m, pilotFixtures.floorLamp, 0.44, 0.28, false)
   const [bx, by, bz] = pilotFixtures.bedside
   m.part('round', 'ceramic', '#b97a5f', [bx, 0.65, bz], [0.16, 0.28, 0.16])
   m.beam([bx, 0.79, bz], [bx, by, bz], 0.024, 0.024, '#b8986d')

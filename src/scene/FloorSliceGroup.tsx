@@ -15,6 +15,7 @@ import { ModelBuilder } from './utils/modelBuilder'
 import { CorridorFixtures, RoomInteriors, WalkCeiling } from './rooms/RoomInteriors'
 import { atriumFootprint, clipZSpan } from '../geometry/atrium'
 import { Model } from './utils/Model'
+import { insideCommons, seesUpperShaft } from './rooms/commonsVisibility'
 import {
   addSlab,
   elevatorThresholds,
@@ -107,6 +108,13 @@ function plenumFrame(id: UndergroundId) {
     low = s.ceiling - s.floor,
     high = s.plenumTop - s.floor
   const corridor = footprint(CORRIDOR)
+  // The corridor service void carries a sheet-metal trunk and two insulated supply lines.
+  const trunkY = (low + high) / 2
+  m.box('#788181', [corridor.x, trunkY, corridor.z - 0.48], [corridor.w - 0.5, 0.29, 0.5], 'steel')
+  for (const z of [corridor.z + 0.32, corridor.z + 0.6])
+    m.part('round', 'steel', '#535e60', [corridor.x, trunkY, z], [0.15, corridor.w - 0.5, 0.15], [0, 0, Math.PI / 2])
+  for (let x = corridor.x0 + 1; x < corridor.x1 - 0.6; x += 2.4)
+    m.box('#454f51', [x, trunkY, corridor.z - 0.48], [0.045, 0.32, 0.53], 'steel')
   for (const z of [plan.z0 + 0.18, plan.z1 - 0.18]) {
     iBeam(m, 0, high - 0.14, z, plan.w, true, 0.24)
     const edgeLow = id === 'B2' ? 3.6 : low
@@ -138,7 +146,6 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
   const view = useShelterStore((s) => s.cameraState)
-  const routeOverview = useShelterStore(s => s.routeOverview)
   const walk = view === 'walkthrough'
   const shellOrder = walk && id === 'B2' && floor === id ? -2 : 0
   const seen = walk || floor === 'ALL' || FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
@@ -155,8 +162,12 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
     [id],
   )
   const floorGroup = useRef<Group>(null)
+  const upperContents = useRef<Group>(null)
   useFrame(({ camera }) => {
     if (!floorGroup.current) return
+    if (upperContents.current && id === 'B1')
+      upperContents.current.visible = !walk || floor !== 'B2' ||
+        !insideCommons(camera.position) || seesUpperShaft(camera.position)
     if (walk && floor !== 'ALL') {
       const closeToEye = Math.abs(camera.position.y - getFloorElevation(id) - 1.65) < 5.8
       floorGroup.current.visible = closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
@@ -175,41 +186,43 @@ export function FloorSliceGroup({ id }: { id: UndergroundId }) {
           : !(mode === 'exterior' && floor === 'ALL')
       }
     >
-      <group visible={seen && mode !== 'xray'}>
-        <CorridorFixtures id={id} />
-        <RoomInteriors id={id} />
-      </group>
-      <group visible={walk}>
-        <WalkCeiling id={id} />
-      </group>
-      <group visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
-        <Model build={builders.leaves} interior />
-      </group>
       <Model
-        walkSurface="wall" build={builders.frame}
+        build={builders.frame}
         delayMs={delayMs}
-        opacity={seen && !routeOverview ? (mode === 'xray' ? 0.065 : 1) : 0}
+        opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0}
         opaqueOrder={shellOrder}
       />
-      <Model walkSurface="wall" build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
-      <Model
-        walkSurface="wall" build={builders.rear}
-        delayMs={delayMs}
-        opacity={Number(seen && mode !== 'xray')}
-        opaqueOrder={shellOrder}
-      />
-      <Model
-        walkSurface="wall" build={builders.front}
-        delayMs={delayMs}
-        opacity={Number(seen && closed)}
-        opaqueOrder={shellOrder}
-      />
-      <Model build={builders.wire} delayMs={delayMs} opacity={seen && mode === 'xray' ? 0.12 : 0} />
-      <Model
-        build={builders.plenum}
-        delayMs={delayMs}
-        opacity={seen && !routeOverview && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.09 : 1) : 0}
-      />
+      <group ref={upperContents}>
+        <group visible={seen && mode !== 'xray'}>
+          <CorridorFixtures id={id} />
+          <RoomInteriors id={id} />
+        </group>
+        <group visible={walk}>
+          <WalkCeiling id={id} />
+        </group>
+        <group visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
+          <Model build={builders.leaves} interior />
+        </group>
+        <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
+        <Model
+          build={builders.rear}
+          delayMs={delayMs}
+          opacity={Number(seen && mode !== 'xray')}
+          opaqueOrder={shellOrder}
+        />
+        <Model
+          build={builders.front}
+          delayMs={delayMs}
+          opacity={Number(seen && closed)}
+          opaqueOrder={shellOrder}
+        />
+        <Model build={builders.wire} delayMs={delayMs} opacity={seen && mode === 'xray' ? 0.12 : 0} />
+        <Model
+          build={builders.plenum}
+          delayMs={delayMs}
+          opacity={seen && (plenum || (floor !== 'ALL' && floor !== id)) ? (mode === 'xray' ? 0.09 : 1) : 0}
+        />
+      </group>
     </group>
   )
 }

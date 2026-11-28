@@ -1,3 +1,4 @@
+import { commonsCameras, diningOrigin, diningSeats, kitchenPosition, islandPosition, sofaPositions, coffeePosition } from './commons'
 import { bedrooms } from '../../geometry/residentialPlan'
 import { atriumFootprint } from '../../geometry/atrium'
 import { unit, type EquipmentUnit, type RoomLayout } from './schema'
@@ -10,25 +11,11 @@ type Bedroom = (typeof bedrooms)[number]
 /** Optical centres in B2 floor-local metres, shared by the light pool and its visible fittings. */
 export const pilotFixtures = {
   bedside: [-0.51, 1.21, 10.98] as Point3,
-  pendants: [
-    [-8.48, 2.45, 5.05],
-    [-8.48, 2.45, 7.75],
-  ] as Point3[],
-  floorLamp: [-13.75, 1.54, 10.9] as Point3,
   mirror: [-2.29, 1.9, 8.57] as Point3,
   publicMirror: [-2.17, 1.85, 1.75] as Point3,
   skyPanel: [-0.56, 1.9, 11.73] as Point3,
   skyPanelSize: [1.48, 0.82] as const,
 }
-
-export const diningChairs = [-1, 1].flatMap((side) =>
-  Array.from({ length: 5 }, (_, i) => ({
-    visualKind: 'dining-chair' as const,
-    position: [side * 1.02, 0, -1.74 + i * 0.87] as Point3,
-    rotationY: (side * Math.PI) / 2,
-    moduleSizeM: [0.47, 0.86, 0.49] as Point3,
-  })),
-)
 
 export const pilotSolids = {
   // Stored in CAB-201 coordinates, including the lee side of the sliding door track.
@@ -142,7 +129,7 @@ export const residentialLayouts: Record<string, RoomLayout> = {
           [0.85, 2.18, 1.2],
           370,
           2.4,
-          { redundantGroup: 'IT-200', requiredSpareType: 'electronic' },
+          { redundantGroup: 'IT-200' },
         ),
       ),
     ],
@@ -162,38 +149,40 @@ export const residentialLayouts: Record<string, RoomLayout> = {
         0,
         { notes: '夹层玻璃分格承托，可步行俯瞰下一层。质量为含框架概算，耐火等级与人群荷载须另行认证。' },
       ),
-      unit('DIN-201', '十席共餐长桌', 'storage', [-8.48, 0, 6.4], [2.62, 1.02, 4.6], 146, 0, {
-        visualKind: 'dining-table',
-        furniture: diningChairs,
+      unit('DIN-201', '八席核桃木餐桌', 'storage', diningOrigin, [2.3, 1.04, 3.32], 146, 0, {
         collisionBoxes: [
-          obstacle([0, 0.395, 0], [1.21, 0.79, 4.46]),
-          ...diningChairs.map(({ position: [x, , z], moduleSizeM: [w, h, d] }) =>
-            obstacle([x, h / 2, z], [d, h, w]),
-          ),
+          obstacle([0, 0.41, 0], [1.12, 0.82, 3.32]),
+          ...diningSeats.map(({ position: [x, , z] }) => obstacle([x - diningOrigin[0], 0.50, z - diningOrigin[2]], [0.59, 1, 0.46])),
         ],
       }),
-      unit('KIT-202', '开放厨房与双眼灶', 'thermal', [-6.52, 0, 2.15], [0.75, 1.65, 3.5], 395, 7.2, {
-        notes: '额定电输入包含双眼灶、冷藏台与油烟罩照明，峰值不等于日均功耗。',
-      }),
-      unit('FO-201', '地表集光器光纤出光头', 'comms', [-8.48, 3.27, 6.4], [0.42, 0.29, 0.42], 3.4, 0, {
-        notes: '被动光纤终端。屋顶集光，日间在餐桌中心形成光斑，入夜随太阳高度归零。',
-      }),
-      unit('SOF-203', '客厅 L 形组合沙发', 'storage', [-11.5, 0, 10.25], [3.82, 0.87, 2.1], 109, 0, {
+      unit('KIT-202', '开放厨房、咖啡台与双门冰箱', 'thermal', kitchenPosition, [4.72, 2.90, 1.04], 490, 7.2),
+      unit('RET-208', '转角备餐台与咖啡杯架', 'storage', [-10.49, 0, 1.85], [.92, 2.87, 1.16], 116, 0, {
         collisionBoxes: [
-          obstacle([0, 0.43, 0.54], [3.82, 0.86, 1]),
-          obstacle([-1.42, 0.35, -0.5], [0.95, 0.7, 1.08]),
+          obstacle([0,.42,-.22],[.80,.84,.70]),
+          obstacle([0,.92,0],[.87,.11,1.14]),
+          obstacle([-.39,1.77,0],[.10,1.79,1.14]),
         ],
       }),
-      unit('CT-205', '客厅椭圆茶几', 'storage', [-11.26, 0, 9.23], [1.03, 0.49, 0.66], 12, 0, {
-        visualKind: 'coffee-table',
+      unit('ISL-202', '玄武岩中岛与三张吧凳', 'storage', islandPosition, [3.18, 3.56, 2.04], 282, 0, {
+        collisionBoxes: [
+          obstacle([0, 0.51, 0], [3.18, 1.02, 1.17]),
+          ...[-1.04, 0, 1.04].map(z => obstacle([z, 0.42, 0.77], [0.42, 0.84, 0.42])),
+        ],
       }),
-      unit('AV-204', '影音屏与矮柜', 'comms', [-7.25, 0, 10.2], [0.66, 1.76, 2.55], 83, 0.19),
-      unit('OPT-202', '转向光学潜望镜', 'comms', [-15.22, 0, 9.43], [0.8, 3.47, 0.84], 66, 0),
+      unit('FO-201', '绿庭日光导管', 'comms', [-12.05, 3.27, 6.61], [0.42, 0.29, 0.42], 3.4, 0),
+      unit('SOF-203', '两张软包沙发', 'storage', [-13.25, 0, 10.02], [4.70, 1.15, 3.53], 136, 0, {
+        collisionBoxes: sofaPositions.map(({ position: [x, , z], size: [w, h, d] }, i) =>
+          obstacle([x + 13.25, h / 2 + 0.04, z - 10.02], i === 0 ? [d, h, w] : [w, h, d])),
+      }),
+      unit('CT-205', '木茶几与读到一半的书', 'storage', coffeePosition, [1.42, 0.60, 0.76], 24, 0, {
+        visualKind: 'coffee-table', collisionBoxes: [obstacle([0, 0.22, 0], [1.42, 0.44, 0.76])],
+      }),
+      unit('FIR-206', '嵌墙壁炉与壁龛', 'thermal', [-14.35, 0.075, 7.12], [2.52, 3.51, 0.51], 380, 0.08),
+      unit('GRN-207', '玻璃绿庭与种植池', 'storage', [-12.04, 0.075, 6.65], [1.98, 3.49, 2.76], 240, 0.08, {
+        collisionBoxes: [obstacle([0, .15, 0], [1.98, .30, 2.76]), ...[-.955,.955].map(x => obstacle([x,1.74,0],[.05,3.48,2.76])), ...[-1.31,1.31].map(z=>obstacle([0,1.74,z],[1.95,3.48,.05]))],
+      }),
     ],
-    cameraAnchors: [
-      { name: '从北沿俯瞰分层农场', position: [-12.6, 1.65, 1.39], target: [-12.15, 0.02, 4.55] },
-      { name: '光纤下的共餐长桌', position: [-14.75, 1.65, 8.45], target: [-8.48, 1.0, 6.4] },
-    ],
+    cameraAnchors: commonsCameras,
   },
   b1_gym: {
     equipment: [
@@ -208,16 +197,6 @@ export const residentialLayouts: Record<string, RoomLayout> = {
       unit('WC-211', '船用真空坐便器', 'water', [-5.43, 0, 1.95], [0.68, 0.98, 0.91], 29, 0.18, {
         flushLitres: 1,
         notes: '设计定额每次冲洗 1 L；汇流支管在 B3 夹层接入湿井。',
-        servicePorts: [
-          {
-            id: 'WC-211-V',
-            system: 'vacuum-blackwater',
-            floor: 'B2',
-            position: [-5.43, 0.12, 1.9],
-            plenumEntry: { floor: 'B3', position: [-5.43, 3.48, 1.9] },
-            connectsTo: { floor: 'B3', shaft: 'wet', position: [-7.12, 3.48, -3.4] },
-          },
-        ],
       }),
       unit('BAS-212', '公卫洗手盆与镜柜', 'water', [-2.52, 0, 1.75], [0.72, 1.92, 0.9], 23, 0),
       ...[4.2, 7.35].map((z, i) =>
@@ -229,7 +208,6 @@ export const residentialLayouts: Record<string, RoomLayout> = {
         }),
       ),
       unit('WM-215', '叠放洗衣机与热泵干衣机', 'water', [-4.04, 0, 10.9], [2.3, 2.04, 1.13], 170, 2.6, {
-        servicePorts: [{ id: 'WM-215-G', system: 'greywater', floor: 'B2', position: [-4.75, 0.18, 11.17] }],
         notes: '淋浴、盥洗和洗衣灰水在北侧共用水墙汇入 B3 夹层。',
       }),
       unit('VNY-216', '干区橡木整理台与灯镜', 'storage', [-2.44, 0, 8.57], [0.58, 2.02, 1.52], 44, 0.012, {

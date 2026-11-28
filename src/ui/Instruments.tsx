@@ -1,10 +1,11 @@
+import { defaultBlueprint } from '../data/defaultBlueprint'
 import { useEffect, useRef, useState } from 'react'
 import { FLOOR_ORDER } from '../data/floors'
 import { photo, photographs, type ShotId } from '../data/photographs'
-import { createViewLink, useBlueprintNotice } from '../store/blueprintSession'
+import { createViewLink, useShareNotice } from '../store/viewSession'
 import { useOperationsStore } from '../store/useOperationsStore'
 import { useShelterStore } from '../store/useShelterStore'
-import { startTour } from '../store/useCrewTour'
+import { startTour } from '../store/useOpeningTour'
 import { useShiftClock } from '../store/useShiftClock'
 import type { CameraStateId } from '../types/shelter'
 import { ElevationRuler } from './ElevationRuler'
@@ -29,10 +30,10 @@ function goToView(id: CameraStateId) {
 export function Instruments() {
   useClockPlayback()
   const s = useShelterStore()
-  const rooms = useOperationsStore(o => o.rooms)
+  const rooms = defaultBlueprint.rooms
   const scenario = useOperationsStore(o => o.scenario)
   const lockdown = useOperationsStore(o => o.lockdownStartedAt !== null ? 'running' : o.lockdownSeconds === 30 ? 'sealed' : 'open')
-  const notice = useBlueprintNotice(o => o.message)
+  const notice = useShareNotice(o => o.message)
   const sound = useShiftClock(o => o.sound)
   const [menu, setMenu] = useState<Menu | null>(null)
   const [link, setLink] = useState('')
@@ -124,7 +125,7 @@ export function Instruments() {
         ['拖动 / 点地', '环顾 / 走到落点'], ['长按 E', '气闸平压'], ['走进电梯', '按楼层键乘梯'],
         ['H / O', '隐藏界面 / 播放开场导览'], ['Esc', '关闭或退出视角'],
       ].map(([key,label]) => <div key={key}><dt>{key}</dt><dd>{label}</dd></div>)}</dl>
-        <button className="tour-play" onClick={() => { setMenu(null); startTour('opening') }}>播放开场导览</button>
+        <button className="tour-play" onClick={() => { setMenu(null); startTour() }}>播放开场导览</button>
         <label><input type="checkbox" checked={sound} onChange={e => useShiftClock.setState({sound:e.target.checked})}/> 开启声景</label>
       </div>}
     </div>

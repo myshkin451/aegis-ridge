@@ -10,7 +10,8 @@ describe('24-hour occupied-room lighting', () => {
     expect(circadianAt('21:00').kelvin).toBe(2200)
     expect(circadianAt('09:00').kelvin).toBeGreaterThan(circadianAt('07:00').kelvin)
     expect(circadianAt('18:00').kelvin).toBeLessThan(circadianAt('16:00').kelvin)
-    expect(roomLightingAt('b2_commons', '12:00', false)?.points[1].kelvin).toBe(5000)
+    expect(roomLightingAt('b2-single-1', '12:00', false)?.points[1].kelvin).toBe(5000)
+    expect(roomLightingAt('b2_commons', '12:00', false)?.spot.kelvin).toBe(2700)
   })
   it('switches the command desk to red and low bedroom lamps to amber over midnight', () => {
     for (const [time, night] of [['22:59', false], ['23:00', true], ['00:00', true], ['06:29', true], ['06:30', false]] as const) {

@@ -21,6 +21,7 @@ import {
 import { cropLeafGeometry, type CropLeaf } from '../rooms/cropBeds'
 import { makeCropMaterial } from '../terrain/foliageAssets'
 import { beddingGeometry } from '../rooms/beddingGeometry'
+import { commonsProfile, type CommonsProfile } from '../rooms/commonsProfiles'
 import { foldedThrow } from '../rooms/foldedThrow'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {
@@ -40,6 +41,7 @@ import type { Finish } from '../materials/pbrLibrary'
 
 const standardBedding = { 'standard-pillow': 'pillow', 'standard-duvet': 'duvet' } as const
 type Shape =
+  | CommonsProfile
   | 'box'
   | 'round'
   | 'cone'
@@ -80,6 +82,15 @@ export interface BuiltModel {
 /** Each immutable subassembly owns its GPU resources. All repeated parts share instanced draws. */
 export class ModelBuilder {
   constructor(private readonly faceFinish: Finish = 'stone') {}
+  private localBasis?: Matrix4
+
+  /** Orient a whole assembly in its installation datum, including bevels and fixtures. */
+  framed(yaw: number, scale: Point3, draw: () => void) {
+    const before = this.localBasis
+    const basis = new Matrix4().makeRotationY(yaw).scale(new Vector3(...scale))
+    this.localBasis = before ? basis.premultiply(before) : basis
+    try { draw() } finally { this.localBasis = before }
+  }
   private placement?: { origin: Point3; tag: string }
 
   /** Append a tagged module to the floor batches without creating a draw call per device. */
@@ -92,6 +103,7 @@ export class ModelBuilder {
     }
   }
   private placed(p: Point3): Point3 {
+    if (this.localBasis) p = new Vector3(...p).applyMatrix4(this.localBasis).toArray()
     const origin = this.placement?.origin
     return origin ? [p[0] + origin[0], p[1] + origin[1], p[2] + origin[2]] : p
   }
@@ -123,8 +135,11 @@ export class ModelBuilder {
       rotation instanceof Quaternion
         ? rotation
         : new Quaternion().setFromEuler(new Euler(...((rotation ?? [0, 0, 0]) as Point3)))
+    const matrix = new Matrix4().compose(new Vector3(), q, new Vector3(...size))
+    if (this.localBasis) matrix.premultiply(this.localBasis)
+    matrix.setPosition(...this.placed(centre))
     batch.stamps.push({
-      matrix: new Matrix4().compose(new Vector3(...this.placed(centre)), q, new Vector3(...size)),
+      matrix,
       color: new Color(tint),
       tag: this.placement?.tag,
       cutLabel,
@@ -193,6 +208,16 @@ export class ModelBuilder {
       let geom = shapes.get(fallbackShape)
       if (!geom) {
         switch (fallbackShape) {
+          case 'sofa-wrap':
+          case 'turned-bottle':
+          case 'stoneware-cup':
+          case 'fruit-bowl':
+          case 'pendant-dome':
+          case 'gooseneck':
+          case 'rolled-grip':
+          case 'joinery-edge':
+            geom = commonsProfile(fallbackShape)
+            break
           case 'dining-chair':
             geom = proceduralChair()
             break
@@ -310,8 +335,8 @@ export class ModelBuilder {
       mesh.userData.shape = shape
       if (stamps.some(stamp => stamp.cutLabel))
         mesh.userData.cutLabels = stamps.map(stamp => stamp.cutLabel)
-      mesh.castShadow = !decal && finish !== 'glass' && finish !== 'lamp'
-      mesh.receiveShadow = finish !== 'glass'
+      mesh.castShadow = !decal && finish !== 'glass' && finish !== 'atrium-glass' && finish !== 'lamp'
+      mesh.receiveShadow = finish !== 'glass' && finish !== 'atrium-glass'
       mesh.computeBoundingSphere()
       if (shape === 'dining-chair') unregister.push(registerChairMesh(mesh))
       if (shape === 'throw' || shape === 'standard-throw')

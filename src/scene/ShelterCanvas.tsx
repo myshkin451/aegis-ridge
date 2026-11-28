@@ -27,31 +27,24 @@ import { SectionBoxTool } from './camera/SectionBoxTool'
 import { SceneReadouts } from './camera/SceneReadouts'
 import { surveyRuntime } from './camera/runtime'
 import { DrawingMarks } from './DrawingMarks'
-import { MepNetworkScene } from './mep/MepNetworkScene'
-import { MeasurementScene } from './measurement/MeasurementScene'
 
 function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const { atlas, surface } = useTerrainSurvey()
   const rt = useMemo(surveyRuntime, [])
   const xray = useShelterStore((s) => s.mode === 'xray')
-  const routeOverview = useShelterStore(s => s.routeOverview)
-  const structure = useShelterStore((s) => s.layers.structure)
   return (
     <PilotPreload>
       {atlas && <QualityControl onDprChange={onDprChange}>
         <PhysicalSky />
         <MultiScaleMountain atlas={atlas} surface={surface} />
-        <group visible={routeOverview || !xray || structure}>
-          <BuildingSection>
-            <UndergroundShell />
-            <ShiftActivity />
-            <SurfaceStation atlas={atlas} />
-            <group visible={!routeOverview}><TunnelModels /></group>
-          </BuildingSection>
-        </group>
-        <group visible={!routeOverview}><SiteFacilities atlas={atlas} /></group>
+        <BuildingSection>
+          <UndergroundShell />
+          <ShiftActivity />
+          <SurfaceStation atlas={atlas} />
+          <TunnelModels />
+        </BuildingSection>
+        <SiteFacilities atlas={atlas} />
         <StationClosures atlas={atlas} />
-        <MepNetworkScene atlas={atlas} rt={rt} />
         <group visible={!xray}>
           <DrawingMarks />
         </group>
@@ -66,7 +59,6 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <TourDirector rt={rt} />
         <Soundscape />
         <SceneReadouts rt={rt} />
-        <MeasurementScene rt={rt} />
         <SunShadows />
         <RenderPipeline />
       </QualityControl>}

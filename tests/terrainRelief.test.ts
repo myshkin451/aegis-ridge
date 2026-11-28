@@ -109,7 +109,7 @@ describe('V2 terrain against the signed M4 survey', () => {
     expect(longObstructions).toBeGreaterThan(10)
   })
 
-  it('uploads both sky-view grids after the 32 directional layers', () => {
+  it('packs both sky-view grids and the two bracketing horizon bearings into the same samples', () => {
     const n = maps.horizons.n,
       pixels = n * n
     const textures = makeSurveyTextures({
@@ -120,18 +120,21 @@ describe('V2 terrain against the signed M4 survey', () => {
       },
     })
     try {
-      expect(textures.horizons.image.depth).toBe(34)
+      expect(textures.horizons.image.depth).toBe(2)
       const data = textures.horizons.image.data!
-      for (let level = 0; level < 2; level++)
-        for (const p of [0, pixels - 1, Math.floor(pixels / 2), 10703]) {
-          let visibility = 0
-          for (let bearing = 0; bearing < 16; bearing++) {
-            const i = (level * 16 + bearing) * pixels + p
-            expect(data[i]).toBe(angles[i])
-            visibility += Math.cos((Math.PI / 2) * (angles[i] / 255)) ** 2
+      for (let bearing = 0; bearing < 16; bearing++) {
+        textures.setBearing(bearing)
+        for (let level = 0; level < 2; level++)
+          for (const p of [0, pixels - 1, Math.floor(pixels / 2), 10703]) {
+            const index = (level * pixels + p) * 4
+            expect(data[index]).toBe(angles[(level * 16 + bearing) * pixels + p])
+            expect(data[index + 1]).toBe(angles[(level * 16 + (bearing + 1) % 16) * pixels + p])
+            let visibility = 0
+            for (let d = 0; d < 16; d++)
+              visibility += Math.cos((Math.PI / 2) * (angles[(level * 16 + d) * pixels + p] / 255)) ** 2
+            expect(data[index + 2]).toBe(Math.round((255 * visibility) / 16))
           }
-          expect(data[(32 + level) * pixels + p]).toBe(Math.round((255 * visibility) / 16))
-        }
+      }
     } finally {
       textures.dispose()
     }

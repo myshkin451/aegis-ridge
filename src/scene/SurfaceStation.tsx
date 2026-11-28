@@ -802,20 +802,20 @@ export function SurfaceStation({ atlas }: { atlas: TerrainAtlas }) {
             <Inscription text="3T 重载货梯 · L1—B4" position={[elevatorSpecs.freight.x, 2.94, elevatorSpecs.freight.front + 0.14]} width={2.25} height={0.24} color="#292d2d" background="#c9ab60" />
           </group>
         </group>
-        <Model walkSurface="wall" build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
+        <Model build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
         <Model build={lowerServices} opacity={Number(lower && !wire && (plenum || floor === 'L2'))} />
         <Model
-          walkSurface="ceiling"
+
           build={lowerSoffit}
           opacity={Number(lower && !wire && !plenum && (floor === 'ALL' || walk))}
         />
-        <Model walkSurface="wall" build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
+        <Model build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
         <group visible={!walk && lower && !wire} userData={{ skipWalk: true }}>
           <Model build={lowerDoorLeaves} />
           <Model build={entryHardware} />
         </group>
         <group>
-          <Model walkSurface="wall" build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
+          <Model build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
         </group>
         <Model build={lowerOutline} opacity={lower && wire ? 0.12 : 0} />
       </group>
@@ -829,16 +829,16 @@ export function SurfaceStation({ atlas }: { atlas: TerrainAtlas }) {
         <group visible={!walk && upper && !wire} userData={{ skipWalk: true }}>
           <Model build={upperDoorLeaves} />
         </group>
-        <Model walkSurface="wall" build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
+        <Model build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
         <Model build={upperServices} opacity={Number(upper && plenum && !wire)} />
         <Model
-          walkSurface="ceiling"
+
           build={upperSoffit}
           opacity={Number(upper && !wire && !plenum && (floor === 'ALL' || walk))}
         />
-        <Model walkSurface="wall" build={upperFacade} opacity={Number(upper && !wire)} />
+        <Model build={upperFacade} opacity={Number(upper && !wire)} />
         <group>
-          <Model walkSurface="wall" build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
+          <Model build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
           <Model build={greenhouseGableGlass} opacity={Number(upper && !wire && (floor === 'ALL' || walk))} />
           <group visible={upper && !wire && (floor === 'ALL' || walk)}>
             <group ref={radar} position={[hall.x - 0.55, roof + 0.06, hall.z + 1.25]}>
@@ -853,7 +853,7 @@ export function SurfaceStation({ atlas }: { atlas: TerrainAtlas }) {
           </group>
         </group>
         <group visible={cold && upper && !wire}>
-          <Model walkSurface="wall" build={stormShutters} />
+          <Model build={stormShutters} />
         </group>
         <Model build={upperOutline} opacity={upper && wire ? 0.12 : 0} />
       </group>

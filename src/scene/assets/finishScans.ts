@@ -16,16 +16,26 @@ export const finishScans = [
     finish: 'tile', metres: 1.5, meanLinear: [0.2485, 0.1835, 0.1295],
     files: ['finishes/tile-color.webp', 'finishes/tile-normal.webp', 'finishes/tile-rough.webp'],
   },
+  {
+    finish: 'formed_concrete', metres: 1.8, meanLinear: [0.1774, 0.1434, 0.1026],
+    files: ['finishes/formwork-color.webp', 'finishes/formwork-normal.webp', 'finishes/formwork-rough.webp'],
+  },
+  {
+    finish: 'honed_granite', metres: 2.3, meanLinear: [0.0765, 0.0774, 0.0779],
+    files: ['finishes/granite-color.webp', 'finishes/granite-normal.webp', 'finishes/granite-rough.webp'],
+  },
 ] as const
 
 export const fieldPrints = [
   { finish: 'art_ridge', file: 'art/ridge-transects.webp' },
   { finish: 'art_herbarium', file: 'art/larch-study.webp' },
   { finish: 'art_water', file: 'art/surface-drainage.webp' },
+  { finish: 'art_spurs', file: 'art/western-spurs.webp' },
+  { finish: 'art_fold', file: 'art/eastern-fold.webp' },
 ] as const
 
 export const scanSize = 1024
-// Layers 0–3 contain sRGB colour and linear roughness in A. Normal XY pairs share layers 4–5.
+// Each scan has a colour/roughness layer. Adjacent normal XY pairs share the layers that follow.
 export const normalLayerOffset = finishScans.length
 export const printLayerOffset = normalLayerOffset + Math.ceil(finishScans.length / 2)
 

@@ -6,7 +6,7 @@ import { AtlasLoader } from './loadAtlas'
 import { terrainV2 } from './terrainVersion'
 import { makeSurveyTextures } from './surveyTextures'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
-import { initializeBlueprintSession } from '../../store/blueprintSession'
+import { initializeViewSession } from '../../store/viewSession'
 
 export type TerrainSurface = { scans: DataArrayTexture; survey: ReturnType<typeof makeSurveyTextures> }
 type Loaded = { atlas: TerrainAtlas; surface: TerrainSurface | null }
@@ -39,7 +39,7 @@ export function useTerrainSurvey() {
         gl.initTexture(surface.survey.horizons)
       }
       gl.domElement.dataset.terrain = surface ? 'v2' : 'v1'
-      closeSession = initializeBlueprintSession(field.value)
+      closeSession = initializeViewSession()
       setLoaded({ atlas: field.value, surface })
     }
     prepare().catch((error) => {

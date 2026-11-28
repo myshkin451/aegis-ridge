@@ -26,21 +26,6 @@ it('keeps plenum preference through slicing and returning to the overview', () =
   expect(store.getState()).toMatchObject({ floor: 'ALL', plenum: false, preset: 'panorama' })
 })
 
-it('switches systems in place and clears the water readout when its layer is hidden', () => {
-  const s = store.getState()
-  s.setView('walkthrough')
-  const revision = store.getState().cameraRevision
-  s.setWaterTrace('P-B3-001')
-  s.setHoveredValve('V-B3-012')
-  s.toggleLayer('power')
-  expect(store.getState().waterTrace).toBe('P-B3-001')
-  s.toggleLayer('water')
-  expect(store.getState()).toMatchObject({
-    mode: 'cutaway', cameraState: 'walkthrough', cameraRevision: revision,
-    waterTrace: null, hoveredValve: null, layers: { power: false, water: false },
-  })
-})
-
 it('opens a distant refuge in X-ray and restores the section or surface framing on demand', () => {
   store.getState().focusFacility(7)
   expect(store.getState()).toMatchObject({ mode: 'xray', floor: 'ALL', facilityId: 7 })

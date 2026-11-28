@@ -1,3 +1,4 @@
+import { coldRack } from '../../data/stockRacks'
 import { vegetationV3 } from '../terrain/foliageAssets'
 import { plantBed } from './cropBeds'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
@@ -150,11 +151,11 @@ function fermenter(m: ModelBuilder, diameter: number, height: number) {
 
 function grainRack(m: ModelBuilder, w: number, h: number, d: number) {
   rack(m, w - 0.12, h - 0.07, d - 0.12)
-  for (let j = 0; j < 3; j++) {
+  for (let j = 0; j < coldRack.tiers; j++) {
     const y = 0.23 + j * 0.78
     m.box(dark, [0, y, 0], [w - 0.08, 0.086, d - 0.08], 'steel')
-    for (const x of [-0.79, 0.79])
-      for (let i = 0; i < 4; i++) {
+    for (const x of Array.from({ length: coldRack.depth }, (_, face) => (face - 0.5) * 1.58))
+      for (let i = 0; i < coldRack.columns; i++) {
         const z = -1.91 + 1.27 * i
         m.box(i % 3 === 1 ? '#b1b5a1' : '#bfaf8f', [x, y + 0.28, z], [1.32, 0.48, 1.02], 'epoxy')
         m.box('#d9d0ae', [x, y + 0.54, z], [1.37, 0.055, 1.055], 'epoxy')
@@ -495,34 +496,16 @@ function switchboardModel(m: ModelBuilder, e: EquipmentUnit) {
   m.box(steel, [0, h * 0.95, 0], [w * 0.96, 0.055, d * 0.92], 'steel')
 }
 
-function shieldCell(m: ModelBuilder, e: EquipmentUnit) {
-  const [w, h, d] = e.moduleSizeM,
-    tint = e.tagCode.endsWith('A') ? '#adae9f' : '#a1aaa5'
-  m.box('#747c78', [0, 0.14, 0], [w - 0.08, 0.28, d - 0.07], 'stone')
-  // Independent enclosure, overlapping removable exterior panels, service hatch and lifting eyes.
-  m.box(tint, [0, h * 0.48, 0], [w - 0.48, h * 0.82, d - 0.46], 'stone')
-  const front = -d / 2 + 0.205
-  for (let i = 0; i < 4; i++) {
-    const z = -d * 0.345 + i * d * 0.23
-    for (const sign of [-1, 1]) {
-      m.box(tint, [sign * (w * 0.5 - 0.171), h * 0.48, z], [0.15, h * 0.75, d * 0.215], 'stone')
-      m.box(dark, [sign * (w * 0.5 - 0.082), 0.57, z], [0.048, 0.085, d * 0.17], 'steel')
-    }
-  }
-  m.box(dark, [0, 1.3, front], [2.28, 2.18, 0.22], 'steel')
-  m.box('#9ba698', [0, 1.32, front - 0.079], [2.03, 1.97, 0.13], 'steel')
-  for (const x of [-0.82, 0.82])
-    for (const y of [0.58, 1.9]) m.box(steel, [x, y, front - 0.15], [0.16, 0.1, 0.065], 'steel')
-  m.box('#516661', [0.66, 1.2, front - 0.16], [0.08, 0.35, 0.074], 'steel')
-  m.box('#e2c692', [-0.46, 1.56, front - 0.158], [0.41, 0.24, 0.022], 'epoxy')
-  m.box('#98bcac', [0, 2.49, front + 0.15], [0.29, 0.073, 0.065], 'lamp')
-  for (const x of [-w * 0.27, w * 0.27]) {
-    m.box(tint, [x, h - 0.185, 0], [w * 0.46, 0.22, d - 0.3], 'stone')
-    for (const z of [-1.78, 1.78]) m.box(dark, [x, h - 0.053, z], [0.25, 0.083, 0.065], 'steel')
-  }
+function fuelTank(m: ModelBuilder) {
+  const radius = 1.15
+  for (const z of [-1.62, 1.62]) m.box(dark, [0, 0.18, z], [2.18, 0.36, 0.31], 'steel')
+  drum(m, 0, 1.39, 0, radius * 2, 5.32, '#79847b', forward)
+  for (const z of [-2.6, -1.61, 1.61, 2.6]) drum(m, 0, 1.39, z, 2.34, 0.09, steel, forward)
+  drum(m, 0, 2.56, -1.3, 0.46, 0.12, dark)
+  dial(m, 0, 1.46, 2.69, 0.26)
 }
 
-function chp(m: ModelBuilder) {
+function dieselGenset(m: ModelBuilder) {
   plinth(m, 3.3, 5.43)
   m.box('#718987', [0, 1.13, 0], [2.85, 1.7, 4.9], 'steel')
   for (const x of [-1, 1])
@@ -626,8 +609,8 @@ export const plantVisuals: Record<string, (m: ModelBuilder, e: EquipmentUnit) =>
   'BAT-431': batteryCabinets,
   'SW-432': switchboardModel,
   'ATS-433': switchboardModel,
-  'GEN-441': shieldCell,
-  'CHP-442': chp,
+  'GEN-441': dieselGenset,
+  'FT-442': fuelTank,
   'AHU-451': airHandler,
   'OX-452': oxygenSkid,
   'CB-453': carbonColumns,

@@ -23,7 +23,7 @@ export function ShiftActivity() {
     const state = useShelterStore.getState(), enabled = useShiftClock.getState().motion
     if (enabled && !reduceMotion()) clock.current += Math.min(dt, 0.1)
     if (vehicle.current) {
-      vehicle.current.visible = !state.routeOverview && state.mode !== 'xray' &&
+      vehicle.current.visible = state.mode !== 'xray' &&
         (state.cameraState === 'section' || state.cameraState === 'sectionBox' ||
           (state.cameraState !== 'site' && state.lastFloor === 'B1'))
       vehicle.current.position.set(corridor.x + Math.sin(clock.current * 0.074) * (corridor.w / 2 - 1.3),

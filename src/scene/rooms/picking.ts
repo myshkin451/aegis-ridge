@@ -1,11 +1,10 @@
 import { Box3, Mesh, Vector3, type Raycaster, type Scene, type Intersection } from 'three'
-import { useShelterStore } from '../../store/useShelterStore'
-import type { RoomInstance } from '../../types/shelter'
+import { defaultBlueprint } from '../../data/defaultBlueprint'
 import { equipmentSolids } from '../../geometry/equipment'
 import { FLOORS } from '../../data/floors'
 import type { FloorId } from '../../types/shelter'
 
-const inventoryFor = (rooms: RoomInstance[]) => rooms.flatMap((room) =>
+const inventory = defaultBlueprint.rooms.flatMap((room) =>
   room.equipment.map((unit) => {
     const [x, y, z] = unit.position,
       [w, h, d] = unit.moduleSizeM,
@@ -23,14 +22,7 @@ const inventoryFor = (rooms: RoomInstance[]) => rooms.flatMap((room) =>
     }
   }),
 )
-let inventory = inventoryFor(useShelterStore.getState().installedRooms)
 export const taggedEquipment = new Map(inventory.map(entry => [entry.unit.tagCode, entry]))
-useShelterStore.subscribe((s, p) => {
-  if (s.installedRooms === p.installedRooms) return
-  inventory = inventoryFor(s.installedRooms)
-  taggedEquipment.clear()
-  for (const entry of inventory) taggedEquipment.set(entry.unit.tagCode, entry)
-})
 export function visibleHit(
   scene: Scene,
   ray: Raycaster,

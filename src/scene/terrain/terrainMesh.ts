@@ -61,12 +61,14 @@ function surveyBytes(sample: GroundSample) {
 type GridWindow = { x: number; z: number; endX: number; endZ: number }
 
 export function tileSurfaceParts(tile: TerrainTile, children: TileInfo[], photographed: boolean) {
-  if (!photographed || tile.n < 400) return [tileSurface(tile, children, photographed)]
-  // These survey sheets surround the camera. Limit vertex work to the current view cone.
+  const divisions = photographed && tile.n >= 241 ? Math.ceil((tile.n - 1) / 64) : 1
+  if (divisions === 1) return [tileSurface(tile, children, photographed)]
+  // The large surveys wrap around the station. Cull small patches independently while
+  // retaining every source triangle, the continuous normals and both portal mouths.
   const parts: BufferGeometry[] = []
-  const boundary = (i: number) => Math.round((i * (tile.n - 1)) / 4)
-  for (let z = 0; z < 4; z++)
-    for (let x = 0; x < 4; x++) {
+  const boundary = (i: number) => Math.round((i * (tile.n - 1)) / divisions)
+  for (let z = 0; z < divisions; z++)
+    for (let x = 0; x < divisions; x++) {
       const part = tileSurface(tile, children, true, {
         x: boundary(x),
         z: boundary(z),

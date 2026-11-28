@@ -67,3 +67,5 @@
   width: fit-content; margin-left: auto; padding: 0 5px;
   background-color: rgba(19, 23, 22, 0.81);
 }
+
+.fortress-residents { display: flex; align-items: center; justify-content: space-between; padding: .35rem 0; }

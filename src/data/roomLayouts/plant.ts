@@ -9,7 +9,7 @@ const at = (name: string, x: number, z: number, target: Point3) => ({
 
 const waterTank = (suffix: string, z: number) =>
   unit('TK-301' + suffix, '不锈钢净水罐 ' + suffix, 'water', [-13.55, 0, z], [3.88, 2.84, 3.84], 1140, 0, {
-    redundantGroup: 'potable-water',
+    redundantGroup: 'potable-water', waterLitres: 25000,
     notes: '每罐有效容积 25,000 L。筒体内径约 3.60 m，有效液深 2.46 m。质量为空罐估算，满水另加约 25 t。',
   })
 
@@ -24,32 +24,17 @@ const growBed = (suffix: string, x: number, leaves: boolean) =>
     leaves ? 5.9 : 6.6,
     {
       notes: leaves
-        ? '五层浅根托盘；灯与循环泵额定合计 5.9 kW。补光时段 20:00–次日 12:00。'
-        : '两层深基质床，留出块茎根区和冠层空间；补光与灌溉合计 6.6 kW，按 16 小时光周期排班。',
+        ? '浅根托盘分区轮作。5.9 kW 为整架满装额定功率，住家模式只点亮在产区。'
+        : '深基质床分区育苗。6.6 kW 为整床额定功率，与叶菜架共用限功率回路，供鲜菜和少量块茎。',
     },
   )
 
-const source = (suffix: string, x: number) => {
-  const output = 75,
-    efficiency = 0.3
-  return unit(
-    'GEN-441' + suffix,
-    '屏蔽能源模块 ' + suffix,
-    'power',
-    [x, 0, 7.55],
-    [4.65, 2.86, 5.9],
-    31500,
-    2.4,
-    {
-      generatedPowerKw: output,
-      thermalEfficiency: efficiency,
-      heatKw: (output * (1 - efficiency)) / efficiency,
-      redundantGroup: 'primary-source',
-      notes:
-        '项目概念机组的独立屏蔽舱。单机满载输出 75 kWe，按 30% 热电效率算得机侧余热 175 kW；两舱一用一备。',
-    },
-  )
-}
+const generator = (suffix: string, x: number) =>
+  unit('GEN-441' + suffix, '静音柴油机组 ' + suffix, 'power', [x, 0, 7.55], [3.46, 2.77, 5.6], 1550, 0.4, {
+    generatedPowerKw: 32, thermalEfficiency: 0.34, heatKw: 32 * (1 / 0.34 - 1),
+    requiresExternalExhaust: true, redundantGroup: 'primary-source',
+    notes: '概念额定电功率 32 kW，两台轮值。地表进排气关闭时停机，由储能供电。',
+  })
 
 const filterBank = (suffix: string, x: number) =>
   unit(
@@ -67,18 +52,9 @@ const filterBank = (suffix: string, x: number) =>
   )
 
 const battery = (suffix: string, x: number) =>
-  unit('BAT-431' + suffix, '分舱储能阵 ' + suffix, 'power', [x, 0, -8.05], [2.18, 2.78, 5.95], 9100, 1.2, {
-    hasRunawayVent: true,
-    servicePorts: [
-      {
-        id: 'BAT-431' + suffix + '-vent',
-        system: 'battery-exhaust',
-        floor: 'B4',
-        position: [x, 2.68, -11],
-        connectsTo: { floor: 'B4', position: [x, 3.35, -12] },
-      },
-    ],
-    notes: '每列设计容量 1,000 kWh，包括柜间隔断、顶部独立事故排烟集管和监控辅机。功耗为该列辅助负荷。',
+  unit('BAT-431' + suffix, '分舱储能阵 ' + suffix, 'power', [x, 0, -8.05], [2.18, 2.78, 5.95], 2200, 0.15, {
+    storageKwh: 160, inverterKw: 30, hasRunawayVent: true,
+    notes: '每列设计容量 160 kWh，包括柜间隔断、顶部独立事故排烟集管和监控辅机。功耗为该列辅助负荷。',
   })
 
 const switchboard = (suffix: string, x: number) =>
@@ -123,7 +99,7 @@ export const plantLayouts: Record<string, RoomLayout> = {
   },
   b3_coldvault: {
     equipment: [
-      unit('CS-321', '密封主粮低温架', 'storage', [9, 0, -7.5], [3.22, 2.55, 5.3], 620, 0),
+      unit('CS-321', '密封主粮低温架', 'storage', [9, 0, -7.5], [3.22, 2.55, 5.3], 620, 0, { grainKgPerBin: 165 }),
       unit('CS-322', '低温种子抽屉柜', 'storage', [14, 0, -6.5], [2.85, 1.98, 4.26], 480, 0.7),
       ...[10.1, 13.6].map((x, i) =>
         unit(
@@ -192,35 +168,12 @@ export const plantLayouts: Record<string, RoomLayout> = {
   b4_geothermal: {
     equipment: [
       unit('MH-421', '地源回路供回水分集水器', 'thermal', [-4.55, 0, -10.35], [5.44, 2.28, 1.74], 480, 0.06, {
-        heatRejectionKw: 167.2,
-        servicePorts: [
-          {
-            id: 'MH-421-S',
-            system: 'borefield-supply',
-            floor: 'B4',
-            position: [-6.95, 1.53, -10.1],
-            connectsTo: { floor: 'B4', shaft: 'wet', position: [-7.55, 3.4, -5.6] },
-          },
-          {
-            id: 'MH-421-R',
-            system: 'borefield-return',
-            floor: 'B4',
-            position: [-6.65, 1.53, -10.1],
-            connectsTo: { floor: 'B4', shaft: 'wet', position: [-7.25, 3.4, -5.6] },
-          },
-          {
-            id: 'MH-421-H',
-            system: 'surface-heating',
-            floor: 'B4',
-            position: [-2.25, 1.53, -10.1],
-            connectsTo: { floor: 'B4', shaft: 'wet', position: [-6.65, 3.4, -5.6] },
-          },
-        ],
+        heatRejectionKw: 30,
         notes:
-          '设计分流总量 8 kg/s，供回水温差 5 K，按水比热 4.18 kJ/(kg·K) 可转移 167.2 kW。实际排热受井场及外部热汇限制。',
+          '地埋管经集分水器接入水水热泵，机房以独立供回水循环供暖。',
       }),
-      unit('HP-422', '地源水水热泵撬', 'thermal', [1.36, 0, -9.22], [3.36, 1.98, 2.95], 1280, 23, {
-        notes: '设计供热 92 kW，取电 23 kW，对应设计供热 COP 4.0；实际值取决于水温和部分负荷。',
+      unit('HP-422', '地源水水热泵撬', 'thermal', [1.36, 0, -9.22], [3.36, 1.98, 2.95], 680, 8, {
+        notes: '设计供热 32 kW，取电 8 kW，对应设计供热 COP 4.0；实际值取决于水温和部分负荷。',
       }),
     ],
     cameraAnchors: [at('分水器阀组', -2.23, -7.1, [-4.7, 1.29, -10.45])],
@@ -240,35 +193,14 @@ export const plantLayouts: Record<string, RoomLayout> = {
   },
   b4_reactor: {
     equipment: [
-      source('A', -12.75),
-      source('B', -5.95),
-      unit('CHP-442', '独立进排气备用热电联产机', 'power', [-0.63, 0, 4.35], [3.46, 2.77, 5.6], 2600, 1.1, {
-        generatedPowerKw: 60,
-        thermalEfficiency: 0.32,
-        heatKw: 127.5,
-        requiresExternalExhaust: true,
-        servicePorts: [
-          {
-            id: 'CHP-442-A',
-            system: 'combustion-air',
-            floor: 'B4',
-            position: [-1.2, 2.6, 6.9],
-            connectsTo: { floor: 'B4', position: [-1.2, 3.25, 12] },
-          },
-          {
-            id: 'CHP-442-E',
-            system: 'combustion-exhaust',
-            floor: 'B4',
-            position: [0.15, 2.6, 6.9],
-            connectsTo: { floor: 'B4', position: [0.15, 3.55, 12] },
-          },
-        ],
-        notes: '概念额定电出力 60 kWe，电效率 32%。127.5 kW 为回收前的非电功率；密闭工况禁用。',
+      generator('A', -12.75), generator('B', -5.95),
+      unit('FT-442', '地下双壁柴油储罐', 'storage', [-0.63, 0, 4.35], [2.48, 2.68, 5.6], 1760, 0, {
+        fuelLitres: 16000, notes: '有效储油量 16,000 L，发电续航按满库折算。',
       }),
     ],
     cameraAnchors: [
-      at('双舱与联产机组', -7.1, 1.65, [-9.1, 1.25, 7.75]),
-      at('独立进排气机罩', -3.05, 8.2, [-0.55, 1.67, 4.78]),
+      at('静音机组与油库', -7.1, 1.65, [-9.1, 1.25, 7.75]),
+      at('双壁柴油储罐', -3.05, 8.2, [-0.55, 1.67, 4.78]),
     ],
   },
   b4_cbrn_hvac: {
@@ -277,23 +209,11 @@ export const plantLayouts: Record<string, RoomLayout> = {
       filterBank('B', 9.95),
       unit('OX-452', '闭环水电解制氧撬', 'hvac', [13.76, 0, 6.7], [2.48, 2.32, 3.74], 450, 3.0, {
         o2RateKgPerDay: 10.4,
-        servicePorts: [
-          {
-            id: 'OX-452-H2',
-            system: 'hydrogen-recovery',
-            floor: 'B4',
-            position: [14.85, 2.15, 7.75],
-            connectsTo: { floor: 'B4', position: [16, 3.48, 7.75] },
-          },
-        ],
         heatKw: 0.85,
         notes:
           '连续满负荷估算。按 55 kWh/kg H₂、氧氢质量比约 7.94 计算，3 kW 对应约 10.4 kg O₂/d。液态水、高位热值基准下，设备废热约 0.85 kW；干燥、压缩与储气损失另计。',
       }),
       unit('CB-453', '二氧化碳吸附塔', 'hvac', [5.28, 0, 2.65], [2.54, 2.59, 2.37], 490, 1.5, {
-        servicePorts: [
-          { id: 'CB-453-RA', system: 'return-air-co2', floor: 'B4', position: [5.28, 2.41, 2.65] },
-        ],
       }),
       unit('OX-454', '应急氧瓶汇流排', 'hvac', [13.94, 0, 2.3], [2.51, 2.05, 1.65], 530, 0, {
         notes: '钢瓶质量为空瓶组估计。汇流排用于供氧缓冲，持续制氧量为零。',

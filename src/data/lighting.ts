@@ -1,3 +1,4 @@
+import { diningOrigin, islandPosition, tableLamps } from './roomLayouts/commons'
 import { defaultBlueprint } from './defaultBlueprint'
 import { FLOORS } from './floors'
 import { pilotFixtures } from './roomLayouts/residential'
@@ -11,6 +12,7 @@ export interface Emitter {
   kelvin: number
   intensity: number
   spectrum?: string
+  reach?: number
 }
 interface Aimed extends Emitter {
   target: Point3
@@ -101,14 +103,14 @@ for (const time of ['10:30', '19:30'] as const) {
   }
   lighting.b2_commons[time] = {
     floor: 'B2',
-    spot: spot(offset(f.pendants[0], 0, -0.15, 0), [-8.48, 0.76, 5.18], 2900, day ? 34 : 43, 0.82, 5.3),
-    secondSpot: spot(offset(f.pendants[1], 0, -0.15, 0), [-8.48, 0.76, 7.56], 2900, day ? 31 : 39, 0.79, 5.3),
+    spot: spot(tableLamps[0], [diningOrigin[0], .80, diningOrigin[2]], 2700, 34, .81, 7),
+    secondSpot: spot([islandPosition[0], 2.33, islandPosition[2]], [islandPosition[0], .88, islandPosition[2]], 2700, 30, .82, 6),
     points: [
-      emit(offset(f.floorLamp, 0, 0.01, -0.06), 2700, day ? 10 : 15),
-      emit([-11.0, 3.46, 11.52], 3000, 10),
+      { ...emit([-14.17,1.10,8.06], 2400, 5.8), spectrum: '#ff964b', reach: 4.5 },
+      { ...emit([-12.50,.56,7.26], 3000, 6.0), spectrum: '#ffe1a4', reach: 5.2 },
+      { ...emit([-8.12,2.53,4.88], 3650, 25), spectrum: '#ffead2', reach: 7.5 },
     ],
-    // The two physical pendants now each cast a pool. The room probe supplies the diffuse bounce.
-    areas: [],
+    areas: [area([-8.92,1.56,1.04], [-8.92,1.13,.37], 2700, 26, 3.40, .19)],
   }
   for (const [id, mirror, aim] of [
     ['b2_bath_laundry', f.mirror, [-4.45, 0.52, 8.06]],
@@ -210,6 +212,7 @@ export function roomLightingAt(id: string, time: string, emergency: boolean): Ro
         return { ...base, spot: { ...base.spot, spectrum: '#ff3524', intensity: 8 }, secondSpot: undefined, points: [], areas: [] }
       return { ...base, spot: { ...base.spot, intensity: 0 }, secondSpot: undefined, points: [nightFixtures[id]], areas: [] }
     }
+    if (id === 'b2_commons') return base
     // Task lamps retain their warm local pools. The room wash and daylight panels follow the clock.
     const task = !!base.secondSpot
     return {

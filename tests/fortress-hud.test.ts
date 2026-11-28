@@ -15,11 +15,11 @@ it('opens with four camera modes, three scenarios, and the public controls', () 
   expect(html).not.toMatch(/工程体检|蓝图工具|隔离检修|专家团|线型图例/)
 })
 
-it('shows five operating summaries and explains the basis of the stores estimate', () => {
+it('shows household operating summaries and explains the basis of the stores estimate', () => {
   const html = renderToStaticMarkup(createElement(FortressStatus, { close() {} }))
-  expect(html.match(/<dt>/g)).toHaveLength(5)
-  expect(html).toContain('8 人消耗估算')
-  expect(html).toContain('日常值守')
+  for (const summary of ['柴油机组轮值', '地热供暖', '净水循环', '战略主粮', '日常值守']) expect(html).toContain(summary)
+  expect(html).toContain('6.52 吨')
+  expect(html).toContain('每人每日 0.6 kg')
   expect(html).not.toMatch(/NaN|Infinity|FAIL/)
 })
 

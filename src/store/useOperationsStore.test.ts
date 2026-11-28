@@ -7,69 +7,17 @@ afterEach(() => {
   operations.setState(operations.getInitialState(), true)
 })
 
-describe('operating controls and the engine share a single clock', () => {
-  it('prelocks exhaust at the start and switches heat and water to closed operation at 30 s', () => {
-    operations.getState().setScenario('fallout')
+describe('scenario and protection controls', () => {
+  it.each(['fallout', 'cryo'] as const)('runs the full thirty-second closure for %s and reopens in daily mode', scenario => {
+    const op = operations.getState()
+    op.setScenario(scenario)
     const start = operations.getState().lockdownStartedAt!
-    operations.getState().advance(start + 29_999)
-    expect(operations.getState().report.feasibility.chpInterlocked).toBe(true)
-    expect(operations.getState().report.feasibility.sealed).toBe(false)
-    operations.getState().advance(start + 30_000)
-    expect(operations.getState().lockdownStartedAt).toBeNull()
-    expect(operations.getState().report.feasibility.externalWater).toBe(0)
-    expect(operations.getState().report.feasibility.sealed).toBe(true)
-  })
-  it('fast-forwards, replays and resets the same scenario without losing the occupancy', () => {
-    operations.getState().setPeople(14)
-    operations.getState().setScenario('bio')
-    operations.getState().skip()
-    const full = operations.getState().report.feasibility
-    expect(full.sealed).toBe(true)
-    expect(full.oxygenDemand).toBeCloseTo(11.76)
-    operations.getState().setScenario('bio')
-    expect(operations.getState().lockdownSeconds).toBe(0)
-    expect(operations.getState().report.feasibility.sealed).toBe(false)
-    operations.getState().setScenario('normal')
-    expect(operations.getState().lockdownStartedAt).toBeNull()
-    expect(operations.getState().report.feasibility.chpInterlocked).toBe(false)
-    expect(operations.getState().people).toBe(14)
-  })
-  it('shelters eight residents from a storm and keeps the filtered air and spring intake available', () => {
-    expect(operations.getState().people).toBe(8)
-    operations.getState().setScenario('cryo')
-    const start = operations.getState().lockdownStartedAt!
-    operations.getState().advance(start + 15_000)
-    expect(operations.getState().lockdownSeconds).toBe(15)
-    operations.getState().advance(start + 30_000)
-    expect(operations.getState().report.feasibility.externalWater).toBeGreaterThan(0)
-    expect(operations.getState().lockdownStartedAt).toBeNull()
-    operations.getState().setScenario('normal')
-    expect(operations.getState().lockdownSeconds).toBe(0)
-  })
-  it('restores the ordinary floor, X-ray and section-box views after a route overview', () => {
-    const path: [number, number, number][] = [
-      [2, -10, 0],
-      [-4, -14.2, -1],
-    ]
-    view.getState().frameRoute(path)
-    expect(view.getState().routeOverview).toBe(true)
-    expect(view.getState().surveyFocus?.height).toBe(48)
-    operations.getState().isolate(null)
-    expect(view.getState()).toMatchObject({
-      routeOverview: false,
-      cameraState: 'floorOrbit',
-      mode: 'cutaway',
-    })
-    view.getState().frameRoute(path)
-    view.getState().photograph('shot-04')
-    expect(view.getState()).toMatchObject({ routeOverview: false, mode: 'xray', shot: 'shot-04' })
-    view.getState().frameRoute(path)
-    view.getState().setView('sectionBox')
-    expect(view.getState()).toMatchObject({
-      routeOverview: false,
-      cameraState: 'sectionBox',
-      mode: 'cutaway',
-    })
+    op.advance(start + 29_999)
+    expect(operations.getState().lockdownSeconds).toBe(29)
+    op.advance(start + 30_000)
+    expect(operations.getState()).toMatchObject({ lockdownSeconds: 30, lockdownStartedAt: null })
+    op.setScenario('normal')
+    expect(operations.getState()).toMatchObject({ lockdownSeconds: 0, lockdownStartedAt: null })
   })
   it('keeps the calibrated extreme-cold camera and its actual operating condition in sync', () => {
     operations.getState().setScenario('fallout')

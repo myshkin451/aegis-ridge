@@ -1,3 +1,4 @@
+import { warehouseRack } from '../../data/stockRacks'
 import { vegetationV3 } from '../terrain/foliageAssets'
 import { plantBed } from './cropBeds'
 import { drawGym } from './residential'
@@ -425,11 +426,11 @@ function rack(m: ModelBuilder) {
       m.box('#6f8885', [x, 1.35, z], [0.083, 2.7, 0.1], 'steel')
       m.box(dark, [x, 0.045, z], [0.12, 0.09, 0.14], 'steel')
     }
-  for (let j = 0; j < 4; j++) {
+  for (let j = 0; j < warehouseRack.tiers; j++) {
     const y = 0.18 + j * 0.64
     m.box(inox, [0, y, 0], [1.71, 0.09, 7.32], 'steel')
     for (const x of [-0.83, 0.83]) m.box(bronze, [x, y - 0.035, 0], [0.09, 0.14, 7.34], 'steel')
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < warehouseRack.columns; k++) {
       const z = (k - 3.5) * 0.88,
         color = ['#7c918b', '#a19c80', '#87959a', '#ac9174'][(k + 2 * j) % 4]
       m.box(color, [0, y + 0.265, z], [1.42, 0.42, 0.79], 'epoxy')

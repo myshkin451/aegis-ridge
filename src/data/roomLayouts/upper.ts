@@ -21,7 +21,9 @@ function surveyVehicle(tag: string, z: number) {
   })
 }
 function storageRack(tag: string, x: number) {
-  return unit(tag, '四层满载备件架', 'storage', [x, 0, 7.1], [1.8, 2.73, 7.4], 1650, 0, {
+  const provisions = tag.endsWith('A') || tag.endsWith('B')
+  return unit(tag, provisions ? '密封干粮周转箱架' : '四层满载备件架', 'storage', [x, 0, 7.1], [1.8, 2.73, 7.4], 1650, 0, {
+    grainKgPerBin: provisions ? 40 : undefined,
     notes: '8 列 × 4 层周转箱。质量含架体与模拟库存，空架设计质量 210 kg。',
   })
 }

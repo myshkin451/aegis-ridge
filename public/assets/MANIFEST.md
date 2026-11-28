@@ -2,6 +2,30 @@
 
 浏览器按对照版本从本站读取资产。r1 使用程序化材质与家具，r2 读取四套 PBR，r3 增加软装、洁具、餐椅及三幅现场挂图。四套材质共用一个 WebGL2 数组采样器与已有 ars-solid 程序。
 
+## V3-2 · B2 客厅与开放厨房
+
+模型来自 Poly Haven 官方 [CC0 1.0 资产许可](https://polyhaven.com/license)。表中尺寸为本站 GLB 的网格外廓（宽 × 高 × 深）。13 件 GLB 都使用 Draco 网格压缩。12 件带纹理的模型内嵌 WebP，保留源 UV、漫反射、法线与金属粗糙度，源 ARM 贴图的红通道接到环境遮蔽。白瓷杯保留作者的无纹理釉面材质。两种植物的透明度来自同一资产的官方 Alpha 图。咖啡机与瓷杯取自咖啡车的原始网格和材质。
+
+| 文件路径 | 来源 | 许可 | 米制尺寸 |
+| --- | --- | --- | --- |
+| finishes/formwork-{color,normal,rough}.webp | [Poly Haven · Wood Textured Concrete](https://polyhaven.com/a/wood_textured_concrete) | CC0 1.0 | 1.80 × 1.80 m |
+| finishes/granite-{color,normal,rough}.webp | [Poly Haven · Granite Tile](https://polyhaven.com/a/granite_tile) | CC0 1.0 | 2.30 × 2.30 m |
+| [commons/sofa.glb](commons/sofa.glb) | [Poly Haven · sofa_02](https://polyhaven.com/a/sofa_02) | CC0 1.0 | 1.807 × 0.709 × 0.818 m |
+| [commons/dining-chair.glb](commons/dining-chair.glb) | [Poly Haven · dining_chair_02](https://polyhaven.com/a/dining_chair_02) | CC0 1.0 | 0.434 × 0.973 × 0.576 m |
+| [commons/coffee-table.glb](commons/coffee-table.glb) | [Poly Haven · modern_coffee_table_01](https://polyhaven.com/a/modern_coffee_table_01) | CC0 1.0 | 1.202 × 0.390 × 0.600 m |
+| [commons/bar-stool.glb](commons/bar-stool.glb) | [Poly Haven · metal_stool_01](https://polyhaven.com/a/metal_stool_01) | CC0 1.0 | 0.352 × 0.883 × 0.355 m |
+| [commons/plant.glb](commons/plant.glb) | [Poly Haven · potted_plant_01](https://polyhaven.com/a/potted_plant_01) | CC0 1.0 | 0.587 × 1.350 × 0.634 m |
+| [commons/fern.glb](commons/fern.glb) | [Poly Haven · fern_02](https://polyhaven.com/a/fern_02) | CC0 1.0 | 0.552 × 0.287 × 0.613 m |
+| [commons/journal.glb](commons/journal.glb) | [Poly Haven · binder_notebook](https://polyhaven.com/a/binder_notebook) | CC0 1.0 | 0.365 × 0.018 × 0.200 m |
+| [commons/platter.glb](commons/platter.glb) | [Poly Haven · carved_wooden_plate](https://polyhaven.com/a/carved_wooden_plate) | CC0 1.0 | 0.272 × 0.038 × 0.269 m |
+| [commons/pan.glb](commons/pan.glb) | [Poly Haven · brass_pan_01](https://polyhaven.com/a/brass_pan_01) | CC0 1.0 | 0.191 × 0.053 × 0.450 m |
+| [commons/pot.glb](commons/pot.glb) | [Poly Haven · brass_pot_01](https://polyhaven.com/a/brass_pot_01) | CC0 1.0 | 0.302 × 0.291 × 0.302 m |
+| [commons/kettle.glb](commons/kettle.glb) | [Poly Haven · vintage_electric_kettle](https://polyhaven.com/a/vintage_electric_kettle) | CC0 1.0 | 0.321 × 0.305 × 0.249 m |
+| [commons/mug.glb](commons/mug.glb) | [Poly Haven · CoffeeCart_01](https://polyhaven.com/a/CoffeeCart_01) | CC0 1.0 | 0.144 × 0.118 × 0.108 m |
+| [commons/coffee-maker.glb](commons/coffee-maker.glb) | [Poly Haven · CoffeeCart_01](https://polyhaven.com/a/CoffeeCart_01) | CC0 1.0 | 0.651 × 0.667 × 0.653 m |
+| [art/western-spurs.webp](art/western-spurs.webp) | [项目西侧山脊高程与版画生成器](../../scripts/generate-commons-etchings.py) | CC0 1.0 | 0.914 × 1.200 m |
+| [art/eastern-fold.webp](art/eastern-fold.webp) | [项目东侧褶谷高程与版画生成器](../../scripts/generate-commons-etchings.py) | CC0 1.0 | 0.914 × 1.200 m |
+
 ## 四套实拍表面
 
 每项源文件取自 Poly Haven 官方 [CC0 许可](https://polyhaven.com/license)。下表依次列出漫反射、OpenGL 法线、粗糙度三张 1K JPG。浏览器只请求 WebP。显存列按实际 RGBA8 完整 mip 链的通道占用计算。

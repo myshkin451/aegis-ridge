@@ -15,7 +15,6 @@ import { FLOORS, GRID } from '../../data/floors'
 import { altitude, worldToGrid } from '../../geometry/coords'
 import { aimedEquipment, taggedEquipment, visibleHit } from '../rooms/picking'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
-import { isolateTarget, useOperationsStore } from '../../store/useOperationsStore'
 import { useShelterStore } from '../../store/useShelterStore'
 import type { SurveyRuntime } from './runtime'
 
@@ -66,8 +65,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       startY = e.clientY
     }
     function pickEquipment(roomId: string, tag: string) {
-      if (useOperationsStore.getState().panel === 'maintenance') isolateTarget(tag)
-      else useShelterStore.getState().focusRoom(roomId, tag)
+      useShelterStore.getState().focusRoom(roomId, tag)
     }
     const click = (e: PointerEvent) => {
       if (e.defaultPrevented || Math.hypot(e.clientX - startX, e.clientY - startY) > 4 || rt.moving) return

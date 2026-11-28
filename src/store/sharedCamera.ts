@@ -1,4 +1,4 @@
-import type { CameraPose } from '../data/blueprintDocument'
+import type { CameraPose } from '../data/viewLink'
 
 let reader: (() => CameraPose) | undefined
 let pending: { revision: number; pose: CameraPose } | undefined

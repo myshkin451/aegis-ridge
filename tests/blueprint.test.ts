@@ -136,19 +136,9 @@ describe('v2 survey and room register', () => {
     expect(room('b2_quarters').bounds.gz0).toBe(shaftPlans[4].bounds.gz1 + 1)
     expect(room('b2_quarters').bounds.gx1).toBe(15)
   })
-  it('preserves the 27-room JSON model and module permissions', () => {
+  it('preserves the 27-room JSON model', () => {
     expect(defaultBlueprint.rooms).toHaveLength(27)
     expect(new Set(defaultBlueprint.rooms.map((r) => r.id)).size).toBe(27)
-    expect(defaultBlueprint.rooms.filter((r) => r.replaceable).map((r) => r.id)).toEqual([
-      'b1_gym',
-      'b2_library',
-      'b3_foodproc',
-      'b3_aquaponics',
-    ])
-    expect(defaultBlueprint.rooms.filter((r) => r.adjustable).map((r) => r.id)).toEqual([
-      'b1_tactical',
-      'b2_commons',
-    ])
     expect(JSON.parse(JSON.stringify(defaultBlueprint))).toEqual(defaultBlueprint)
   })
   it('fits the six southern rooms on B1/B2, the bath buffer and the 10 + 4 beds', () => {

@@ -21,14 +21,29 @@
 | **M5 + V1-轻 / V2 / V3** | **Wave 1 并行整合**：10 人专家团与晨间巡检 + 24h 节律与开场 + 声景/照片模式 + 真实房间反射 + V2 山体 + V3 植被 + 相机中心与站房外立面修复 | `REVIEW`（冲刺自动推进，待用户总复核） | `aa44599` / `457a04f` / `c73f1dd` + 本节提交 | 310 项测试全绿、21 张 `wave1` 截图、峰值绘制 393、就绪后新增链接 0、控制台零错误警告、DPR 1.5 全程不降档 |
 | **M6** | 受控房间实验、测距、视角链接、蓝图存取与整站复核 | `REVIEW`（待用户总复核） | 本节提交 | 368 项测试、12 张实拍、79 段 Metal 压测通过 |
 | **V3-1** | 私人堡垒界面、深层抗闪烁（Specular AA / 全分辨率 N8AO / 墙角去重面）、真双电梯（货梯扩容至 2.6×3.0 m）与漫游 | `REVIEW`（待肉眼复核） | `a6dcde4` + 本节提交 | 382 项测试全绿，13 个停靠口双向通行；重写 v3.0 `AGENTS.md`、归档 `v2.0-research-station` tag 并落盘 B2 客厅/厨房参考图 |
-| **V3-2** | 卸载旧科研验证器包袱 + 柴油/电池真实状态 + 原装 PBR GLB 管线 +「B2 客厅与开放厨房」样板间冲刺 | `NEXT` | — | 对照 `docs/references/b2-living/` 参考图验收，决定 Web 铺开或加烘焙/转 UE5 |
+| **V3-2** | 柴油与储能、原装 PBR GLB、B2 客厅与开放厨房，移除旧科研验证器 | `REVIEW`（待肉眼签收） | 本节提交 | [客厅对照](shots/v3-2/b2-living-dining-comparison.webp) · [厨房对照](shots/v3-2/b2-open-kitchen-comparison.webp) · [本机实测](shots/v3-2/performance.md) |
 
 ---
 
 ## 当前激活目标
 
-- **下一步激活里程碑：`V3-2`**（见 [07-v3-private-fortress-redesign.md](07-v3-private-fortress-redesign.md) 与新版 `AGENTS.md`）。旧版 v2.0 科研站完整快照已通过 `v2.0-research-station`（`6376eff`）归档。
+- **V3-2 等待用户签收。** 先对照下面两张眼高实拍，决定这套 Web 表现是否适合铺开。方案见 [07-v3-private-fortress-redesign.md](07-v3-private-fortress-redesign.md) 与新版 `AGENTS.md`。旧版 v2.0 科研站完整快照已通过 `v2.0-research-station`（`6376eff`）归档。
 - **V3-1b 补充热修（本节提交）**：针对实测拖动闪烁，补齐 `pbrLibrary.ts` / `terrainMaterial.ts` 法线高光抗走样（Specular AA）与微浮雕高频衰减、切换全分辨率 `N8AO Medium` + `SMAA HIGH` + `2048` 级联阴影、消除 L1/L2 与 B1–B4 全周外墙及女儿墙/挑檐四角共面 Z-fighting；同时将 3t 货梯轿厢由 `1.8 × 1.8 m` 扩大为实用尺度的 **`2.6 × 3.0 × 2.65 m`**（门宽 `2.26 m` / 开口 `1.96 m`）；生成并落盘 B2 客厅与开放厨房两张视觉参考图（[ref-a-living-dining.jpg](references/b2-living/ref-a-living-dining.jpg) · [ref-b-open-kitchen.jpg](references/b2-living/ref-b-open-kitchen.jpg)）。
+
+## V3-2 · 2026-11-28
+
+| 19:30，眼高 1.65 m | 视觉参照 | WebGL 原图 | 并排查看 |
+| --- | --- | --- | --- |
+| 从沙发后方看餐桌、壁炉与绿植中庭 | [参考 A](references/b2-living/ref-a-living-dining.jpg) | [客厅实拍](shots/v3-2/b2-living-dining.png) | [客厅对照](shots/v3-2/b2-living-dining-comparison.webp) |
+| 从中岛前看开放厨房、吊架与双门冰箱 | [参考 B](references/b2-living/ref-b-open-kitchen.jpg) | [厨房实拍](shots/v3-2/b2-open-kitchen.png) | [厨房对照](shots/v3-2/b2-open-kitchen-comparison.webp) |
+
+- **空间与陈设**　两处机位在同一间可行走的 B2 客厅。两张沙发、茶几和八人餐桌围绕壁炉、玻璃绿庭布置，北侧是开放厨房。壁炉、中庭下照与上射照明、餐桌吊灯和柜底灯带各自照亮局部。护墙上的两幅版画取自本站山地高程。房间碰撞、入口和摄影眼位已按落成后的家具位置校准。
+- **肉眼对照**　客厅图能同时看见两张沙发、书几、壁炉和中庭。与参考 A 相比，右侧沙发更暗，厨房在后景占比更小。厨房图里柜底光与锅具轮廓清楚，岛台石材和双门冰箱的反射比参考 B 更柔和。
+- **资产**　13 件 Poly Haven CC0 模型随站离线加载，保留源材质、贴图通道、叶片透明遮罩和米制安装尺度。全部使用 Draco 网格压缩，12 件含 WebP，陶瓷杯沿用原件的釉面材质。混凝土模板纹与花岗岩来自两套实拍 PBR。剖面沿用建筑裁切平面，漫游使用实体阴影、各向异性过滤和高光抗走样。[逐件来源与尺寸](../public/assets/MANIFEST.md)
+- **能源与物资**　B4 两台 32 kW 静音柴油机轮值，地下油库满储 16,000 L，两列电池合计 320 kWh。地热热泵与农场分区补光计入负荷。全面封锁完成后机组停机，电池留底 20%。B1/B3 实装货架可容纳约 6.52 吨主粮，满库时按 8 人、每人每日 0.6 kg 折算约 3.7 年。状态抽屉可切换 6–8 人，油、电、粮均注明估算口径。
+- **科研站清理**　移除专家团、模拟检修、物理与合规审计、蓝图试装、六网 X 光透镜、两点测距以及专属测试、样式和压测分支。保留四个主视角、昼夜、封锁、声景、双梯与拍照。旧版分享链接仍能还原机位，原科研站保存在 `v2.0-research-station`。
+- **本机验证**　`npm run verify` 通过 TypeScript、27 个文件的 261 项测试和生产构建。截图脚本完成五个固定机位、两张眼高实拍、两张并排对照与手机状态抽屉检查。M1 Pro 的 11 段压测全部通过。外景静止和环绕、B2 客厅静止和拖动、厨房静止均为 60.0 FPS，DPR 全程 1.5。首屏 3.483 s，最长主线程任务 36.168 ms，WebGL 资源分配峰值 669.2 MiB。就绪后新增 `linkProgram` 为 0，浏览器错误和警告均为 0。[逐段实测](shots/v3-2/performance.md)
+- **固定机位**　[建筑剖面](shots/v3-2/shot-01.png) · [黎明外景](shots/v3-2/shot-02.png) · [极寒外景](shots/v3-2/shot-03.png) · [透视夜景](shots/v3-2/shot-04.png) · [B3 漫游](shots/v3-2/shot-05.png)。
 
 ## V3-1 · 2026-11-28
 

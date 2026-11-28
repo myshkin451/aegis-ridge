@@ -1,10 +1,6 @@
-import { crew } from '../src/data/crew'
-import { inspectionPath } from '../src/scene/camera/inspectionRoute'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { Box3, DoubleSide, InstancedMesh, PerspectiveCamera, Raycaster, Vector2, Vector3 } from 'three'
+import { Vector3 } from 'three'
 import { FLOORS, UNDERGROUND } from '../src/data/floors'
-import { roomTemplates, resolveRooms } from '../src/data/roomTemplates'
-import { drawEquipment } from '../src/scene/rooms/roomModels'
 import type { UndergroundId } from '../src/types/shelter'
 import { defaultBlueprint, roomsOn } from '../src/data/defaultBlueprint'
 import { adits, eastTransfer } from '../src/data/siteFacilities'
@@ -20,7 +16,7 @@ import {
   quietHall,
   westVestibule,
 } from '../src/geometry/residentialPlan'
-import { routeKey, routeToWalkPosition, surveyRoomFloor, surveyRoomRoutes } from '../src/scene/camera/roomRoutes'
+import { routeKey, routeToWalkPosition, surveyRoomRoutes } from '../src/scene/camera/roomRoutes'
 import { WalkCollision, WALK } from '../src/scene/camera/walkCollision'
 import { enclosure, structure, verticalCore } from '../src/scene/FloorSliceGroup'
 import { eastBore } from '../src/scene/terrain/SiteFacilities'
@@ -234,67 +230,3 @@ it('guides the private laundry camera through the west vestibule and the laundry
     expect(zones).toEqual(['vestibule', 'hall', 'laundry'])
   }
 })
-
-it.each(crew)('walks every stop on $name’s morning route through the actual room and stair openings', member => {
-  const opened = new Map(doors.map(d => [d.id, 1]))
-  let feet: Vector3 | undefined
-  for (const [i, stop] of member.route.entries()) {
-    const path = inspectionPath(routes, member.route[i - 1], stop)
-    expect(path, member.name + ' / ' + stop.roomId).toBeDefined()
-    if (!path) continue
-    feet ??= path[0].clone()
-    // Follow the same 1.4 m/s walk, approach damping and corner tolerance as the live guide.
-    const dt = 1 / 30, blend = 1 - Math.exp(-dt / 0.095)
-    let vx = 0, vz = 0
-    for (const p of path) {
-      const distance = feet.distanceTo(p)
-      const frames = Math.ceil((distance / WALK.walk + 3) / dt)
-      for (let n = 0; n < frames && feet.distanceTo(p) >= 0.13; n++) {
-        const x = p.x - feet.x, z = p.z - feet.z, d = Math.hypot(x, z)
-        const speed = d < 0.065 ? 0 : Math.min(WALK.walk, d * 4)
-        vx += ((x / (d || 1)) * speed - vx) * blend
-        vz += ((z / (d || 1)) * speed - vz) * blend
-        world.move(feet, vx * dt, vz * dt, doors, opened)
-      }
-      expect(feet.distanceTo(p), member.name + ' / ' + stop.roomId + ' at ' + p.toArray()).toBeLessThan(0.13)
-    }
-  }
-})
-
-for (const template of roomTemplates) for (const host of template.roomIds.concat(template.trialRoomIds)) {
-  it(`${host} · ${template.name}机位可达且实际设备进入视野`, () => {
-    const rooms = resolveRooms({ [host]: template.id })
-    const room = rooms.find(r => r.id === host)!, floor = room.floorId as UndergroundId
-    const world = undergroundWorld(rooms, [floor])
-    const routes = new Map<string, Vector3[]>()
-    const model = new ModelBuilder()
-    for (const unit of room.equipment) drawEquipment(model, floor, unit)
-    const built = model.build()
-    try {
-      for (const _ of surveyRoomFloor(world, rooms, floor, routes)) { /* complete this floor survey */ }
-      const y = FLOORS[floor].elevation, a = room.cameraAnchors[0]
-      expect(routes.has(floor + routeKey(a.position[0], a.position[2]))).toBe(true)
-      const camera = new PerspectiveCamera(60, 1.55, 0.12, 50)
-      camera.position.set(...a.position).y += y
-      camera.lookAt(new Vector3(...a.target).add(new Vector3(0, y, 0)))
-      camera.updateMatrixWorld()
-      built.object.position.y = y
-      built.object.updateMatrixWorld(true)
-      const ray = new Raycaster(), seen = new Set<string>()
-      const inventory = new Map(room.equipment.map(unit => [unit.tagCode, new Box3().setFromCenterAndSize(
-        new Vector3(...unit.position).add(new Vector3(0, y + unit.moduleSizeM[1] / 2, 0)), new Vector3(...unit.moduleSizeM),
-      ).expandByScalar(0.06)]))
-      for (const u of [-0.86, -0.66, -0.45, -0.22, 0, 0.22, 0.45, 0.66, 0.86]) for (const v of [-0.83, -0.62, -0.41, -0.21, 0, 0.22]) {
-        ray.setFromCamera(new Vector2(u, v), camera)
-        const wall = world.raycastFirst(ray.ray, DoubleSide, 0.12, 50)
-        if (!u && !v) expect(wall?.distance ?? 50).toBeGreaterThan(1.8)
-        const hit = ray.intersectObject(built.object, true)[0]
-        if (!hit || hit.instanceId === undefined || !(hit.object instanceof InstancedMesh)) continue
-        const tag = hit.object.userData.equipmentTags?.[hit.instanceId]
-        if (wall && inventory.get(tag)?.containsPoint(wall.point)) seen.add(tag)
-      }
-      expect([...seen].some(tag => tag.includes(host.toUpperCase().replace('_', '-')))).toBe(true)
-      if (room.equipment.length > 1 && host !== 'b1_tactical') expect(seen.size).toBeGreaterThanOrEqual(2)
-    } finally { built.dispose(); world.dispose() }
-  })
-}

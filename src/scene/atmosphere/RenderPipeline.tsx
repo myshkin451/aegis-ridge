@@ -16,15 +16,16 @@ import {
   Mesh,
   MeshStandardMaterial,
   type Object3D,
-  Quaternion,
   ShaderChunk,
-  Vector3,
   type Camera,
+  type WebGLRenderTarget,
+  type WebGLRenderer,
 } from 'three'
 import { CSM } from 'three/addons/csm/CSM.js'
 import {
   SelectiveBloomEffect,
   EffectComposer,
+  Effect,
   EffectPass,
   RenderPass,
   SMAAEffect,
@@ -36,6 +37,8 @@ import { SurveyAmbientOcclusion } from './SurveyAmbientOcclusion'
 import { useShelterStore } from '../../store/useShelterStore'
 import { emergencyCircuit } from '../materials/pbrLibrary'
 import { shadowUniforms } from './shadowUniforms'
+import { sunCascadeCoverage } from './sunCascadeCoverage'
+import { reduceMotion } from '../utils/Model'
 import { ScenarioGrade } from './ScenarioGrade'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { sunAt } from './PhysicalSky'
@@ -61,6 +64,22 @@ class FixtureBloom extends SelectiveBloomEffect {
 
   override setSize(width: number, height: number) {
     super.setSize(Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)))
+  }
+}
+
+// The beauty buffer and SMAA edges are already at display resolution. Composite the
+// low-frequency halo in the final colour pass. Photo mode composites it before lens blur.
+class FixtureHalo extends Effect {
+  constructor(bloom: FixtureBloom) {
+    super('FixtureHalo', bloom.getFragmentShader(), { uniforms: bloom.uniforms, blendFunction: bloom.blendMode.blendFunction })
+  }
+}
+class FixtureBloomPass extends EffectPass {
+  constructor(camera: Camera, private readonly lamps: FixtureBloom) { super(camera, lamps) }
+  override render(renderer: WebGLRenderer, input: WebGLRenderTarget | null, output: WebGLRenderTarget | null,
+    dt?: number, stencilTest?: boolean) {
+    if (!this.needsSwap && input) this.lamps.update(renderer, input, dt ?? 0)
+    else super.render(renderer, input, output, dt, stencilTest)
   }
 }
 
@@ -189,9 +208,9 @@ export function SunShadows() {
   const tier = useQuality(),
     csm = useRef<CSM | null>(null)
   const fill = useRef<DirectionalLight>(null),
-    projection = useRef(new Matrix4()),
-    eye = useRef(new Vector3()),
-    turn = useRef(new Quaternion())
+    projection = useRef(new Matrix4())
+  const coverage = useMemo(sunCascadeCoverage, [])
+  const animated = useMemo(() => !reduceMotion(), [])
   const time = useShelterStore((s) => s.time),
     cold = useShelterStore((s) => s.cold)
   const sun = useMemo(() => sunAt(time), [time])
@@ -251,7 +270,7 @@ export function SunShadows() {
     for (const l of s.lights) l.shadow.needsUpdate = outdoors && sunlightGain > 0
     gl.shadowMap.needsUpdate = outdoors && sunlightGain > 0
   }, [outdoors, cold, sun, sunlightGain, gl])
-  useFrame(({ camera }) => {
+  useFrame(({ camera, clock }) => {
     const s = csm.current
     if (!s) return
     const sunlight = outdoors && sunlightGain > 0
@@ -260,10 +279,10 @@ export function SunShadows() {
       const living =
         useShelterStore.getState().cameraState === 'walkthrough' && floorAt(camera.position.y - 1.65) === 'B2'
       const emergency = useShelterStore.getState().cameraState === 'walkthrough' && camera.position.y < 0 && emergencyCircuit.value > 0
-      fill.current.intensity = outdoors ? 0 : emergency ? 0.06 : living ? (night ? 0.025 : 0.22) : 0.91
+      const commons = living && camera.position.x < -6 && camera.position.x > -16 && camera.position.z > 0 && camera.position.z < 12
+      fill.current.intensity = outdoors ? 0 : emergency ? 0.06 : commons ? 0.025 : living ? (night ? 0.025 : 0.22) : 0.91
     }
     if (!sunlight) {
-      gl.shadowMap.needsUpdate = false
       for (const l of s.lights) l.shadow.needsUpdate = false
       return
     }
@@ -278,18 +297,8 @@ export function SunShadows() {
       shadowUniforms.shadowFar.value = Math.min(camera.far, s.maxFar)
       gl.shadowMap.needsUpdate = true
     }
-    if (
-      gl.shadowMap.needsUpdate ||
-      !eye.current.equals(camera.position) ||
-      !turn.current.equals(camera.quaternion)
-    ) {
-      s.update()
-      for (const l of s.lights) l.shadow.needsUpdate = true
-      gl.shadowMap.needsUpdate = true
-      eye.current.copy(camera.position)
-      turn.current.copy(camera.quaternion)
-    }
-  }, -0.2)
+    if (coverage(s, gl.shadowMap.needsUpdate, clock.elapsedTime, animated)) gl.shadowMap.needsUpdate = true
+  }, 0.75)
   return (
     <directionalLight
       ref={fill}
@@ -313,14 +322,14 @@ export function RenderPipeline() {
     camera: Camera
     grade: ScenarioGrade
     bloom: FixtureBloom
-    glow: EffectPass
+    halo: FixtureHalo
+    glow: FixtureBloomPass
     depthOfField: EffectPass
     depth: PhotographicDepth
     exposure: ReturnType<typeof exposureProcessor>
     shadows: ReturnType<typeof shadowPasses>
   } | null>(null)
   const lens = useMemo(shiftLens, [])
-  const installedRooms = useShelterStore(s => s.installedRooms)
   const startup = useRef(0),
     fence = useRef<WebGLSync | null>(null)
   useLayoutEffect(() => {
@@ -339,10 +348,14 @@ export function RenderPipeline() {
     render.clearPass.setClearFlags(true, true, true)
     pipe.addPass(render)
     const ao = new SurveyAmbientOcclusion(scene, camera, pipe)
+    // Read physical occluders from the beauty pass depth. Glass, cloud and flame surfaces
+    // keep their optical opacity in the beauty pass and do not require a second lighting pass each.
     ao.autoDetectTransparency = false
+    ao.configuration.transparencyAware = false
     ao.configuration.gammaCorrection = false
     ao.configuration.halfRes = false
     ao.setQualityMode('Medium')
+    ao.configuration.denoiseIterations = 1
     // Full-resolution depth-aware denoising prevents half-res crawling shimmer during camera drag.
     ao.configuration.biasOffset = 0.012
     ao.configuration.biasMultiplier = 0.28
@@ -356,7 +369,8 @@ export function RenderPipeline() {
       levels: 4,
     })
     bloom.ignoreBackground = true
-    const glow = new EffectPass(camera, bloom)
+    const halo = new FixtureHalo(bloom)
+    const glow = new FixtureBloomPass(camera, bloom)
     pipe.addPass(glow)
     const depth = new PhotographicDepth()
     const depthOfField = new EffectPass(camera, depth)
@@ -367,13 +381,14 @@ export function RenderPipeline() {
       new EffectPass(
         camera,
         new SMAAEffect({ preset: SMAAPreset.HIGH }),
+        halo,
         new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
         grade,
       ),
     )
     const exposure = exposureProcessor()
     const abort = new AbortController()
-    pipeline.current = { pipe, ao, camera, grade, bloom, glow, depthOfField, depth, exposure, shadows: shadowPasses(scene) }
+    pipeline.current = { pipe, ao, camera, grade, bloom, halo, glow, depthOfField, depth, exposure, shadows: shadowPasses(scene) }
     let capturing = false
     async function exportPhoto() {
       if (capturing) return
@@ -437,7 +452,7 @@ export function RenderPipeline() {
   }, [gl, scene, get, tier, lens])
   useLayoutEffect(() => {
     pipeline.current?.bloom.collectFixtures(scene)
-  }, [scene, installedRooms])
+  }, [scene])
   useLayoutEffect(() => {
     if (!usePhotoMode.getState().exporting) pipeline.current?.pipe.setSize(size.width, size.height)
   }, [size, dpr])
@@ -466,8 +481,12 @@ export function RenderPipeline() {
     ao.configuration.aoRadius = closeInterior ? 0.35 : state.cameraState === 'walkthrough' ? 0.58 : 1.8
     ao.configuration.intensity = closeInterior ? 1.5 : 1.25
     const photo = usePhotoMode.getState()
+    ao.historyEnabled = !photo.active && (state.cameraState === 'walkthrough' || state.cameraState === 'site')
+    ao.revision = state.cameraRevision
     // With the background masked out, hidden emitters contribute exactly zero bloom.
     p.glow.enabled = p.bloom.hasVisibleFixture()
+    p.glow.needsSwap = photo.active
+    p.halo.blendMode.opacity.value = p.glow.enabled && !photo.active ? 1 : 0
     p.depthOfField.enabled = photo.active
     p.depth.focus.value = state.cameraState === 'walkthrough' ? 3.5 : state.cameraState === 'site' ? 85 : 22
     canvas.dataset.photoMode = photo.active ? 'on' : 'off'

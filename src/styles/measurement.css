@@ -1,9 +1,0 @@
-.measure-controls p { margin: 5px 0; font-size: 12px; }
-.measure-actions { display: flex; justify-content: space-between; gap: 12px; }
-.measure-actions button { padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; }
-.measure-actions button[aria-pressed='true'] { color: var(--active); }
-.measure-actions button:disabled { color: var(--dim); opacity: .55; cursor: default; }
-.measure-controls output:not(:empty) { display: block; margin: 5px 0; }
-.measure-reference { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 4px 0; }
-.measure-reference select { max-width: 75%; background: var(--paper); border: 1px solid var(--rule); }
-.measure-features { color: var(--dim); }
