@@ -1,3 +1,5 @@
+import { vegetationV3 } from '../terrain/foliageAssets'
+import { plantBed } from './cropBeds'
 import { drawGym } from './residential'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import type { ModelBuilder } from '../utils/modelBuilder'
@@ -107,48 +109,68 @@ function planter(m: ModelBuilder, e: EquipmentUnit) {
   m.box('#4d5140', [0, 0.342, 0], [1.29, 0.06, 4.45], 'epoxy')
   for (const x of [-0.7, 0.7]) m.box('#a89b84', [x, 0.375, 0], [0.074, 0.24, 4.62], 'oak_int')
   for (const z of [-2.25, 2.25]) m.box('#a89b84', [0, 0.375, z], [1.47, 0.24, 0.075], 'oak_int')
-  for (let i = 0; i < 7; i++)
-    for (let j = 0; j < 2; j++) {
-      const a = i * 1.83 + j * 2.38,
-        x = (j - 0.5) * 0.57 + Math.cos(a) * 0.06,
-        z = (i - 3) * 0.603
-      const h = 0.32 + Math.sin(a) * 0.09
-      if (e.tagCode.endsWith('A')) {
-        for (let k = 0; k < 8; k++) {
-          const phi = a + k * 0.785,
-            r = 0.15 + (k % 2) * 0.04
-          m.part(
-            'leaf',
-            'foliage',
-            ['#697b54', '#789557', '#506c55'][k % 3],
-            [x + r * Math.sin(phi), 0.51 + (k % 2) * 0.07, z + r * Math.cos(phi)],
-            [0.21, 0.33, 0.44],
-            [0.25, phi, 0],
-          )
+  if (vegetationV3) {
+    const tuber = e.tagCode.endsWith('B')
+    // Keep the front ID plate and the timber edge clear, including the full card rectangle.
+    plantBed(
+      m,
+      {
+        width: 1.25,
+        length: 4.1,
+        columns: 2,
+        surface: 0.372,
+        rowPitch: 0.55,
+        originZ: -0.09,
+        headroom: 1.03,
+      },
+      tuber ? 'tuber' : 'greens',
+      0,
+      tuber ? 212 : 211,
+    )
+  } else {
+    for (let i = 0; i < 7; i++)
+      for (let j = 0; j < 2; j++) {
+        const a = i * 1.83 + j * 2.38,
+          x = (j - 0.5) * 0.57 + Math.cos(a) * 0.06,
+          z = (i - 3) * 0.603
+        const h = 0.32 + Math.sin(a) * 0.09
+        if (e.tagCode.endsWith('A')) {
+          for (let k = 0; k < 8; k++) {
+            const phi = a + k * 0.785,
+              r = 0.15 + (k % 2) * 0.04
+            m.part(
+              'leaf',
+              'foliage',
+              ['#697b54', '#789557', '#506c55'][k % 3],
+              [x + r * Math.sin(phi), 0.51 + (k % 2) * 0.07, z + r * Math.cos(phi)],
+              [0.21, 0.33, 0.44],
+              [0.25, phi, 0],
+            )
+          }
+        } else {
+          m.beam([x, 0.37, z], [x + 0.05, 0.72 + h, z], 0.022, 0.022, '#697755', 'oak_int')
+          for (let k = 0; k < 5; k++) {
+            const phi = k * 2.4
+            m.part(
+              'leaf',
+              'foliage',
+              '#71916a',
+              [x + Math.sin(phi) * 0.13, 0.46 + k * 0.074, z + Math.cos(phi) * 0.13],
+              [0.19, 0.12, 0.33],
+              [0.2, phi, 0],
+            )
+          }
+          for (let k = 0; k < 3; k++)
+            m.part(
+              'bud',
+              'foliage',
+              k % 2 ? '#b49b94' : '#c1b388',
+              [x + 0.05 + Math.cos(k * 2.1) * 0.054, 0.73 + h + k * 0.045, z + Math.sin(k * 2.1) * 0.055],
+              [0.13, 0.15, 0.14],
+            )
         }
-      } else {
-        m.beam([x, 0.37, z], [x + 0.05, 0.72 + h, z], 0.022, 0.022, '#697755', 'oak_int')
-        for (let k = 0; k < 5; k++) {
-          const phi = k * 2.4
-          m.part(
-            'leaf',
-            'foliage',
-            '#71916a',
-            [x + Math.sin(phi) * 0.13, 0.46 + k * 0.074, z + Math.cos(phi) * 0.13],
-            [0.19, 0.12, 0.33],
-            [0.2, phi, 0],
-          )
-        }
-        for (let k = 0; k < 3; k++)
-          m.part(
-            'bud',
-            'foliage',
-            k % 2 ? '#b49b94' : '#c1b388',
-            [x + 0.05 + Math.cos(k * 2.1) * 0.054, 0.73 + h + k * 0.045, z + Math.sin(k * 2.1) * 0.055],
-            [0.13, 0.15, 0.14],
-          )
       }
-    }
+  }
   m.box(paper, [-0.58, 0.56, 2.15], [0.23, 0.13, 0.035], 'oak_int', [0.14, -0.18, 0])
 }
 

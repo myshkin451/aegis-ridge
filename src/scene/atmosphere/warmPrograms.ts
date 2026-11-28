@@ -1,4 +1,6 @@
 import {
+  type BufferGeometry,
+  InstancedMesh,
   Line,
   LOD,
   Material,
@@ -31,6 +33,8 @@ export function precompileSurvey(
   const size = gl.getSize(new Vector2())
   const objects: [Object3D, boolean, boolean, boolean][] = []
   const lods: LOD[] = []
+  const instanceCounts = new Map<InstancedMesh, number>()
+  const drawCounts = new Map<BufferGeometry, number>()
   const lights: (DirectionalLight | SpotLight)[] = []
   const indoorCasters: Object3D[] = []
   const materials = new Map<Material, boolean>()
@@ -38,6 +42,19 @@ export function precompileSurvey(
     if ((o instanceof DirectionalLight || o instanceof SpotLight) && o.castShadow) lights.push(o)
     objects.push([o, o.visible, o.frustumCulled, o.castShadow])
     if (o.userData.localDoorShadow || o.userData.localFurnitureShadow) indoorCasters.push(o)
+    // Link using each real vertex layout, clipping set and shadow camera. One triangle
+    // exercises that pipeline without rasterizing the entire unculled site in three cascades.
+    if (o instanceof Mesh || o instanceof Line) {
+      const g = o.geometry
+      if (!drawCounts.has(g)) {
+        drawCounts.set(g, g.drawRange.count)
+        g.drawRange.count = Math.min(g.drawRange.count, o instanceof Mesh ? 3 : 2)
+      }
+    }
+    if (o instanceof InstancedMesh) {
+      instanceCounts.set(o, o.count)
+      o.count = Math.min(1, o.instanceMatrix.count)
+    }
     o.visible = true
     o.frustumCulled = false
     if (o instanceof LOD && o.autoUpdate) {
@@ -63,7 +80,11 @@ export function precompileSurvey(
   pipe.render(0)
   performance.mark('ars-open-opaque')
   for (const [m, transparent] of materials)
-    if (!transparent && (m instanceof MeshStandardMaterial || m.type === 'LineBasicMaterial')) {
+    if (
+      !transparent &&
+      !m.userData.staticVegetationOpacity &&
+      (m instanceof MeshStandardMaterial || m.type === 'LineBasicMaterial')
+    ) {
       m.transparent = true
       m.needsUpdate = true
     }
@@ -83,6 +104,8 @@ export function precompileSurvey(
     o.frustumCulled = cull
     o.castShadow = casts
   }
+  for (const [g, count] of drawCounts) g.drawRange.count = count
+  for (const [mesh, count] of instanceCounts) mesh.count = count
   for (const lod of lods) lod.autoUpdate = true
   for (const [m, t] of materials)
     if (m.transparent !== t) {

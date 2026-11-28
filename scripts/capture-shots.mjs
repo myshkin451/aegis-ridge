@@ -9,6 +9,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const milestone = process.argv[2] ?? 'm4'
+if (milestone === 'v3') {
+  await import('./capture-vegetation.mjs')
+  process.exit(0)
+}
 if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -86,7 +90,7 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
   async function openStage(stage) {
-    await page.goto(base + '/?quality=2&pilot=' + stage, { waitUntil: 'networkidle' })
+    await page.goto(base + '/?quality=2&veg=v2&pilot=' + stage, { waitUntil: 'networkidle' })
     await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
     const data = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
     if (

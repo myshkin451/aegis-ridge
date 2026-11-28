@@ -18,6 +18,8 @@ import {
   Quaternion,
   Vector3,
 } from 'three'
+import { cropLeafGeometry, type CropLeaf } from '../rooms/cropBeds'
+import { makeCropMaterial } from '../terrain/foliageAssets'
 import { beddingGeometry } from '../rooms/beddingGeometry'
 import { foldedThrow } from '../rooms/foldedThrow'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
@@ -52,6 +54,7 @@ type Shape =
   | 'throw'
   | 'standard-throw'
   | keyof typeof standardBedding
+  | CropLeaf
   | DomesticKind
 interface Stamp {
   matrix: Matrix4
@@ -232,6 +235,11 @@ export class ModelBuilder {
           case 'distantFir':
             geom = firGeometry(fallbackShape === 'distantFir')
             break
+          case 'crop-broad':
+          case 'crop-serrated':
+          case 'crop-compound':
+            geom = cropLeafGeometry(fallbackShape)
+            break
           case 'leaf': {
             geom = new BufferGeometry()
             geom.setAttribute(
@@ -255,11 +263,15 @@ export class ModelBuilder {
         shapes.set(fallbackShape, geom)
         geometries.add(geom)
       }
-      const closedFoliage = finish === 'foliage' && shape !== 'leaf'
-      const paintKey = finish + (shape === 'box' ? '-edge' : '') + (closedFoliage ? '-hull' : '')
+      const crop = shape === 'crop-broad' || shape === 'crop-serrated' || shape === 'crop-compound'
+      const closedFoliage = finish === 'foliage' && shape !== 'leaf' && !crop
+      const paintKey = crop
+        ? 'crop-atlas'
+        : finish + (shape === 'box' ? '-edge' : '') + (closedFoliage ? '-hull' : '')
       let mat = paints.get(paintKey)
       if (!mat) {
-        if (finish === 'needles') {
+        if (crop) mat = makeCropMaterial()
+        else if (finish === 'needles') {
           const needles = needleMaterial()
           textures.push(needles.map)
           mat = needles.material
@@ -278,7 +290,7 @@ export class ModelBuilder {
         mesh.userData.equipmentTags = stamps.map((stamp) => stamp.tag)
         mesh.userData.batchTags = [...new Set(mesh.userData.equipmentTags)]
       }
-      mesh.userData.closedSolid = true
+      mesh.userData.closedSolid = !crop
       mesh.userData.finish = finish
       mesh.userData.shape = shape
       mesh.castShadow = finish !== 'glass' && finish !== 'lamp'
