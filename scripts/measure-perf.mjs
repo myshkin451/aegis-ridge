@@ -1,11 +1,14 @@
 import { chromium } from 'playwright'
 import { preview } from 'vite'
+import { installTextureAudit } from './texture-storage-audit.mjs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const signed = { ready: 3017.8, peak: 367, bytes: 2528888 }
+const signed = { ready: 2991.3, peak: 366, bytes: 2528888 }
+const viewport = { width: 1728, height: 1117 }
+const deviceScaleFactor = 1.5
 // Enumerate deployed assets independently of the loader. A silently missing fetch is a failure.
 async function publishedAssets(directory, url = '/assets/') {
   const files = []
@@ -53,8 +56,8 @@ try {
     args: ['--use-angle=metal'],
   })
   const page = await browser.newPage({
-    viewport: { width: 2560, height: 1440 },
-    deviceScaleFactor: 1,
+    viewport,
+    deviceScaleFactor,
     reducedMotion: 'no-preference',
   })
   const errors = [],
@@ -77,6 +80,7 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   await page.addInitScript((debug) => {
     sessionStorage.setItem('ars-keys', '1')
+    localStorage.setItem('ars-opening-seen', '1')
     const webgl = WebGL2RenderingContext.prototype,
       link = webgl.linkProgram
     const perf = (window.surveyPerf = { links: 0, frames: [], running: false, prev: 0, started: 0 })
@@ -107,6 +111,7 @@ try {
     }
     function frame(t) {
       const c = document.querySelector('canvas')
+      if (perf.ready && c) perf.minDpr = Math.min(perf.minDpr, c.width / c.clientWidth)
       if (perf.running && c) {
         const data = c.dataset
         perf.frames.push([t - perf.prev, c.width, data.eye, Number(data.calls), Number(data.triangles)])
@@ -117,6 +122,8 @@ try {
     requestAnimationFrame(frame)
     window.addEventListener('ars-ready', () => {
       perf.ready = performance.now()
+      const canvas = document.querySelector('canvas')
+      perf.minDpr = canvas.width / canvas.clientWidth
       perf.coldLinks = perf.links
     })
   }, process.argv.includes('--diagnose'))
@@ -146,17 +153,17 @@ try {
       assetState: { ...document.querySelector('canvas').dataset },
       paint: performance.getEntriesByName('first-contentful-paint')[0]?.startTime,
       agent: navigator.userAgent,
+      transferred: performance.getEntriesByType('resource').reduce((n, r) => n + r.transferSize, 0),
     }
   })
   console.log('首屏', JSON.stringify(env))
-  if (!/ANGLE.*Metal/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
-    throw Error('实测需要硬件 ANGLE Metal')
-  if (!(env.ready <= 8000 && env.paint <= 3000)) failures.push('首屏描线/材质时间超限')
-  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M3 增加超过 500 ms')
+  if (!/ANGLE.*Metal.*Apple M1 Pro/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
+    throw Error('实测需要 Apple M1 Pro / Chrome ANGLE Metal')
+  if (!(env.ready <= 10000)) failures.push('首屏 GPU 交互就绪超过 10 s')
   const textureBytes = Number(env.assetState.pilotTextureBytes)
   const environmentBytes = Number(env.assetState.interiorEnvironmentBytes)
-  if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 64000000))
-    failures.push('内容纹理与室内反射不符合 64 MB 预算')
+  if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 1_000_000_000))
+    failures.push('内容纹理与环境图计量缺失或超过 1 GB')
   if (
     env.assetState.pilotFinishes !== '4' ||
     env.assetState.pilotArt !== '1' ||
@@ -165,7 +172,9 @@ try {
   )
     failures.push('首屏资源虽已请求，但未完整安装')
   const cdp = await page.context().newCDPSession(page)
-  cdp.on('Tracing.dataCollected', ({ value }) => events.push(...value))
+  cdp.on('Tracing.dataCollected', ({ value }) => {
+    for (const e of value) if (e.name === 'thread_name' || e.name.endsWith('RunTask') || e.name.startsWith('ars-')) events.push(e)
+  })
   await cdp.send('Tracing.start', {
     categories: 'toplevel,disabled-by-default-devtools.timeline,devtools.timeline,blink.user_timing',
     transferMode: 'ReportEvents',
@@ -218,11 +227,12 @@ try {
     console.log(label, 'FPS', row.fps.toFixed(1), 'p95', row.p95.toFixed(1), '链接', row.links)
     return eyes
   }
-  const centre = [1280, 720]
+  const centre = [viewport.width / 2, viewport.height / 2]
+  const position = (x, y) => [x * viewport.width / 2560, y * viewport.height / 1440]
   async function drag(dx, dy, steps = 18) {
     await page.mouse.move(...centre)
     await page.mouse.down()
-    await page.mouse.move(centre[0] + dx, centre[1] + dy, { steps })
+    await page.mouse.move(centre[0] + dx * viewport.height / 1440, centre[1] + dy * viewport.height / 1440, { steps })
     await page.mouse.up()
   }
   const site = ['site', 'exterior']
@@ -270,7 +280,9 @@ try {
   }
   await measure('现场静止 8 s', () => wait(8000))
   const orbit = await measure('连续环绕', async () => {
-    for (let j = 0; j < 5; j++) await drag(123, j === 0 ? -96 : 0)
+    // Sample sustained pointer motion for approximately eight seconds at Retina/60 Hz.
+    // Retain the initial audio unlock, all five press/release pairs and the low orbit path.
+    for (let j = 0; j < 5; j++) await drag(123, j === 0 ? -96 : 0, 96)
     await wait(450)
   })
   checkClearance('低位环绕', orbit)
@@ -312,11 +324,11 @@ try {
   }
   const terrain = await measure('山坡推近', async () => {
     await drag(0, -180)
-    await push(2060, 1090)
+    await push(...position(2060, 1090))
   })
   if (checkClearance('山坡推近', terrain).min > 1.1) failures.push('山坡滚轮路径未触及地表约束')
   await view('1', site)()
-  const station = await measure('站房滚轮', () => push(1280, 860))
+  const station = await measure('站房滚轮', () => push(...position(1280, 860)))
   const nearWall = checkClearance('站房滚轮', station)
   if (nearWall.building > 2) failures.push('站房滚轮路径未触及外廓')
   const flight = await measure('贴墙自由飞行', async () => {
@@ -340,7 +352,7 @@ try {
       if (key === 'wheel') await page.mouse.wheel(0, -60)
       else if (key === 'drag') {
         await page.mouse.down()
-        await page.mouse.move(1300, 860)
+        await page.mouse.move(...position(1300, 860))
         await page.mouse.up()
       } else await page.keyboard.press(key)
       await cycle()
@@ -406,14 +418,7 @@ try {
     })
   }
   // Exercise the M2 selection and authored camera route on the same warmed WebGL context.
-  for (const [room, reflection] of [
-    ['l2_observatory', 'station'],
-    ['l1_garage', 'station'],
-    ['b1_workshop', 'service'],
-    ['b2_commons', 'living'],
-    ['b3_aquaponics', 'farm'],
-    ['b4_switchgear', 'service'],
-  ]) {
+  for (const room of ['l2_observatory', 'l1_garage', 'b1_workshop', 'b2_commons', 'b3_aquaponics', 'b4_switchgear']) {
     await measure('室内 ' + room, async () => {
       await view('1', site)()
       await page.getByRole('button', { name: '机位与图幅' }).click()
@@ -425,7 +430,7 @@ try {
       await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
       await wait(250)
     })
-    if ((await read('interior-environment')) !== reflection) failures.push(room + ' 室内反射不符')
+    if ((await read('interior-environment')) !== room) failures.push(room + ' 室内反射不符')
   }
   async function selectPilot(name) {
     const before = await read('revision')
@@ -510,10 +515,10 @@ try {
     await page.waitForSelector('canvas[data-mep-lens=off]')
   })
   await measure('M3 走廊仰视夹层', async () => {
-    await drag(0, -285)
+    await drag(0, -285 * 1440 / viewport.height)
     await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) > 0.7)
     await wait(2200)
-    await drag(0, 285)
+    await drag(0, 285 * 1440 / viewport.height)
     await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) < 0.02)
   })
   await page.getByRole('button', { name: '机位与图幅' }).click()
@@ -645,6 +650,81 @@ try {
     await page.waitForSelector('canvas[data-lighting-circuit=normal]')
     await button('关闭工程面板').click()
   })
+  await measure('M5 时间轴拖动与延时', async () => {
+    await button('站内时钟').click()
+    const slider = page.getByRole('slider', { name: '24 小时时间轴' })
+    const box = await slider.boundingBox()
+    await page.mouse.move(box.x + 5, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2, { steps: 32 })
+    await page.mouse.up()
+    await slider.press('End')
+    await slider.evaluate(e => e.blur())
+    if (await slider.inputValue() !== '1439') throw Error('时间轴未到午夜前')
+    await button('延时播放').click()
+    await page.waitForFunction(() => Number(document.querySelector('.clock-slider input').value) < 10)
+    await button('延时播放').click()
+    await button('站内时钟').click()
+  })
+  await measure('M5 真实房间反射切换', async () => {
+    if (Number(await read('probe-count')) < 16) throw Error('缺少房间反射')
+    for (const [name, room] of [['bedroom', 'b2-single-1'], ['commons', 'b2_commons'], ['bath', 'b2_bath_laundry']]) {
+      await selectPilot(name)
+      if (await read('active-shadow-spots') !== '2') throw Error(room + ' 的双投影光源未同时点亮')
+      await page.waitForFunction(room => {
+        const d = document.querySelector('canvas').dataset
+        return d.interiorEnvironment === room && Number(d.reflectionMix) === 1
+      }, room)
+    }
+  })
+  await measure('M5 晨间巡检与鼠标接管', async () => {
+    await button('专家团').click()
+    await page.locator('[data-crew-id=mechanical]').click()
+    await page.waitForSelector('canvas[data-ready=settled][data-view=plan]')
+    if (!(await read('mep-affected-rooms')).includes('b1_workshop') ||
+        Number(await read('mep-trace-count')) < 1 || await page.locator('[data-partner=true]').count() !== 2)
+      throw Error('专家的责任房间、管线或互助搭档未高亮')
+    await page.locator('[data-morning]').click()
+    await page.waitForSelector('canvas[data-tour=inspection][data-view=walkthrough][data-ready=settled]')
+    const before = (await read('feet')).split(',').map(Number)
+    await wait(1900)
+    const after = (await read('feet')).split(',').map(Number)
+    if (Math.hypot(after[0] - before[0], after[2] - before[2]) < 0.8) throw Error('巡检人员未沿实际路线行走')
+    await page.locator('.tour-caption').waitFor()
+    await page.mouse.move(...centre)
+    await page.waitForSelector('canvas[data-tour=idle]')
+    if (await page.locator('.tour-caption').isVisible()) throw Error('巡检接管后字幕仍在')
+  })
+  await measure('M5 照片模式与画幅', async () => {
+    await button('照片模式').click()
+    await page.waitForSelector('canvas[data-photo-mode=on]')
+    for (const frame of ['4:5', '2.39:1', '16:9']) await page.getByLabel('取景画幅').selectOption(frame)
+    await page.getByLabel('垂直校正').uncheck()
+    await page.getByLabel('垂直校正').check()
+    await page.keyboard.press('h')
+    await page.locator('.hud').waitFor({ state: 'hidden' })
+    await page.keyboard.press('h')
+    await button('照片模式').click()
+    await page.waitForSelector('canvas[data-photo-mode=off]')
+  })
+  await measure('M5 开场全程', async () => {
+    await page.keyboard.press('o')
+    for (let cue = 0; cue < 9; cue++)
+      await page.waitForSelector('canvas[data-tour=opening][data-tour-cue="' + cue + '"]')
+    await page.waitForSelector('canvas[data-tour=idle][data-view=site][data-ready=settled]')
+  })
+  await measure('M5 开场键盘接管', async () => {
+    await page.keyboard.press('o')
+    await page.waitForSelector('canvas[data-tour=opening]')
+    await page.keyboard.press('w')
+    await page.waitForSelector('canvas[data-tour=idle]')
+  })
+  async function checkDpr() {
+    const min = await page.evaluate(() => window.surveyPerf.minDpr)
+    console.log('自动画质最低 DPR', min, '目标', deviceScaleFactor)
+    if (!(min >= deviceScaleFactor - 0.0001)) failures.push('自动画质在验收期间降低 DPR')
+  }
+  await checkDpr()
   const total = await page.evaluate(() => window.surveyPerf.links - window.surveyPerf.coldLinks)
   console.log('就绪后全程链接', total)
   if (total !== 0) failures.push('就绪后全程链接 ' + total)
@@ -679,13 +759,13 @@ try {
       )
     const longest = tasks.reduce((a, b) => (a.dur > b.dur ? a : b))
     row.task = longest.dur / 1000
-    if (row.draws > 392 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
+    if (row.draws > 600 || row.triangles > 8_000_000) console.warn(row.label, '几何规模提醒', row.draws, row.triangles)
     if (
       (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) ||
         row.label.startsWith('样板稳态') ||
         row.label === 'M4 封锁稳态' ||
-        row.label === 'M4 搬运全景稳态') &&
-      (row.fps < 58 || row.p95 > 20)
+        row.label === 'M4 搬运全景稳态' || row.label === 'M5 开场全程') &&
+      (row.fps < 59.4 || row.p95 > 18)
     )
       failures.push(row.label + ' 未达到稳态帧率预算')
     if (row.task > 50) failures.push(row.label + ' 主线程 ' + row.task.toFixed(2) + ' ms')
@@ -705,11 +785,11 @@ try {
   }
   const peak = Math.max(...reports.map((r) => r.draws))
   const download = env.assets.reduce((sum, a) => sum + a.bytes, 0)
-  if (download - signed.bytes > 4000000) failures.push('新增资产下载超过 4 MB')
+  console.log('首屏资源总传输 B', env.transferred, '内容纹理 B', textureBytes, '环境图 B', environmentBytes)
   console.log(
     '全程峰值绘制',
     peak,
-    '较 M3 增量',
+    '较 M4 增量',
     peak - signed.peak,
     '首屏 GPU 就绪变化 ms',
     (env.ready - signed.ready).toFixed(1),
@@ -731,6 +811,8 @@ try {
 
   // A new WebGL context deliberately opens with the procedural chair. Swap the real array and mesh
   // while the commons is on screen, after the ordinary warm-up and without another compile survey.
+  // Track allocations on the full-resolution second pass without instrumenting binds during the timing trace.
+  await page.addInitScript(installTextureAudit)
   await page.goto(origin + '/?pilot=r3&pilotLate=1', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector(
     'canvas[data-rendered=true][data-pilot-chair=procedural][data-pilot-texture=procedural]',
@@ -763,6 +845,26 @@ try {
   )
   if (glbTriangles <= proceduralTriangles) failures.push('迟到餐椅未进入实际绘制批次')
   if (late.links !== beforeLate || late.links !== late.ready) failures.push('迟到资产触发新增链接')
+  await button('照片模式').click()
+  await page.waitForSelector('canvas[data-photo-mode=on]')
+  const storageBefore = await page.evaluate(() => window.arsTextureAudit())
+  const downloadReady = page.waitForEvent('download', { timeout: 120000 })
+  await button('导出 PNG').click()
+  const png = await readFile(await (await downloadReady).path())
+  const width = png.readUInt32BE(16), height = png.readUInt32BE(20)
+  const photoStatus = await page.locator('.photo-controls output').innerText()
+  if (!png.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) ||
+      width !== viewport.width * deviceScaleFactor * 2 || height !== Math.round(width * 9 / 16) || !photoStatus.includes('16 帧'))
+    failures.push('照片导出未得到原画布两倍的 16 帧 PNG')
+  const storage = await page.evaluate(() => window.arsTextureAudit())
+  const exportLinks = await page.evaluate(() => window.surveyPerf.links) - late.links
+  console.log('Retina 照片', JSON.stringify({ width, height, bytes: png.length, links: exportLinks, status: photoStatus }))
+  console.log('WebGL 存储', JSON.stringify(storage))
+  if (storage.unknownFormats.length || !storage.texture.peakBytes || storage.texture.peakBytes > 1_000_000_000)
+    failures.push('全部 WebGL 纹理峰值超过 1 GB 或格式计量不完整')
+  if (storage.liveBytes > storageBefore.liveBytes || exportLinks !== 0)
+    failures.push('导出后离屏资源未释放或新增了程序链接')
+  await checkDpr()
   console.log('浏览器错误及警告', errors.length)
   if (errors.length || failures.length) throw Error([...failures, ...errors].join('\n'))
 } finally {

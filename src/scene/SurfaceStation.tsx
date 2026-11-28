@@ -1,3 +1,4 @@
+import { useShiftClock } from '../store/useShiftClock'
 import { RoomInteriors } from './rooms/RoomInteriors'
 import { doors, openingsAlong, type WallAxis } from '../geometry/doors'
 import { slabPlan } from '../geometry/planGeometry'
@@ -396,7 +397,7 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
     a = useRef<Group>(null),
     b = useRef<Group>(null)
   useFrame(({ camera }, dt) => {
-    if (!reduceMotion() && upper && !wire && (floor === 'ALL' || walk)) {
+    if (useShiftClock.getState().motion && !reduceMotion() && upper && !wire && (floor === 'ALL' || walk)) {
       const step = Math.min(dt, 0.08)
       if (radar.current) radar.current.rotation.y += step * 0.075
       if (!cold && a.current) a.current.rotation.y += step * 0.47

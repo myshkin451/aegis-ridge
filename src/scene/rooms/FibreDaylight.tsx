@@ -3,6 +3,8 @@ import { AdditiveBlending, CircleGeometry, Color, CylinderGeometry, Object3D, Sh
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { FLOORS } from '../../data/floors'
 import { residentialLayouts } from '../../data/roomLayouts/residential'
+import { useOperationsStore } from '../../store/useOperationsStore'
+import { lightingCues } from '../../data/lighting'
 import { useShelterStore } from '../../store/useShelterStore'
 import { sunAt } from '../atmosphere/PhysicalSky'
 
@@ -45,7 +47,9 @@ function makeBeam() {
 /** The tracked roof collector feeds a fixed downward diffuser. Its light follows the site's solar altitude. */
 export function FibreDaylight() {
   const time = useShelterStore((s) => s.time)
-  const closed = useShelterStore((s) => s.cold)
+  const emergency = useOperationsStore((s) => s.lockdownSeconds >= lightingCues.interiorEmergency)
+  const cold = useShelterStore((s) => s.cold)
+  const closed = emergency || cold
   const walking = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === 'B2')
   const beam = useMemo(makeBeam, [])
   useLayoutEffect(

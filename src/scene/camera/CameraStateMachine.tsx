@@ -28,6 +28,7 @@ import type { SurveyRuntime } from './runtime'
 import { morphProjection } from './projection'
 import { constrainSite, obstacleTop, flightSpeed, siteGround } from './siteNavigation'
 import { pathToOpenCeiling, routeKey, routeToWalkPosition } from './roomRoutes'
+import { useCrewTour } from '../../store/useCrewTour'
 import { WALK } from './walkCollision'
 
 CameraControls.install({
@@ -285,7 +286,8 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     const peel = oldView === 'walkthrough' && (view === 'floorOrbit' || view === 'plan')
     const rise = oldView === 'walkthrough' && start.eye.y < -0.5 && view !== 'walkthrough' && !peel
     const drop = !dive && view === 'walkthrough' && (oldView === 'floorOrbit' || !!state.landingTarget)
-    const duration = dive && oldView === 'site' ? 3200 : rise ? 1500 : drop ? 1200 : 950
+    const opening = useCrewTour.getState().tour === 'opening'
+    const duration = opening && dive ? 7000 : dive && oldView === 'site' ? 3200 : rise ? 1500 : drop ? 1200 : 950
     const started = performance.now(),
       eye = new Vector3(),
       look = new Vector3()
@@ -409,13 +411,8 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
         morphProjection(cam, Math.max(0.1, h), aspect, d, p)
       }
     }
-    const skip = (e: Event) => {
+    const interrupt = () => {
       if (!advance.current) return
-      if (e instanceof PointerEvent && e.type === 'pointermove' && !e.buttons) return
-      if (e instanceof KeyboardEvent && e.key === 'Escape') {
-        e.preventDefault()
-        e.stopImmediatePropagation()
-      }
       advance.current = null
       rt.moving = false
       rt.garageTransfer = rt.dropping = false
@@ -446,12 +443,22 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
         controls.update(0)
       }
     }
+    rt.interrupt = interrupt
+    const skip = (e: Event) => {
+      if (!advance.current || (e instanceof PointerEvent && e.type === 'pointermove' && !e.buttons)) return
+      if (e instanceof KeyboardEvent && e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+      interrupt()
+    }
     for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
       window.addEventListener(event, skip, true)
     return () => {
       for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
         window.removeEventListener(event, skip, true)
       rt.garageTransfer = rt.dropping = false
+      rt.interrupt = null
       controls.dispose()
       rt.controls = null
       rt.finish = null

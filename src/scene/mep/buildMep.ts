@@ -407,14 +407,16 @@ export function buildMep(network: MepNetwork) {
   root.name = '六系统工程管网'
   root.userData.skipWalk = true
   root.add(drawing, physical, affected)
-  function mark(trace: string | null, valve: string | null, inspectionRoom?: string, inspectingRepair = false) {
+  function mark(trace: string | null, valve: string | null, inspectionRoom?: string, inspectingRepair = false, duty?: { rooms: string[]; edges: string[] }) {
     palette.mask.fill(0)
     const chain = trace ? network.traceWater(trace) : new Set<string>()
+    for (const id of duty?.edges ?? []) chain.add(id)
     for (const id of chain) {
       const index = edges.get(id)
       if (index !== undefined) palette.mask[index * 4] = 255
     }
     const downstream = (valve ? network.affectedRooms(valve) : []).filter((id) => roomIndex.has(id))
+    for (const id of duty?.rooms ?? []) if (roomIndex.has(id) && !downstream.includes(id)) downstream.push(id)
     if (inspectionRoom && roomIndex.has(inspectionRoom) && !downstream.includes(inspectionRoom))
       downstream.push(inspectionRoom)
     for (const id of downstream) palette.mask[roomIndex.get(id)! * 4] = 255

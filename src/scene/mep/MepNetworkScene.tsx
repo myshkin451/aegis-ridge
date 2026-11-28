@@ -1,5 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo } from 'react'
+import { crew, responsibilityEdges } from '../../data/crew'
+import { useCrewTour } from '../../store/useCrewTour'
 import { buildMepNetwork } from '../../data/mepNetwork'
 import { FLOOR_ORDER } from '../../data/floors'
 import { getFloorElevation } from '../../geometry/coords'
@@ -22,6 +24,7 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
     const work = maintenanceOverlay(network, model.uniforms.uLow.value, model.uniforms.uHigh.value)
     model.root.add(work.mesh)
     const pass = surveyPicker(model, rt, canvas, () => get().camera, get().scene)
+    const assignments = new Map(crew.map(member => [member.id, { rooms: member.roomIds, edges: responsibilityEdges(member, network) }]))
     function layers() {
       const s = useShelterStore.getState(),
         u = model.uniforms
@@ -55,6 +58,7 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
         s.hoveredValve,
         ops.location?.roomId ?? maintenance?.roomId,
         Boolean(maintenance),
+        useCrewTour.getState().panel ? assignments.get(useCrewTour.getState().selected ?? '') : undefined,
       )
       if (s.routeOverview) model.affected.visible = false
       canvas.dataset.routeOverview = String(s.routeOverview)
@@ -77,6 +81,7 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
     }
     useShelterStore.getState().setMepNetwork(network)
     layers()
+    const stopCrew = useCrewTour.subscribe((s, p) => { if (s.panel !== p.panel || s.selected !== p.selected) layers() })
     const stopWork = useOperationsStore.subscribe((s, p) => {
       if (s.report.maintenance !== p.report.maintenance || s.location !== p.location) layers()
     })
@@ -100,6 +105,7 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
     return () => {
       stop()
       stopWork()
+      stopCrew()
       model.root.remove(work.mesh)
       work.dispose()
       pass.dispose()

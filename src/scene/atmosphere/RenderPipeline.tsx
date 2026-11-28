@@ -1,3 +1,7 @@
+import { circadianAt } from '../../data/lighting'
+import { usePhotoMode } from '../../store/usePhotoMode'
+import { PhotographicDepth, shiftLens } from '../photo/photographicLens'
+import { capturePhotograph, exposureProcessor } from '../photo/capturePhotograph'
 import type { SurveyRuntime } from '../camera/runtime'
 import { shadowPasses } from './roomShadows'
 import { floorAt } from '../../geometry/viewGeometry'
@@ -30,10 +34,19 @@ import {
 } from 'postprocessing'
 import { N8AOPostPass } from 'n8ao'
 import { useShelterStore } from '../../store/useShelterStore'
+import { emergencyCircuit } from '../materials/pbrLibrary'
 import { shadowUniforms } from './shadowUniforms'
 import { ScenarioGrade } from './ScenarioGrade'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { sunAt } from './PhysicalSky'
+
+// Glow contains only the soft halo of selected fixtures. Their hard edges, depth,
+// room reflections and the final image still use the full drawing buffer.
+class FixtureBloom extends SelectiveBloomEffect {
+  override setSize(width: number, height: number) {
+    super.setSize(Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)))
+  }
+}
 
 const tiers = [
   { dpr: 0.75, shadow: 512, ao: false, trees: 125 },
@@ -41,7 +54,7 @@ const tiers = [
   { dpr: 1.25, shadow: 1024, ao: true, trees: 340 },
   { dpr: 1.5, shadow: 1536, ao: true, trees: 420 },
 ]
-const Quality = createContext(tiers[2])
+const Quality = createContext(tiers[3])
 export const useQuality = () => useContext(Quality)
 export function QualityControl({
   children,
@@ -54,7 +67,7 @@ export function QualityControl({
     const param = new URLSearchParams(location.search).get('quality')
     return param !== null && /^[0-3]$/.test(param) ? Number(param) : null
   }, [])
-  const tier = tiers[fixed ?? 2]
+  const tier = tiers[fixed ?? 3]
   const meter = useRef({
     dpr: Math.min(devicePixelRatio, tier.dpr),
     pose: new Matrix4(),
@@ -126,12 +139,15 @@ function skipUnlitEmitters(source: string) {
           RE_Direct_RectArea(`,
       )
     } else {
-      // Clear-coated glazing may have a separate coat normal. Only skip when neither lobe receives light.
-      body = body.replace(
-        'RE_Direct(',
-        `if (directLight.visible && max(dot(geometryNormal,directLight.direction),
-        dot(geometryClearcoatNormal,directLight.direction)) > 0.0) RE_Direct(`,
-      )
+      // Test the unnormalised vector before attenuation and PCF. Back-facing or out-of-range
+      // receivers contribute nothing to either the base or clear-coat BRDF.
+      body = `
+        vec3 toEmitter = ${name}.position - geometryPosition;
+        if (max(dot(geometryNormal, toEmitter), dot(geometryClearcoatNormal, toEmitter)) > 0.0
+            && (${name}.distance == 0.0 || dot(toEmitter, toEmitter) < ${name}.distance * ${name}.distance)) {
+          ${body.replace('RE_Direct(', 'if (directLight.visible) RE_Direct(')}
+        }
+      `
     }
     source =
       source.slice(0, start) +
@@ -162,6 +178,9 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
     turn = useRef(new Quaternion())
   const time = useShelterStore((s) => s.time),
     cold = useShelterStore((s) => s.cold)
+  const sun = useMemo(() => sunAt(time), [time])
+  const night = useMemo(() => circadianAt(time).night, [time])
+  const sunlightGain = Math.max(0, Math.min(1, sun.y / 0.12))
   const outdoors = useShelterStore((s) => s.mode === 'exterior' && s.cameraState === 'site')
   useLayoutEffect(() => {
     const chunks = [ShaderChunk.lights_pars_begin, ShaderChunk.lights_fragment_begin]
@@ -209,23 +228,23 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
   }, [scene, get, tier])
   useLayoutEffect(() => {
     const s = csm.current!
-    const sun = sunAt(time)
     s.lightDirection.copy(sun).negate()
     for (const l of s.lights) {
       l.color.set(cold ? '#eaf4ff' : sun.y < 0.18 ? '#ffcd94' : '#fff1dc')
     }
-    for (const l of s.lights) l.shadow.needsUpdate = outdoors
-    gl.shadowMap.needsUpdate = outdoors
-  }, [outdoors, cold, time, gl])
+    for (const l of s.lights) l.shadow.needsUpdate = outdoors && sunlightGain > 0
+    gl.shadowMap.needsUpdate = outdoors && sunlightGain > 0
+  }, [outdoors, cold, sun, sunlightGain, gl])
   useFrame(({ camera }) => {
     const s = csm.current
     if (!s) return
-    const sunlight = outdoors && !(rt.garageTransfer && camera.position.y < 0)
-    for (const light of s.lights) light.intensity = sunlight ? (cold ? 1.1 : 2.75) : 0
+    const sunlight = outdoors && sunlightGain > 0 && !(rt.garageTransfer && camera.position.y < 0)
+    for (const light of s.lights) light.intensity = sunlight ? (cold ? 1.1 : 2.75) * sunlightGain : 0
     if (fill.current) {
       const living =
         useShelterStore.getState().cameraState === 'walkthrough' && floorAt(camera.position.y - 1.65) === 'B2'
-      fill.current.intensity = sunlight ? 0 : living ? 0.22 : 0.91
+      const emergency = useShelterStore.getState().cameraState === 'walkthrough' && camera.position.y < 0 && emergencyCircuit.value > 0
+      fill.current.intensity = outdoors ? 0 : emergency ? 0.06 : living ? (night ? 0.025 : 0.22) : 0.91
     }
     if (!sunlight) {
       gl.shadowMap.needsUpdate = false
@@ -277,8 +296,12 @@ export function RenderPipeline() {
     ao: N8AOPostPass
     camera: Camera
     grade: ScenarioGrade
+    depthOfField: EffectPass
+    depth: PhotographicDepth
+    exposure: ReturnType<typeof exposureProcessor>
     shadows: ReturnType<typeof shadowPasses>
   } | null>(null)
+  const lens = useMemo(shiftLens, [])
   const startup = useRef(0),
     fence = useRef<WebGLSync | null>(null)
   useLayoutEffect(() => {
@@ -299,7 +322,7 @@ export function RenderPipeline() {
     ao.setQualityMode('Low')
     ao.configuration.intensity = 1.6
     pipe.addPass(ao)
-    const bloom = new SelectiveBloomEffect(scene, camera, {
+    const bloom = new FixtureBloom(scene, camera, {
       luminanceThreshold: 0.66,
       luminanceSmoothing: 0.12,
       intensity: 0.31,
@@ -311,6 +334,10 @@ export function RenderPipeline() {
       if (o.userData.finish === 'lamp' || o.userData.emits) bloom.selection.add(o)
     })
     pipe.addPass(new EffectPass(camera, bloom))
+    const depth = new PhotographicDepth()
+    const depthOfField = new EffectPass(camera, depth)
+    pipe.addPass(depthOfField)
+    depthOfField.enabled = false
     const grade = new ScenarioGrade()
     pipe.addPass(
       new EffectPass(
@@ -320,10 +347,54 @@ export function RenderPipeline() {
         grade,
       ),
     )
-    pipeline.current = { pipe, ao, camera, grade, shadows: shadowPasses(scene) }
+    const exposure = exposureProcessor()
+    const abort = new AbortController()
+    pipeline.current = { pipe, ao, camera, grade, depthOfField, depth, exposure, shadows: shadowPasses(scene) }
+    let capturing = false
+    async function exportPhoto() {
+      if (capturing) return
+      const photo = usePhotoMode.getState()
+      if (!photo.active || !canvas.dataset.rendered) {
+        usePhotoMode.setState({ exporting: false })
+        return
+      }
+      capturing = true
+      const root = get()
+      const view = root.camera, loop = root.frameloop, elapsed = root.clock.elapsedTime
+      root.setFrameloop('never')
+      lens.apply(view, photo.shift)
+      try {
+        const { blob, width, height } = await capturePhotograph(gl, view, pipe, exposure, photo.aspect, abort.signal)
+        abort.signal.throwIfAborted()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `ARS-01_${useShelterStore.getState().lastFloor}_${width}x${height}.png`
+        link.click()
+        setTimeout(() => URL.revokeObjectURL(url), 30_000)
+        usePhotoMode.setState({ message: `${width} × ${height} px · 16 帧` })
+      } catch (error) {
+        if (!abort.signal.aborted)
+          usePhotoMode.setState({ message: '导出失败 · ' + (error instanceof Error ? error.message : String(error)) })
+      } finally {
+        lens.restore(view)
+        if (!abort.signal.aborted) {
+          root.setFrameloop(loop)
+          root.clock.elapsedTime = elapsed
+          pipe.setSize(get().size.width, get().size.height)
+          root.invalidate()
+        }
+        usePhotoMode.setState({ exporting: false })
+        capturing = false
+      }
+    }
+    window.addEventListener('ars-export-photo', exportPhoto)
     gl.toneMapping = AgXToneMapping
     gl.info.autoReset = false
     return () => {
+      window.removeEventListener('ars-export-photo', exportPhoto)
+      abort.abort()
+      exposure.dispose()
       pipeline.current = null
       if (fence.current) (gl.getContext() as WebGL2RenderingContext).deleteSync(fence.current)
       bloom.selection.clear()
@@ -339,9 +410,9 @@ export function RenderPipeline() {
       pipe.dispose()
       gl.info.autoReset = true
     }
-  }, [gl, scene, get, tier])
+  }, [gl, scene, get, tier, lens])
   useLayoutEffect(() => {
-    pipeline.current?.pipe.setSize(size.width, size.height)
+    if (!usePhotoMode.getState().exporting) pipeline.current?.pipe.setSize(size.width, size.height)
   }, [size, dpr])
   useFrame(({ camera }, dt) => {
     const p = pipeline.current
@@ -351,7 +422,7 @@ export function RenderPipeline() {
       state = useShelterStore.getState()
     if (startup.current === 0) {
       performance.mark('ars-open-scene')
-      precompileSurvey(gl, scene, camera, pipe, ao)
+      precompileSurvey(gl, scene, camera, pipe, ao, p.depthOfField, p.exposure)
       p.camera = camera
       gl.shadowMap.needsUpdate = true
     }
@@ -367,8 +438,15 @@ export function RenderPipeline() {
     const closeInterior = state.cameraState === 'walkthrough' && camera.position.y < -6
     ao.configuration.aoRadius = closeInterior ? 0.36 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
     ao.configuration.intensity = closeInterior ? 2.15 : 1.6
+    const photo = usePhotoMode.getState()
+    p.depthOfField.enabled = photo.active
+    p.depth.focus.value = state.cameraState === 'walkthrough' ? 3.5 : state.cameraState === 'site' ? 85 : 22
+    canvas.dataset.photoMode = photo.active ? 'on' : 'off'
     gl.info.reset()
-    p.shadows(gl, floorAt(camera.position.y - 1.65), () => pipe.render(Math.min(dt, 0.1)))
+    lens.apply(camera, photo.active && photo.shift)
+    try {
+      p.shadows(gl, floorAt(camera.position.y - 1.65), () => pipe.render(Math.min(dt, 0.1)))
+    } finally { lens.restore(camera) }
     canvas.dataset.mode = state.mode
     canvas.dataset.calls = String(gl.info.render.calls)
     canvas.dataset.triangles = String(gl.info.render.triangles)

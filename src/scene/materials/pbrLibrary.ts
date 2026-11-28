@@ -53,6 +53,8 @@ export const floorLight = {
 } as const
 export const roomClockMinutes = { value: 460 }
 export const roomWashStrength = { value: 1 }
+export const roomSpecular = { value: 1 }
+export const residentialDaylight = { value: 0 }
 export const weatherUniform = { value: 0 }
 export const emergencyCircuit = { value: 0 }
 export const lobbyCircuit = { value: 1 }
@@ -272,8 +274,10 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     shader.uniforms.snowCover = weatherUniform
     shader.uniforms.emergencyCircuit = emergencyCircuit
     shader.uniforms.lobbyCircuit = lobbyCircuit
+    shader.uniforms.residentialDaylight = residentialDaylight
     shader.uniforms.roomMinutes = roomClockMinutes
     shader.uniforms.washStrength = roomWashStrength
+    shader.uniforms.roomSpecular = roomSpecular
     const slot = finishScans.findIndex((s) => s.finish === kind)
     shader.uniforms.scanSlot = { value: slot }
     shader.uniforms.repeatMetres = { value: finishScans[slot]?.metres ?? 1 }
@@ -297,9 +301,15 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         vMetric=(modelMatrix*mp).xyz;`,
       )
     shader.fragmentShader = shader.fragmentShader
+      // Isolate room reflections in the matched photographs without changing diffuse irradiance.
+      .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>
+        #if defined(USE_ENVMAP) && defined(RE_IndirectSpecular)
+          radiance *= roomSpecular;
+          clearcoatRadiance *= roomSpecular;
+        #endif`)
       .replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray finishLayers; uniform bool walkFinish; uniform int scanSlot,printSlot,scanMask,printMask; uniform vec3 scanWhite; uniform float repeatMetres; uniform float snowCover,roomMinutes,washStrength,emergencyCircuit,lobbyCircuit; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
+        '#include <common>\nuniform sampler2D grains; uniform highp sampler2DArray finishLayers; uniform bool walkFinish; uniform int scanSlot,printSlot,scanMask,printMask; uniform vec3 scanWhite; uniform float repeatMetres; uniform float roomSpecular,snowCover,roomMinutes,residentialDaylight,washStrength,emergencyCircuit,lobbyCircuit; uniform int finishIndex; uniform bool boxEdges,frosted,isLamp;\n' +
           vary,
       )
       .replace(
@@ -309,7 +319,10 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         vec2 axes=axis.y>.64?vMetric.xz:vec2(axis.x>axis.z?vMetric.z:vMetric.x,vMetric.y);
         float aa=max(fwidth(axes.x),fwidth(axes.y)); float detail=1.-smoothstep(.009,.15,aa);
         vec3 grain=texture2D(grains,axes*3.1).rgb;
-        float mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
+        float mottle=0.;
+        ${family === 'solid' ? `bool useScan=walkFinish && scanSlot>=0 && (scanMask & (1 << scanSlot)) != 0;
+        if (!useScan || frosted)` : family === 'glass' ? 'if (frosted)' : ''}
+          mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
         float smooRock=1.-smoothstep(.66,.83,axis.y);
         vec3 scanPerturb=vec3(0.);
         float rough=0., relief=.00055*(grain.g-.5)*detail, edgeDistance=1.;
@@ -318,7 +331,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         float radius=clamp(min(vExtent.x,min(vExtent.y,vExtent.z))*.12,.005,.020);
         float edge=1.-clamp(edgeDistance/radius,0.,1.);
         relief-=radius*edge*edge*.48; diffuseColor.rgb*=1.+.09*edge;}
-        ${family === 'solid' ? `if (walkFinish && scanSlot>=0 && (scanMask & (1 << scanSlot)) != 0) { ${metricScan} } else { ${pattern} }` : pattern}
+        ${family === 'solid' ? `if (useScan) { ${metricScan} } else { ${pattern} }` : pattern}
         if(frosted){float frost=snowCover*smoothstep(.25,.89,surfaceNormal.y+.18*mottle)*smoothstep(-.15,.1,vMetric.y);
         diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.003*grain.b;}`,
       )
@@ -347,11 +360,20 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
           float pool=.22+.98*pow(.5+.5*cos(vMetric.x*1.76),2.)*(.38+.62*smoothstep(0.,2.7,levelY));
           bool farm=vMetric.y>=${FLOORS.B3.elevation} && vMetric.y<${FLOORS.B3.elevation + 3.0} && vMetric.x<2. && vMetric.z>0.;
           bool command=vMetric.y>=${FLOORS.B2.elevation} && vMetric.y<${FLOORS.B2.elevation + 3.0} && vMetric.x>4. && vMetric.z< -2.;
-          if(farm && roomMinutes>=720. && roomMinutes<1200.) {
+          bool living=vMetric.y>=${FLOORS.B2.elevation - 0.02} && vMetric.y<${FLOORS.B2.elevation + 3.65};
+          bool night=roomMinutes>=1380. || roomMinutes<390.;
+          if(living && !command && emergencyCircuit==0.) {
+            wash=mix(vec3(1.,.28,.06),vec3(.98,.84,.68),residentialDaylight);
+            if(night) {
+              pool*=.12;
+              if(isLamp) totalEmissiveRadiance*=levelY<.32?vec3(1.,.28,.035):vec3(.025,.013,.006);
+            } else if(isLamp) totalEmissiveRadiance*=mix(vec3(1.,.68,.38),vec3(1.),residentialDaylight);
+          }
+          if(farm && emergencyCircuit==0. && roomMinutes>=720. && roomMinutes<1200.) {
             wash=vec3(.6,.68,.63); pool*=.38;
             if(isLamp) totalEmissiveRadiance*=.025;
           }
-          if(command && (roomMinutes>=1380. || roomMinutes<390.)) {
+          if(command && night && emergencyCircuit==0.) {
             wash=vec3(1.,.045,.012);
             if(isLamp) totalEmissiveRadiance*=vec3(.65,.02,.012);
           }

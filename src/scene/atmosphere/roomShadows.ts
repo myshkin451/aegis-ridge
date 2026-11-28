@@ -6,8 +6,9 @@ import { UNDERGROUND } from '../../data/floors'
 export function shadowPasses(scene: Scene) {
   const candidates: { mesh: Mesh; floor: string; restore: boolean }[] = []
   const csm: DirectionalLight[] = []
-  const spot = scene.getObjectByName('room-shadow') as SpotLight
+  const spots: SpotLight[] = []
   scene.traverse((object) => {
+    if (object instanceof SpotLight && object.castShadow) spots.push(object)
     if (object instanceof DirectionalLight && object.castShadow) csm.push(object)
     if (!(object instanceof Mesh)) return
     let floor = ''
@@ -21,7 +22,7 @@ export function shadowPasses(scene: Scene) {
   let interiorUpdates = 0,
     cascadeUpdates = 0
   return function render(gl: WebGLRenderer, floor: string, draw: () => void) {
-    const local = gl.shadowMap.needsUpdate && spot.shadow.needsUpdate
+    const local = gl.shadowMap.needsUpdate && spots.some((spot) => spot.shadow.needsUpdate)
     const cascades = gl.shadowMap.needsUpdate && csm.some((l) => l.shadow.needsUpdate)
     if (local)
       for (const entry of candidates) {
@@ -37,7 +38,7 @@ export function shadowPasses(scene: Scene) {
     } finally {
       if (local) {
         for (const { mesh, restore } of candidates) mesh.castShadow = restore
-        if (!spot.shadow.needsUpdate) interiorUpdates++
+        if (spots.every((spot) => !spot.shadow.needsUpdate)) interiorUpdates++
       }
     }
     if (cascades && csm.every((l) => !l.shadow.needsUpdate)) cascadeUpdates++

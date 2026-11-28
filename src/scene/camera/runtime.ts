@@ -22,6 +22,8 @@ export function surveyRuntime() {
     hit: false,
     stick: { x: 0, y: 0 },
     hold: false,
+    inspectionTarget: null as Vector3 | null,
+    interrupt: null as (() => void) | null,
     pressure: 0,
     nearby: '',
     room: '',

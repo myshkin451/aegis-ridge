@@ -1,132 +1,261 @@
 import {
-  BackSide,
-  BoxGeometry,
-  Color,
-  HalfFloatType,
-  Mesh,
-  MeshBasicMaterial,
-  PMREMGenerator,
-  RGBAFormat,
-  Scene,
-  type WebGLRenderTarget,
+  Color, CubeCamera, DirectionalLight, HalfFloatType, HemisphereLight, InstancedMesh, Light, Matrix4, Line, Mesh, Object3D, OrthographicCamera,
+  PlaneGeometry, PMREMGenerator, RGBAFormat, Scene, ShaderMaterial, Sphere, WebGLCubeRenderTarget, WebGLRenderTarget,
+  type Texture, type WebGLRenderer,
 } from 'three'
-import { FLOORS } from '../../data/floors'
+import { defaultBlueprint } from '../../data/defaultBlueprint'
+import { FLOORS, UNDERGROUND } from '../../data/floors'
+import { lightingRoomAt } from '../../data/lighting'
+import { equipmentSolids } from '../../geometry/equipment'
 import { footprint } from '../../geometry/coords'
+import { bedrooms, laundry, publicBath, quietHall, type PlanRect } from '../../geometry/residentialPlan'
 import type { FloorId } from '../../types/shelter'
+import { useShelterStore } from '../../store/useShelterStore'
+import { setChairWalkthrough, walkingMaterials } from '../assets/pilotAssets'
+import { roomWashStrength } from '../materials/pbrLibrary'
 
-export const reflectionRooms = ['living', 'station', 'service', 'farm'] as const
-type Room = (typeof reflectionRooms)[number]
-const floorRoom: Record<FloorId, Room> = {
-  L1: 'station',
-  L2: 'station',
-  B1: 'service',
-  B2: 'living',
-  B3: 'farm',
-  B4: 'service',
+interface Probe { id: string; floor: FloorId; x: number; z: number; reach: number }
+const eyeHeight = 1.55
+function centre(id: string, floor: FloorId, r: PlanRect): Probe {
+  const cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2
+  const solids = defaultBlueprint.rooms.filter((room) => room.floorId === floor)
+    .flatMap((room) => room.equipment.flatMap(equipmentSolids))
+    .filter((b) => Math.abs(eyeHeight - b.center[1]) <= b.size[1] / 2 + 0.06)
+  const xs = new Set([cx]), zs = new Set([cz])
+  for (const { center: [x, , z], size: [w, , d] } of solids) {
+    for (const edge of [x - w / 2 - 0.2, x + w / 2 + 0.2]) if (edge > r.x0 + 0.2 && edge < r.x1 - 0.2) xs.add(edge)
+    for (const edge of [z - d / 2 - 0.2, z + d / 2 + 0.2]) if (edge > r.z0 + 0.2 && edge < r.z1 - 0.2) zs.add(edge)
+  }
+  // Optical centre is the room centre, displaced only when an installed cabinet occupies it.
+  let px = cx, pz = cz, best = Infinity
+  for (const x of xs) for (const z of zs) {
+    const distance = (x - cx) ** 2 + (z - cz) ** 2
+    if (distance >= best || solids.some((b) =>
+      Math.abs(x - b.center[0]) < b.size[0] / 2 + 0.12 && Math.abs(z - b.center[2]) < b.size[2] / 2 + 0.12)) continue
+    px = x
+    pz = z
+    best = distance
+  }
+  const reach = Math.hypot(Math.max(px - r.x0, r.x1 - px), Math.max(pz - r.z0, r.z1 - pz)) + 5
+  return { id, floor, x: px, z: pz, reach }
 }
-const stationBounds = { L1: footprint(FLOORS.L1.bounds), L2: footprint(FLOORS.L2.bounds) }
-export function reflectionRoomAt(floor: FloorId, x: number, y: number, z: number): Room | undefined {
-  if (floor === 'L1' || floor === 'L2') {
-    const r = stationBounds[floor]
-    if (
-      x < r.x0 ||
-      x > r.x1 ||
-      z < r.z0 ||
-      z > r.z1 ||
-      y < FLOORS[floor].elevation ||
-      y > FLOORS[floor].elevation + FLOORS[floor].pitch
-    )
-      return
-  } else if (y >= -6) return
-  return floorRoom[floor]
+export const reflectionRooms: Probe[] = [
+  ...defaultBlueprint.rooms.map((r) => centre(r.id, r.floorId,
+    r.id === 'b2_bath_laundry' ? laundry : r.id === 'b2_quarters' ? quietHall : footprint(r.bounds))),
+  ...bedrooms.map((b) => centre(b.id, 'B2', b)),
+  centre('b2-public-bath', 'B2', publicBath),
+  ...UNDERGROUND.map((floor) => ({ id: floor + '-hall', floor, x: -2, z: -1, reach: 21 })),
+]
+const floorBounds = new Map(Object.values(FLOORS).map((f) => [f.id, footprint(f.bounds)]))
+export function reflectionRoomAt(floor: FloorId, x: number, y: number, z: number) {
+  const b = floorBounds.get(floor)!
+  if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1 ||
+      y < FLOORS[floor].elevation || y > FLOORS[floor].elevation + FLOORS[floor].pitch) return
+  return lightingRoomAt(floor, x, z)
 }
 
 /** CubeUV packs filtered roughness levels in one non-mipmapped RGBA16F image. */
 export function reflectionBytes(target: WebGLRenderTarget) {
   const t = target.texture
   if (t.type !== HalfFloatType || t.format !== RGBAFormat || t.generateMipmaps)
-    throw new Error('Unsupported indoor PMREM storage')
+    throw new Error('Unsupported room PMREM storage')
   return target.width * target.height * 8
 }
 
-/** Radiance proxy for each distinct building interior. Captured once from seated eye height. */
-export function bakeRoomEnvironment(pmrem: PMREMGenerator, size: number, profile: Room) {
-  const studio = new Scene()
-  const cube = new BoxGeometry()
-  const paints: MeshBasicMaterial[] = []
-  function panel(
-    tint: string,
-    luminance: number,
-    x: number,
-    y: number,
-    z: number,
-    w: number,
-    h: number,
-    d: number,
-    inside = false,
-  ) {
-    const paint = new MeshBasicMaterial({ color: new Color(tint).multiplyScalar(luminance) })
-    if (inside) paint.side = BackSide
-    paints.push(paint)
-    const mesh = new Mesh(cube, paint)
-    mesh.position.set(x, y, z)
-    mesh.scale.set(w, h, d)
-    studio.add(mesh)
+// Keep complete instances intersecting the probe's finite cubemap range, including geometry
+// visible through a door or glazing. The live instancing buffers are restored before the first frame.
+function captureBatch(mesh: InstancedMesh) {
+  const count = mesh.count
+  const matrices = mesh.instanceMatrix.array.slice()
+  const colors = mesh.instanceColor?.array.slice()
+  if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere()
+  const sphere = new Sphere(), matrix = new Matrix4()
+  const bounds = new Float32Array(count * 4)
+  for (let i = 0; i < count; i++) {
+    mesh.getMatrixAt(i, matrix)
+    sphere.copy(mesh.geometry.boundingSphere!).applyMatrix4(matrix.premultiply(mesh.matrixWorld))
+    bounds.set([sphere.center.x, sphere.center.y, sphere.center.z, sphere.radius], i * 4)
   }
-  if (profile === 'living') {
-    panel('#d4c5ac', 0.48, 0, 0, 0, 6, 3.4, 5.4, true)
-    panel('#926947', 0.52, 0, -1.62, 0, 5.95, 0.1, 5.35)
-    panel('#bd9870', 0.66, -2.81, -0.82, 0, 0.12, 1.55, 5.2)
-    panel('#fff2d8', 3.6, 0.3, 1.5, -0.4, 2.6, 0.06, 0.58)
-    panel('#ffe1b2', 2.9, 2.81, 0.18, 0.7, 0.08, 0.42, 1.65)
-    panel('#f5e9d8', 1.1, -1.55, 0.34, 2.55, 1.58, 0.95, 0.06)
-    // The mirror looks down the washroom toward the glazed enclosure, mullions and its linear light.
-    panel('#c9d4ca', 0.82, -0.78, 0.02, 2.52, 2.0, 1.8, 0.04)
-    for (const x of [-1.69, -0.72, 0.2]) panel('#554e43', 0.44, x, 0.02, 2.46, 0.043, 1.85, 0.035)
-    panel('#6c6356', 0.64, -0.78, 0.87, 2.46, 2.1, 0.045, 0.035)
-    panel('#fff3d9', 4.1, -0.75, 0.43, 2.44, 1.28, 0.11, 0.035)
-  } else {
-    const station = profile === 'station',
-      farm = profile === 'farm'
-    panel(
-      station ? '#cdc4b5' : farm ? '#d9d9d0' : '#a9acaa',
-      station ? 0.63 : farm ? 0.39 : 0.43,
-      0,
-      0,
-      0,
-      6,
-      3.4,
-      5.4,
-      true,
-    )
-    panel(station ? '#868079' : farm ? '#a39d91' : '#696e6a', 0.47, 0, -1.62, 0, 5.95, 0.1, 5.35)
-    // Glazed observation bays have a broad luminous opening and slender mullions.
-    if (station) {
-      panel('#c4d6db', 1.24, 0.1, 0.35, 2.57, 5.4, 1.7, 0.05)
-      for (const x of [-2.2, -0.64, 0.92, 2.48]) panel('#656660', 0.58, x, 0.36, 2.5, 0.065, 1.8, 0.06)
-      panel('#ad8a63', 0.73, -2.84, -0.55, 0, 0.09, 1.8, 5.2)
-    } else if (farm) {
-      // Tracks and subdued foliage flank the aisle, with small pink-white grow emitters.
-      for (const side of [-1, 1]) {
-        panel('#8a9b75', 0.43, side * 2.72, -0.1, 0, 0.13, 2.24, 4.7)
-        for (const y of [-0.55, 0.23, 1.02]) {
-          panel('#8d9490', 0.62, side * 2.58, y, 0, 0.16, 0.1, 4.7)
-          panel('#f1d8e2', 1.8, side * 2.55, y + 0.06, 0, 0.12, 0.035, 4.38)
-        }
+  return {
+    select(x: number, y: number, z: number, reach: number) {
+      let kept = 0
+      for (let i = 0; i < count; i++) {
+        const j = i * 4
+        if ((bounds[j] - x) ** 2 + (bounds[j + 1] - y) ** 2 + (bounds[j + 2] - z) ** 2 > (reach + bounds[j + 3]) ** 2) continue
+        mesh.instanceMatrix.array.set(matrices.subarray(i * 16, i * 16 + 16), kept * 16)
+        if (colors) mesh.instanceColor!.array.set(colors.subarray(i * 3, i * 3 + 3), kept * 3)
+        kept++
       }
-    } else {
-      panel('#838c88', 0.6, -2.72, 0.1, 0.3, 0.34, 2.45, 3.7)
-      for (const z of [-1.08, 0.09, 1.26]) panel('#555e5c', 0.48, -2.48, 0.1, z, 0.12, 2.28, 0.037)
-    }
-    for (const x of [-1.7, 1.7])
-      panel(farm ? '#ffe7f2' : '#ede9df', farm ? 1.85 : 2.65, x, 1.54, 0, 0.24, 0.05, 3.75)
+      mesh.visible = kept > 0
+      mesh.count = kept
+      mesh.instanceMatrix.needsUpdate = true
+      if (colors) mesh.instanceColor!.needsUpdate = true
+    },
+    restore() {
+      mesh.count = count
+      mesh.instanceMatrix.array.set(matrices)
+      mesh.instanceMatrix.needsUpdate = true
+      if (colors) {
+        mesh.instanceColor!.array.set(colors)
+        mesh.instanceColor!.needsUpdate = true
+      }
+    },
   }
+}
+
+/** Capture the installed shell, doors, walkthrough fit-out and luminaires in their world transforms.
+ * Select the floor before rendering six faces so terrain and distant levels never enter an indoor draw.
+ * The live scene's material, light count and CubeUV layout are preserved throughout the survey. */
+export function captureRooms(gl: WebGLRenderer, scene: Scene, pmrem: PMREMGenerator, size: number,
+  output: Map<string, WebGLRenderTarget>) {
+  const hdr = new WebGLCubeRenderTarget(size, { type: HalfFloatType, generateMipmaps: false })
+  const cube = new CubeCamera(0.06, 40, hdr)
+  const oldClear = gl.autoClear, updateMatrices = scene.matrixWorldAutoUpdate
+  scene.updateMatrixWorld(true)
+  scene.matrixWorldAutoUpdate = false
+  gl.autoClear = true
+  const original = new Map<Object3D, boolean>()
+  const lightPaths = new Set<Object3D>()
+  const strengths = new Map<Light, number>()
+  const receivers: Object3D[] = []
+  scene.traverse((o) => {
+    original.set(o, o.visible)
+    if (o instanceof Light) {
+      strengths.set(o, o.intensity)
+      for (let p: Object3D | null = o; p; p = p.parent) lightPaths.add(p)
+    }
+    if (o.receiveShadow) {
+      receivers.push(o)
+      o.receiveShadow = false
+    }
+  })
+  const daylight = scene.getObjectByName('Bedroom sky windows')
+  const pool = scene.getObjectByName('Installed room lighting')!
+  const aimRoom = pool.userData.aimRoom as (room: string, time: string, emergency: boolean) => void
+  const bg = scene.background, skyStrength = scene.environmentIntensity
+  const wash = roomWashStrength.value, wasWalking = walkingMaterials.value
+  const shadowUpdate = gl.shadowMap.needsUpdate
+  const indoorBackground = new Color('#6f665a'), stationBackground = new Color('#c6d8e0')
+  gl.shadowMap.needsUpdate = false
+  setChairWalkthrough(true)
   try {
-    const target = pmrem.fromScene(studio, 0.04, 0.1, 10, { size })
-    target.texture.name = profile + ' interior PMREM'
-    return target
+    for (const id of Object.keys(FLOORS) as FloorId[]) {
+      const station = id === 'L1' || id === 'L2'
+      const root = scene.getObjectByName(station ? '科研观测站' : id)!
+      const allowed = new Set(lightPaths)
+      for (let p: Object3D | null = root.parent; p; p = p.parent) allowed.add(p)
+      function include(o: Object3D, fitout = false) {
+        fitout ||= o.name.startsWith('室内-')
+        // On the surface retain the installed exterior and its current weather shutters.
+        if (station && !fitout && !original.get(o)) return
+        if (o instanceof Line || (o instanceof Mesh && !Array.isArray(o.material) && !o.material.opacity))
+          return
+        allowed.add(o)
+        for (const child of o.children) include(child, fitout)
+      }
+      include(root)
+      if (id === 'B2') daylight?.traverse((o) => allowed.add(o))
+      for (const obj of original.keys()) obj.visible = allowed.has(obj)
+      for (const [l, value] of strengths) {
+        if (l instanceof DirectionalLight) l.intensity = station ? value : 0
+        if (l instanceof HemisphereLight) l.intensity = station ? 1.1 : 0.55
+      }
+      scene.background = station ? stationBackground : indoorBackground
+      scene.environmentIntensity = station ? 0.35 : 0.15
+      roomWashStrength.value = station ? 1 : 0.12
+      const batches = [...allowed].filter((o): o is InstancedMesh => o instanceof InstancedMesh && o.count > 16)
+        .map(captureBatch)
+      try {
+        for (const probe of reflectionRooms) {
+          if (probe.floor !== id) continue
+          aimRoom(probe.id, '10:30', false)
+          pool.updateMatrixWorld(true)
+          const y = FLOORS[id].elevation + eyeHeight
+          cube.position.set(probe.x, y, probe.z)
+          for (const batch of batches) batch.select(probe.x, y, probe.z, probe.reach)
+          cube.update(gl, scene)
+          const target = pmrem.fromCubemap(hdr.texture)
+          target.texture.name = probe.id + ' · surveyed HDR'
+          output.set(probe.id, target)
+        }
+      } finally {
+        batches.forEach((batch) => batch.restore())
+      }
+    }
   } finally {
-    cube.dispose()
-    paints.forEach((p) => p.dispose())
+    hdr.dispose()
+    gl.autoClear = oldClear
+    scene.matrixWorldAutoUpdate = updateMatrices
+    for (const [obj, visible] of original) obj.visible = visible
+    for (const o of receivers) o.receiveShadow = true
+    aimRoom(gl.domElement.dataset.interiorShadowRoom ?? '', useShelterStore.getState().time, false)
+    for (const [light, value] of strengths) light.intensity = value
+    gl.shadowMap.needsUpdate = shadowUpdate
+    scene.background = bg
+    scene.environmentIntensity = skyStrength
+    roomWashStrength.value = wash
+    setChairWalkthrough(wasWalking)
+  }
+}
+
+/** Blend two equally-sized linear HDR atlases once per transition frame. Materials still sample
+ * a single ordinary CubeUV texture. The spare holds the current mix if another doorway interrupts. */
+export class ReflectionMixer {
+  private readonly scene = new Scene()
+  private readonly camera = new OrthographicCamera()
+  private readonly geometry = new PlaneGeometry(2, 2)
+  private readonly material = new ShaderMaterial({
+    depthTest: false, depthWrite: false, toneMapped: false,
+    uniforms: { start: { value: null as Texture | null }, end: { value: null as Texture | null }, weight: { value: 0 } },
+    vertexShader: 'varying vec2 st; void main(){st=uv;gl_Position=vec4(position.xy,0.,1.);}',
+    fragmentShader: 'uniform sampler2D start,end; uniform float weight; varying vec2 st; void main(){gl_FragColor=mix(texture2D(start,st),texture2D(end,st),weight);}',
+  })
+  private current: Texture
+  private from: Texture
+  private buffers: [WebGLRenderTarget, WebGLRenderTarget]
+  private output: WebGLRenderTarget
+  mix = 1
+  readonly bytes: number
+  constructor(gl: WebGLRenderer, initial: WebGLRenderTarget) {
+    this.current = this.from = initial.texture
+    this.buffers = [initial.clone(), initial.clone()]
+    for (const buffer of this.buffers) {
+      buffer.depthBuffer = false
+      buffer.viewport.set(0, 0, buffer.width, buffer.height)
+      buffer.scissorTest = false
+    }
+    this.bytes = 2 * reflectionBytes(initial)
+    this.output = this.buffers[0]
+    this.scene.add(new Mesh(this.geometry, this.material))
+    // Instantiate both render targets and link the only blend program before interaction.
+    for (const buffer of this.buffers) this.draw(gl, initial.texture, initial.texture, 1, buffer)
+  }
+  private draw(gl: WebGLRenderer, a: Texture, b: Texture, weight: number, target: WebGLRenderTarget) {
+    const previous = gl.getRenderTarget()
+    const u = this.material.uniforms
+    u.start.value = a
+    u.end.value = b
+    u.weight.value = weight
+    gl.setRenderTarget(target)
+    gl.render(this.scene, this.camera)
+    gl.setRenderTarget(previous)
+  }
+  update(gl: WebGLRenderer, target: Texture, dt: number) {
+    if (this.current !== target) {
+      this.from = this.mix === 1 ? this.current : this.output.texture
+      if (this.from === this.output.texture)
+        this.output = this.buffers[this.output === this.buffers[0] ? 1 : 0]
+      this.current = target
+      this.mix = 0
+    }
+    this.mix = Math.min(1, this.mix + Math.min(dt, 0.1) / 0.32)
+    if (this.mix === 1) return target
+    this.draw(gl, this.from, target, this.mix * this.mix * (3 - 2 * this.mix), this.output)
+    return this.output.texture
+  }
+  dispose() {
+    this.material.dispose()
+    this.geometry.dispose()
+    this.buffers.forEach((b) => b.dispose())
   }
 }

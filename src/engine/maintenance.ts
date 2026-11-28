@@ -1,3 +1,4 @@
+import { crewById } from '../data/crew'
 import { defaultBlueprint } from '../data/defaultBlueprint'
 import { BRANCH_CORRIDOR, CORRIDOR, FLOORS } from '../data/floors'
 import type { MepEdge, MepNetwork, MepNode } from '../data/mepNetwork'
@@ -12,15 +13,6 @@ const spareNames: Record<Spare, string> = {
   precision_filter: '滤芯',
   electronic: '电控件',
   consumable: '通用保养包',
-}
-const people: Record<string, string> = {
-  electrical: '陈墨',
-  mechanical: '周明远',
-  water: '沈星野',
-  medical: '许安然',
-  logistics: '江彻',
-  instrumentation: '陆知行',
-  agronomy: '顾清禾',
 }
 export function fitsFreight(e: EquipmentUnit) {
   const [w, h, d] = e.moduleSizeM
@@ -277,7 +269,7 @@ export function simulateMaintenance(
     backupEdgeIds: backup,
     route,
     spare: spareNames[spareType] + '：需 1 / 库 ' + available,
-    crew: roles.map((r) => people[r] ?? r).join(' / '),
+    crew: roles.map((r) => crewById.get(r)?.name ?? r).join(' / '),
     offlineTags: entry ? [id] : [...loss!.offline],
   }
 }
