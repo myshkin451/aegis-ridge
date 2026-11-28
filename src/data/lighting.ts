@@ -2,11 +2,11 @@ import { defaultBlueprint } from './defaultBlueprint'
 import { FLOORS } from './floors'
 import { pilotFixtures } from './roomLayouts/residential'
 import { footprint } from '../geometry/coords'
-import { bedrooms, publicBath } from '../geometry/residentialPlan'
+import { bedrooms, laundry, publicBath } from '../geometry/residentialPlan'
 import type { FloorId, Point3, UndergroundId } from '../types/shelter'
 
 export type LightingTime = '10:30' | '19:30'
-interface Emitter {
+export interface Emitter {
   position: Point3
   kelvin: number
   intensity: number
@@ -18,6 +18,7 @@ interface Aimed extends Emitter {
 export interface RoomLighting {
   floor: FloorId
   spot: Aimed & { angle: number; reach: number }
+  secondSpot?: Aimed & { angle: number; reach: number }
   points: Emitter[]
   areas: (Aimed & { size: [number, number] })[]
 }
@@ -90,7 +91,8 @@ for (const time of ['10:30', '19:30'] as const) {
   ]
   lighting['b2-single-1'][time] = {
     floor: 'B2',
-    spot: spot(offset(f.bedside, 0, -0.08, -0.04), [-1.33, 0.45, 9.63], 2700, day ? 13 : 25, 0.99, 4.2),
+    spot: spot(offset(f.bedside, 0, -0.08, -0.04), [-1.33, 0.45, 9.63], 2700, day ? 15 : 27, 0.81, 4.2),
+    secondSpot: spot([0.42, 2.82, 8.42], [0.08, 0.06, 8.69], 3000, day ? 14 : 9, 0.65, 4.5),
     points: [
       emit(offset(f.bedside, 0, 0.07, -0.14), 2700, day ? 2 : 3.5),
       emit([0.4, 2.81, 8.15], 3000, 1.4),
@@ -99,13 +101,14 @@ for (const time of ['10:30', '19:30'] as const) {
   }
   lighting.b2_commons[time] = {
     floor: 'B2',
-    spot: spot(offset(f.pendants[0], 0, -0.15, 0), [-8.46, 0.79, 6.12], 2900, day ? 29 : 45, 1.1, 6.8),
+    spot: spot(offset(f.pendants[0], 0, -0.15, 0), [-8.48, 0.76, 5.18], 2900, day ? 34 : 43, 0.82, 5.3),
+    secondSpot: spot(offset(f.pendants[1], 0, -0.15, 0), [-8.48, 0.76, 7.56], 2900, day ? 31 : 39, 0.79, 5.3),
     points: [
-      emit(offset(f.pendants[1], 0, -0.15, 0), 2900, day ? 17 : 25),
       emit(offset(f.floorLamp, 0, 0.01, -0.06), 2700, day ? 10 : 15),
-      emit([-12.0, 3.2, 9.7], 3000, 9.5),
+      emit([-11.0, 3.46, 11.52], 3000, 10),
     ],
-    areas: [area([-10.7, 3.28, 5.35], [-10.3, 0.5, 6.5], 3000, day ? 8 : 5, 3.1, 1.35)],
+    // The two physical pendants now each cast a pool. The room probe supplies the diffuse bounce.
+    areas: [],
   }
   for (const [id, mirror, aim] of [
     ['b2_bath_laundry', f.mirror, [-4.45, 0.52, 8.06]],
@@ -114,7 +117,8 @@ for (const time of ['10:30', '19:30'] as const) {
     lighting[id] ??= {} as Record<LightingTime, RoomLighting>
     lighting[id][time] = {
       floor: 'B2',
-      spot: spot(offset(mirror, -0.11, -0.05, 0), [...aim], 3000, 18, 1.07, 4.8),
+      spot: spot(offset(mirror, -0.11, -0.05, 0), [...aim], 3000, 23, 0.91, 4.8),
+      secondSpot: spot([aim[0], 2.82, aim[2] - 0.5], [aim[0] - 0.16, 0.12, aim[2] + 0.31], 3000, 20, 0.73, 4.3),
       points: [
         emit(offset(mirror, -0.18, -0.11, 0), 2900, 3.8),
         emit([aim[0], 2.83, aim[2] - 0.2], 3000, 3.0),
@@ -167,3 +171,58 @@ export const emergencyLighting: Record<string, RoomLighting> = Object.fromEntrie
   }),
 )
 export const lightingCues = { publicLobbyOff: 5, interiorEmergency: 25 } as const
+
+
+// A slow dawn and dusk keep daylight continuous when the survey dial crosses a minute boundary.
+export function circadianAt(time: string) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const minute = hours * 60 + minutes
+  const ramp = (a: number, b: number) => {
+    const t = Math.max(0, Math.min(1, (minute - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+  }
+  const daylight = ramp(330, 660) * (1 - ramp(870, 1260))
+  return {
+    kelvin: Math.round(2200 + daylight * 2800),
+    night: minute >= 1380 || minute < 390,
+    darkAdapt: minute >= 1380 || minute < 390,
+    cropLit: minute >= 1200 || minute < 720,
+  }
+}
+
+const nightFixtures = Object.fromEntries(Object.entries(lighting).filter(([, periods]) => periods['19:30'].floor === 'B2').map(([id]) => {
+  const bedroom = bedrooms.find((b) => b.id === id)
+  const bounds = bedroom ?? (id === 'b2-public-bath' ? publicBath : id === 'b2_bath_laundry' ? laundry : plans.find((p) => p.room.id === id)?.bounds)
+  const x = bounds ? bounds.x0 + 0.28 : -3.0
+  const z = bounds ? (bounds.z0 + bounds.z1) / 2 : -1.8
+  return [id, emit([x, 0.17, z], 1800, 2.1)]
+}))
+
+/** Electrical circuits and their installed luminaires, sampled without constructing GPU resources. */
+export function roomLightingAt(id: string, time: string, emergency: boolean): RoomLighting | undefined {
+  if (emergency) return emergencyLighting[id]
+  const base = lighting[id]?.[lightingTimeAt(time)]
+  if (!base) return
+  const cycle = circadianAt(time)
+  if (base.floor === 'B2') {
+    if (cycle.night) {
+      if (id === 'b2_command')
+        return { ...base, spot: { ...base.spot, spectrum: '#ff3524', intensity: 8 }, secondSpot: undefined, points: [], areas: [] }
+      return { ...base, spot: { ...base.spot, intensity: 0 }, secondSpot: undefined, points: [nightFixtures[id]], areas: [] }
+    }
+    // Task lamps retain their warm local pools. The room wash and daylight panels follow the clock.
+    const task = !!base.secondSpot
+    return {
+      ...base,
+      spot: { ...base.spot, kelvin: task ? Math.min(base.spot.kelvin, cycle.kelvin) : cycle.kelvin },
+      secondSpot: base.secondSpot && { ...base.secondSpot, kelvin: task ? Math.min(base.secondSpot.kelvin, cycle.kelvin) : cycle.kelvin },
+      points: base.points.map((p) => ({ ...p, kelvin: cycle.kelvin })),
+      areas: base.areas.map((a) => ({ ...a, kelvin: cycle.kelvin })),
+    }
+  }
+  if (id === 'b3_hydroponics' || id === 'B3-hall') {
+    const grow = lighting['B3-hall'][lightingTimeAt(time)]
+    return { ...base, points: cycle.cropLit ? grow.points : [], areas: cycle.cropLit ? grow.areas : [] }
+  }
+  return base
+}

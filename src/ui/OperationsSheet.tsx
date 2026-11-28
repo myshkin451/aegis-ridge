@@ -1,3 +1,4 @@
+import { ShiftClock } from './ShiftClock'
 import { memo, useEffect, useState } from 'react'
 import { useLockdownTour } from '../store/useLockdownTour'
 import { defaultBlueprint } from '../data/defaultBlueprint'
@@ -52,7 +53,10 @@ export function ConditionField() {
   }, [started])
   return (
     <div className="condition">
-      <span>{seconds === 30 ? '封锁 · 第 1 天' : started !== null ? '封锁 ' + seconds + ' s' : time}</span>
+      <button aria-label="站内时钟" title="24 小时时间轴与声景" popoverTarget="station-clock" className="clock-trigger">
+        {seconds === 30 ? '封锁 · 第 1 天' : started !== null ? '封锁 ' + seconds + ' s' : time} ▾
+      </button>
+      <div popover="auto" id="station-clock"><ShiftClock /></div>
       <select
         value={scenario}
         aria-label="工况"

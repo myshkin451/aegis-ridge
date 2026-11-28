@@ -8,8 +8,9 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm4'
-if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
+const milestone = process.argv[2] ?? 'm5-v1lite'
+const m5 = milestone === 'm5-v1lite'
+if (!m5 && !/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
 const shots = [
@@ -38,6 +39,7 @@ const operationsStudy = milestone === 'm4'
 const baseline = join(root, 'docs/shots/m2.5b/pilot')
 const materialStudy = ['m2.5b', 'm2.5c'].includes(milestone)
 await mkdir(materialStudy ? join(directory, 'pilot') : directory, { recursive: true })
+if (m5) for (const folder of ['reflection', 'opening']) await mkdir(join(directory, folder), { recursive: true })
 const staging = await mkdtemp(join(directory, '.capture-'))
 let server
 let browser
@@ -46,6 +48,7 @@ try {
   const controlRects = new Map()
   const cameraSettings = new Map()
   await mkdir(join(staging, 'pilot'))
+  if (m5) for (const folder of ['reflection', 'opening']) await mkdir(join(staging, folder))
   for (const [name, , , expected] of materialStudy ? pilots : []) {
     const file = 'pilot/r0-' + name + '.png'
     const bytes = await readFile(join(baseline, 'r0-' + name + '.png'))
@@ -55,12 +58,12 @@ try {
   }
   server = await preview({ root, preview: { host: '127.0.0.1', port: 0, open: false }, logLevel: 'error' })
   const executablePath = process.env.CHROME_PATH
-  const channel = existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
+  const channel = m5 ? 'chrome' : existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
   browser = await chromium.launch({
     executablePath,
     channel: executablePath ? undefined : channel,
     headless: true,
-    args: ['--enable-unsafe-swiftshader'],
+    args: m5 ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'],
   })
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },
@@ -85,8 +88,8 @@ try {
   })
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
-  async function openStage(stage) {
-    await page.goto(base + '/?quality=2&pilot=' + stage, { waitUntil: 'networkidle' })
+  async function openStage(stage, extra = '') {
+    await page.goto(base + '/?quality=' + (m5 ? 3 : 2) + '&pilot=' + stage + extra, { waitUntil: 'networkidle' })
     await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
     const data = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
     if (
@@ -170,6 +173,7 @@ try {
         ),
       )
     }
+    if (m5 && expectedFeet) await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.reflectionMix) === 1)
     await page.screenshot({ path: join(staging, file), timeout: 90000 })
     captures.push(file)
     const { calls, triangles, feet } = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
@@ -200,7 +204,33 @@ try {
       [-4, -14.4, 0.05],
     )
   }
-  for (const stage of materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
+  if (m5) {
+    for (const state of ['on', 'off']) {
+      if (state === 'off') await openStage('r3', '&roomReflections=off')
+      for (const [name, time, feet] of pilots)
+        await capture('pilot-' + name, 'walkthrough', 'perspective', time, 'reflection/' + name + '-' + state + '.png', feet)
+    }
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.goto(base, { waitUntil: 'domcontentloaded' })
+    for (const [cue, filename, settle] of [[0, 'dawn', 900], [1, 'approach', 1400], [2, 'section', 1800], [3, 'shaft', 4600],
+      [4, 'commons', 1600], [5, 'lens', 1800], [6, 'closing', 1700], [7, 'lockdown', 900], [8, 'site', 1550]]) {
+      await page.waitForSelector('canvas[data-tour=opening][data-tour-cue="' + cue + '"]')
+      if (cue === 3) {
+        await page.waitForFunction(() => {
+          const [x, y, z] = document.querySelector('canvas').dataset.eye.split(',').map(Number)
+          return x >= -6 && x <= -2 && z >= -6 && z <= -2 && y < -1 && y > -12
+        }, null, { timeout: 7500 })
+      } else await page.waitForTimeout(settle)
+      const file = 'opening/' + filename + '.png'
+      await page.screenshot({ path: join(staging, file) })
+      captures.push(file)
+    }
+    await page.waitForSelector('canvas[data-tour=idle]')
+    if (!await page.evaluate(() => localStorage.getItem('ars-opening-seen'))) throw Error('首次开场未记住')
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('canvas[data-rendered=true][data-tour=idle][data-ready=settled]')
+  }
+  for (const stage of m5 ? [] : materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
     if (stage !== 'r3') await openStage(stage)
     for (const [name, time, feet] of pilots)
       await capture(
@@ -266,7 +296,7 @@ try {
     await page.getByLabel('固定摄影机位').selectOption('pilot-bath')
     await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
   }
-  if (!materialStudy) {
+  if (!materialStudy && !m5) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
     await page.setViewportSize({ width: 390, height: 844 })
@@ -320,7 +350,7 @@ try {
     const before = join(
       root,
       'docs/shots',
-      materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
+      m5 ? 'm4' : materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
       id + '.png',
     )
     const after = join(staging, id + '.png')
@@ -329,6 +359,7 @@ try {
       ? await comparePhotographs(review, before, after, controlRects.get(id))
       : full
     console.log(id, '全幅较签收图', full, '模型画面', result)
+    if (m5) continue // Sky brightness, room light and the controls intentionally change these views.
     if (operationsStudy && id === 'shot-03') {
       if (result.changed < 1) throw Error('极寒实拍缺少工况色彩与天气变化')
     } else if (!materialStudy && !operationsStudy && id === 'shot-04') {
@@ -352,6 +383,13 @@ try {
     const board = 'pilot/comparison.webp'
     await makeContactSheet(review, join(staging, 'pilot'), pilots, join(staging, board))
     captures.push(board)
+  } else if (m5) {
+    for (const [name] of pilots) {
+      const path = state => join(staging, 'reflection', name + '-' + state + '.png')
+      const delta = await comparePhotographs(review, path('off'), path('on'))
+      console.log(name, '同机位室内反射差异', delta)
+      if (!delta.changed) throw Error(name + ' 的反射未改变任何可辨像素')
+    }
   } else {
     for (const [name] of pilots) {
       const file = 'pilot/r3-' + name + '.png'

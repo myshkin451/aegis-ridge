@@ -874,3 +874,25 @@ input[type='checkbox']:checked::after {
     transition-duration: 0s !important;
   }
 }
+
+.shift-clock {
+  border: 0;
+  padding: 5px 9px 9px;
+  margin: 6px 0 0;
+}
+.shift-clock legend { font-family: var(--drawing); padding: 0; }
+.shift-clock .clock-slider { display: flex; align-items: center; padding: 0; gap: 10px; }
+.clock-slider output { font: 14px var(--mono); }
+.clock-slider input { min-width: 0; flex: 1; accent-color: var(--active); }
+.clock-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.clock-controls button, .clock-controls label { font-size: 12px; }
+.clock-controls label { display: flex; align-items: center; padding: 0; }
+.clock-controls [aria-pressed=true] { color: var(--active); }
+
+.clock-trigger { anchor-name: --station-clock-trigger; color: inherit; font: inherit; }
+#station-clock {
+  position: fixed; position-anchor: --station-clock-trigger;
+  inset: auto; top: calc(anchor(bottom) + 7px); left: anchor(left);
+  margin: 0; padding: 0; width: 226px; border: 1px solid var(--ink);
+  background: var(--paper); color: var(--ink); pointer-events: auto;
+}

@@ -1,6 +1,8 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
+import { circadianAt, lightingCues } from '../../data/lighting'
+import { useOperationsStore } from '../../store/useOperationsStore'
 import { roomsOn } from '../../data/defaultBlueprint'
 import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, UNDERGROUND } from '../../data/floors'
 import { footprint, shaftPlans } from '../../geometry/coords'
@@ -120,14 +122,15 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
 export function InteriorLights() {
   const view = useShelterStore((s) => s.cameraState)
   const time = useShelterStore((s) => s.time)
-  const hour = Number(time.split(':')[0])
+  const emergency = useOperationsStore((s) => s.lockdownSeconds >= lightingCues.interiorEmergency)
+  const cycle = circadianAt(time)
   return UNDERGROUND.map((id) => {
-    const farm = view === 'walkthrough' && id === 'B3' && (hour >= 20 || hour < 12)
+    const farm = view === 'walkthrough' && id === 'B3' && cycle.cropLit && !emergency
     return (
       <pointLight
         key={id}
         position={[farm ? -7 : 0, FLOORS[id].elevation + 2.45, farm ? 4 : -8]}
-        color={farm ? '#ffe1f1' : floorLight[id]}
+        color={emergency ? '#edab79' : farm ? '#ffe1f1' : floorLight[id]}
         intensity={farm ? 16 : view === 'section' ? 18 : 0}
         distance={16}
         decay={2}
@@ -162,6 +165,17 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
             room.id === 'b3_hydroponics' ? [atriumFootprint] : [],
           ))
             m.box(floorLight[id], [x, h - 0.008, (a + b) / 2], [0.07, 0.025, b - a], 'lamp')
+      }
+      if (id === 'B2') {
+        for (const room of roomsOn(id)) {
+          const r = footprint(room.bounds)
+          for (const bay of room.id === 'b2_quarters' ? bedrooms : [r]) {
+            const z = (bay.z0 + bay.z1) / 2
+            // Flush skirting apertures mark the night path without lighting the sleeping ceiling.
+            m.box('#98856b', [bay.x0 + 0.22, 0.17, z], [0.032, 0.09, 0.44], 'steel')
+            m.box('#ffad4b', [bay.x0 + 0.239, 0.153, z], [0.009, 0.017, 0.36], 'lamp')
+          }
+        }
       }
       for (const corridor of [CORRIDOR, BRANCH_CORRIDOR]) {
         const r = footprint(corridor)

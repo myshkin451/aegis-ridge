@@ -1,3 +1,6 @@
+import { CrewButton, CrewSheet, TourCaption } from './CrewSheet'
+import { PhotoButton, PhotoFrame } from './PhotoMode'
+import { useClockPlayback } from './ShiftClock'
 import { useEffect, useRef, useState } from 'react'
 import { defaultBlueprint, roomsOn } from '../data/defaultBlueprint'
 import { FLOORS, FLOOR_ORDER } from '../data/floors'
@@ -215,6 +218,7 @@ function WalkHud() {
   )
 }
 export function Instruments() {
+  useClockPlayback()
   const panel = useOperationsStore((s) => s.panel)
   const scenario = useOperationsStore((s) => s.scenario)
   const people = useOperationsStore((s) => s.people)
@@ -318,7 +322,7 @@ export function Instruments() {
     window.addEventListener('keydown', keys)
     return () => window.removeEventListener('keydown', keys)
   }, [open])
-  const night = xray || walk || s.time === '19:30' || s.time === '22:00'
+  const night = xray || walk || s.time < '06:00' || s.time >= '18:30'
   const title = s.routeOverview ? '检修搬运全程' : s.shot
     ? photo(s.shot).title
     : (siteFacilities.find((f) => f.id === s.facilityId)?.name ??
@@ -366,6 +370,8 @@ export function Instruments() {
           ))}
         </nav>
         <div className="tool-row">
+          <CrewButton onToggle={() => setOpen(null)} />
+          <PhotoButton />
           {(['health', 'maintenance'] as const).map((kind) => (
             <button
               key={kind}
@@ -485,6 +491,7 @@ export function Instruments() {
                 ['1–5', '现场 / 剖面 / 平面 / X 光 / 漫游'],
                 ['[ / ]', '上一层 / 下一层'],
                 ['V / X', '循环视图 / X 光'],
+                ['O', '播放开场序列，移动鼠标或按键接管'],
                 ['M / F / H', '夹层 / 聚焦 / 隐藏图签'],
                 ['Esc', '打断过渡 / 拉出'],
                 ['WASD / ⇧', '水平飞行或步行 / 加速'],
@@ -610,6 +617,9 @@ export function Instruments() {
         </div>
       </div>
       {walk && <WalkHud />}
+      <CrewSheet />
+      <TourCaption />
+      <PhotoFrame />
       {panel ? (
         <OperationsSheet key={panel} />
       ) : (

@@ -16,17 +16,19 @@ import {
   Vector3,
   type WebGLRenderTarget,
 } from 'three'
+import { bedrooms } from '../../geometry/residentialPlan'
+import { circadianAt } from '../../data/lighting'
 import { FLOORS } from '../../data/floors'
 import { pilotFixtures } from '../../data/roomLayouts/residential'
 import { floorAt } from '../../geometry/viewGeometry'
-import { bakeRoomEnvironment, reflectionBytes, reflectionRoomAt, reflectionRooms } from './roomEnvironment'
+import { captureRooms, ReflectionMixer, reflectionBytes, reflectionRoomAt, reflectionRooms } from './roomEnvironment'
 import { photographs } from '../../data/photographs'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { useShelterStore } from '../../store/useShelterStore'
 import { nearSurfaceOpening } from '../../geometry/doors'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { WeatherParticles } from './WeatherParticles'
-import { roomClockMinutes, roomWashStrength, weatherUniform } from '../materials/pbrLibrary'
+import { emergencyCircuit, residentialDaylight, roomClockMinutes, roomSpecular, roomWashStrength, weatherUniform } from '../materials/pbrLibrary'
 import { reduceMotion } from '../utils/Model'
 
 export function sunAt(time: string) {
@@ -214,6 +216,11 @@ export function PhysicalSky() {
     clock = useRef(0)
   const twilight = sun.y < 0.01,
     skyStudy = exterior || section
+  const mixer = useRef<ReflectionMixer | null>(null)
+  const cubeSize = 64
+  const showReflection = useMemo(() => new URLSearchParams(location.search).get('roomReflections') !== 'off', [])
+  const windowFace = useMemo(() => new PlaneGeometry(...pilotFixtures.skyPanelSize), [])
+  const cycle = useMemo(() => circadianAt(time), [time])
   const environments = useMemo(() => new Map<string, WebGLRenderTarget>(), [])
   useLayoutEffect(() => {
     sky.scale.setScalar(13000)
@@ -222,14 +229,6 @@ export function PhysicalSky() {
       pmrem = new PMREMGenerator(gl)
     dome.scale.copy(sky.scale)
     env.add(dome)
-    const cubeSize = 64
-    let bytes = 0
-    for (const room of reflectionRooms) {
-      const target = bakeRoomEnvironment(pmrem, cubeSize, room)
-      environments.set(room, target)
-      bytes += reflectionBytes(target)
-    }
-    gl.domElement.dataset.interiorEnvironmentBytes = String(bytes)
     const conditions = [{ time: '07:40', cold: false }, ...Object.values(photographs)]
     for (const condition of conditions) {
       if (environments.has(condition.time)) continue
@@ -247,6 +246,9 @@ export function PhysicalSky() {
     scene.fog = new FogExp2(0xffffff, 0)
     scene.background = new Color()
     return () => {
+      mixer.current?.dispose()
+      mixer.current = null
+      roomSpecular.value = 1
       scene.environment = null
       scene.fog = null
       scene.background = null
@@ -258,6 +260,7 @@ export function PhysicalSky() {
     weatherUniform.value = Number(weather === 'cryo')
     const [hours, minutes] = time.split(':').map(Number)
     roomClockMinutes.value = hours * 60 + minutes
+    residentialDaylight.value = (cycle.kelvin - 2200) / 2800
     const u = sky.material.uniforms
     u.sunPosition.value.copy(sun).multiplyScalar(450000)
     u.turbidity.value = cold ? 9 : 2.6
@@ -285,25 +288,40 @@ export function PhysicalSky() {
       m.uniforms.sun.value.copy(sun)
       m.uniforms.shade.value.set(twilight ? '#62778e' : sun.y < 0.16 ? '#657d9a' : '#7389a4')
     }
-    scene.environment = (environments.get(time) ?? environments.get('07:40')!).texture
+    if (!scene.environment) scene.environment = environments.get('07:40')!.texture
     scene.environmentIntensity = walk ? 0.3 : 0.5
-  }, [environments, scene, sky, clouds, sun, cold, weather, exterior, twilight, xray, walk, section, time])
+  }, [environments, scene, sky, clouds, sun, cold, weather, exterior, twilight, xray, walk, section, time, cycle])
   useLayoutEffect(
     () => () => {
       sky.geometry.dispose()
       sky.material.dispose()
       panelMaterial.dispose()
+      windowFace.dispose()
       skyline.dispose()
       ridges.dispose()
       clouds.dispose()
     },
-    [sky, ridges, clouds, panelMaterial, skyline],
+    [sky, ridges, clouds, panelMaterial, skyline, windowFace],
   )
   useFrame(({ camera }, dt) => {
+    if (!mixer.current) {
+      performance.mark('ars-open-room-capture')
+      const pmrem = new PMREMGenerator(gl)
+      try {
+        captureRooms(gl, scene, pmrem, cubeSize, environments)
+      } finally {
+        pmrem.dispose()
+      }
+      performance.mark('ars-open-room-filtered')
+      mixer.current = new ReflectionMixer(gl, environments.get('07:40')!)
+      const bytes = [...environments.values()].reduce((sum, target) => sum + reflectionBytes(target), mixer.current.bytes)
+      gl.domElement.dataset.interiorEnvironmentBytes = String(bytes)
+      gl.domElement.dataset.probeCount = String(reflectionRooms.length)
+    }
     const floor = floorAt(camera.position.y - 1.65)
     const underground = walk && floor.startsWith('B') && camera.position.y < -6
     roomWashStrength.value = underground ? 0.1 : 1
-    if (panel.current) panel.current.visible = underground && floor === 'B2'
+    if (panel.current) panel.current.visible = underground && floor === 'B2' && emergencyCircuit.value === 0
     if (hemisphere.current) {
       const hemi = hemisphere.current
       hemi.color.set(
@@ -318,14 +336,22 @@ export function PhysicalSky() {
                 : '#e8eff8',
       )
       hemi.groundColor.set(underground ? '#7d6c5d' : walk ? '#887c73' : '#8b8576')
-      hemi.intensity = underground ? 0.32 : xray ? 0.48 : walk ? 1.36 : twilight ? 0.8 : 1.16
+      hemi.intensity = underground ? 0.32 : xray ? 0.48 : walk ? 1.36 : twilight ? 0.18 : 0.35 + 0.81 * Math.min(1, Math.max(0, sun.y * 4))
     }
     const room = walk
       ? reflectionRoomAt(floor, camera.position.x, camera.position.y, camera.position.z)
       : undefined
-    const target = environments.get(room ?? time) ?? environments.get('07:40')
-    if (target && scene.environment !== target.texture) scene.environment = target.texture
-    scene.environmentIntensity = room === 'living' ? 0.52 : walk ? 0.3 : 0.5
+    const skyKey = environments.has(time) ? time : sun.y < 0.05 ? '22:00' : sun.y < 0.28 ? '06:15' : '10:30'
+    const target = environments.get(room ?? skyKey) ?? environments.get(skyKey)!
+    scene.environment = mixer.current.update(gl, target.texture, dt)
+    const emergency = Boolean(room && emergencyCircuit.value)
+    const dim = room && floor === 'B2' && cycle.night && !emergency
+    if (emergency && hemisphere.current) hemisphere.current.intensity = 0.075
+    if (dim && hemisphere.current) hemisphere.current.intensity = room === 'b2_command' ? 0.018 : 0.035
+    roomSpecular.value = room && !showReflection ? 0 : 1
+    scene.environmentIntensity = emergency ? 0.08 : dim ? 0.025 : room && floor === 'B2' ? 0.57 : walk ? 0.32 : 0.5
+    const mix = mixer.current.mix.toFixed(3).replace(/1\.000/, '1')
+    if (gl.domElement.dataset.reflectionMix !== mix) gl.domElement.dataset.reflectionMix = mix
     if (gl.domElement.dataset.interiorEnvironment !== (room ?? 'sky'))
       gl.domElement.dataset.interiorEnvironment = room ?? 'sky'
     if (outer.current)
@@ -335,7 +361,7 @@ export function PhysicalSky() {
       clock.current += Math.min(dt, 0.1)
       for (const m of clouds.mats) m.uniforms.time.value = clock.current
     }
-  })
+  }, 0.7)
   return (
     <>
       <group ref={outer}>
@@ -347,21 +373,20 @@ export function PhysicalSky() {
       </group>
       <WeatherParticles visible={exterior} weather={weather} />
       <hemisphereLight ref={hemisphere} />
-      <group
-        ref={panel}
-        visible={false}
-        position={[
-          pilotFixtures.skyPanel[0],
-          FLOORS.B2.elevation + pilotFixtures.skyPanel[1],
-          pilotFixtures.skyPanel[2],
-        ]}
-      >
-        <mesh material={panelMaterial}>
-          <planeGeometry args={pilotFixtures.skyPanelSize} />
-        </mesh>
-        <mesh geometry={skyline}>
-          <meshBasicMaterial vertexColors side={DoubleSide} color={twilight ? '#526277' : '#c2d0db'} />
-        </mesh>
+      <group ref={panel} visible={false} name="Bedroom sky windows">
+        {bedrooms.map((b, i) => {
+          const north = b.z0 === 0
+          const x = i === 0 ? pilotFixtures.skyPanel[0] : (b.x0 + b.x1) / 2
+          const y = i === 0 ? pilotFixtures.skyPanel[1] : 1.78
+          const z = i === 0 ? pilotFixtures.skyPanel[2] : (b.z0 + b.z1) / 2 + (north ? -2.345 : 2.345)
+          return <group key={b.id} position={[x, FLOORS.B2.elevation + y, z]}
+              rotation-y={north ? Math.PI : 0} scale={i === 0 ? 1 : 0.88}>
+            <mesh material={panelMaterial} geometry={windowFace} />
+            <mesh geometry={skyline}>
+              <meshBasicMaterial vertexColors side={DoubleSide} color={twilight ? '#526277' : '#c2d0db'} />
+            </mesh>
+          </group>
+        })}
       </group>
     </>
   )

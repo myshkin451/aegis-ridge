@@ -1,3 +1,5 @@
+import { crew } from '../src/data/crew'
+import { inspectionPath } from '../src/scene/camera/inspectionRoute'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { Vector3 } from 'three'
 import { FLOORS, UNDERGROUND } from '../src/data/floors'
@@ -227,5 +229,31 @@ it('guides the private laundry camera through the west vestibule and the laundry
       if (occupied && occupied !== zones.at(-1)) zones.push(occupied)
     })
     expect(zones).toEqual(['vestibule', 'hall', 'laundry'])
+  }
+})
+
+it.each(crew)('walks every stop on $name’s morning route through the actual room and stair openings', member => {
+  const opened = new Map(doors.map(d => [d.id, 1]))
+  let feet: Vector3 | undefined
+  for (const [i, stop] of member.route.entries()) {
+    const path = inspectionPath(routes, member.route[i - 1], stop)
+    expect(path, member.name + ' / ' + stop.roomId).toBeDefined()
+    if (!path) continue
+    feet ??= path[0].clone()
+    // Follow the same 1.4 m/s walk, approach damping and corner tolerance as the live guide.
+    const dt = 1 / 30, blend = 1 - Math.exp(-dt / 0.095)
+    let vx = 0, vz = 0
+    for (const p of path) {
+      const distance = feet.distanceTo(p)
+      const frames = Math.ceil((distance / WALK.walk + 3) / dt)
+      for (let n = 0; n < frames && feet.distanceTo(p) >= 0.13; n++) {
+        const x = p.x - feet.x, z = p.z - feet.z, d = Math.hypot(x, z)
+        const speed = d < 0.065 ? 0 : Math.min(WALK.walk, d * 4)
+        vx += ((x / (d || 1)) * speed - vx) * blend
+        vz += ((z / (d || 1)) * speed - vz) * blend
+        world.move(feet, vx * dt, vz * dt, doors, opened)
+      }
+      expect(feet.distanceTo(p), member.name + ' / ' + stop.roomId + ' at ' + p.toArray()).toBeLessThan(0.13)
+    }
   }
 })

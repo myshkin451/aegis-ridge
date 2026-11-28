@@ -27,28 +27,6 @@ import { surveyRoomRoutes } from './roomRoutes'
 import { useWalkReveal } from '../mep/lensControl'
 import { WALK, WalkCollision } from './walkCollision'
 
-function hiss(ctx: AudioContext) {
-  const buffer = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate),
-    samples = buffer.getChannelData(0)
-  for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * 0.17
-  const src = ctx.createBufferSource(),
-    filter = ctx.createBiquadFilter(),
-    gain = ctx.createGain()
-  src.buffer = buffer
-  filter.type = 'bandpass'
-  filter.frequency.value = 1650
-  filter.Q.value = 0.65
-  gain.gain.setValueAtTime(0.22, ctx.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.004, ctx.currentTime + 1.5)
-  src.connect(filter).connect(gain).connect(ctx.destination)
-  src.start()
-  src.onended = () => {
-    src.disconnect()
-    filter.disconnect()
-    gain.disconnect()
-  }
-}
-
 export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   const gl = useThree((s) => s.gl),
     scene = useThree((s) => s.scene),
@@ -70,7 +48,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       held: 0,
       opened: new Map<string, number>(),
       unlocked: new Set<string>(),
-      audio: null as AudioContext | null,
       revision: -1,
     }),
     [],
@@ -169,16 +146,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     const canvas = gl.domElement
     let start: { id: number; x: number; y: number; lastX: number; lastY: number; moved: boolean } | null =
       null
-    const audio = () => {
-      if (!input.audio) {
-        try {
-          input.audio = new AudioContext()
-        } catch {
-          return
-        }
-      }
-      if (input.audio.state === 'suspended') void input.audio.resume().catch(() => {})
-    }
     const ground = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect()
       tools.uv.set(
@@ -253,7 +220,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       ) {
         e.preventDefault()
         input.keys.add(key)
-        if (key === 'e' && rt.nearby) audio()
         if (key !== 'e') input.goal = null
       }
     }
@@ -277,7 +243,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       const d = (e as CustomEvent<{ x: number; y: number; hold?: boolean }>).detail
       if (d.hold !== undefined) {
         rt.hold = d.hold
-        if (d.hold && rt.nearby) audio()
       } else rt.stick = d
     }
     window.addEventListener('ars-walk', touch)
@@ -297,8 +262,6 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       document.removeEventListener('visibilitychange', visibility)
       window.removeEventListener('ars-walk', touch)
       if (document.pointerLockElement === canvas) document.exitPointerLock()
-      if (input.audio) void input.audio.close().catch(() => {})
-      input.audio = null
       input.opened.clear()
       input.unlocked.clear()
     }
@@ -346,12 +309,12 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       input.held = 0
       input.door = nearest
     }
-    if (nearest && (input.keys.has('e') || rt.hold)) {
+    if (nearest && (input.keys.has('e') || rt.hold || rt.inspectionTarget !== null)) {
       const gate = doors.find((d) => d.id === nearest)!
       const partner = gate.interlock && doors.find((d) => d.interlock === gate.interlock && d.id !== nearest)
       if (partner) input.unlocked.delete(partner.id)
       if (!partner || (input.opened.get(partner.id) ?? 0) < 0.02) {
-        if (!input.held && input.audio && !input.unlocked.has(nearest)) hiss(input.audio)
+        if (!input.held && !input.unlocked.has(nearest)) window.dispatchEvent(new Event('ars-pressure-release'))
         input.held += dt
       }
       if (input.held >= 1.5) input.unlocked.add(nearest)
@@ -385,9 +348,10 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     const speed = k.has('shift') ? WALK.fast : WALK.walk
     let dx = (Math.sin(rt.yaw) * forward - Math.cos(rt.yaw) * side) * speed,
       dz = (Math.cos(rt.yaw) * forward + Math.sin(rt.yaw) * side) * speed
-    if (input.goal) {
-      const x = input.goal.x - rt.feet.x,
-        z = input.goal.z - rt.feet.z,
+    const goal = rt.inspectionTarget ?? input.goal
+    if (goal) {
+      const x = goal.x - rt.feet.x,
+        z = goal.z - rt.feet.z,
         d = Math.hypot(x, z)
       if (d < 0.065 || side || forward) input.goal = null
       else {

@@ -1,3 +1,6 @@
+import { ShiftActivity } from './ambiance/ShiftActivity'
+import { Soundscape } from './ambiance/Soundscape'
+import { TourDirector } from './camera/TourDirector'
 import { PilotPreload } from './assets/PilotPreload'
 import { Canvas, useLoader } from '@react-three/fiber'
 import { Component, useMemo, useState } from 'react'
@@ -40,6 +43,7 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <group visible={routeOverview || !xray || structure}>
           <BuildingSection>
             <UndergroundShell rt={rt} />
+            <ShiftActivity rt={rt} />
             <SurfaceStation atlas={atlas} rt={rt} />
             <group visible={!routeOverview}><TunnelModels /></group>
           </BuildingSection>
@@ -58,6 +62,8 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <CameraStateMachine atlas={atlas} rt={rt} />
         <WalkthroughRig rt={rt} />
         <SectionBoxTool rt={rt} />
+        <TourDirector rt={rt} />
+        <Soundscape />
         <SceneReadouts rt={rt} />
         <SunShadows rt={rt} />
         <RenderPipeline />
@@ -83,7 +89,7 @@ class GraphicsBoundary extends Component<{ children: ReactNode }, { failed: bool
   }
 }
 export function ShelterCanvas() {
-  const [dpr, setDpr] = useState(() => Math.min(devicePixelRatio, 1.25))
+  const [dpr, setDpr] = useState(() => Math.min(devicePixelRatio, 1.5))
   const scene = useMemo(() => <SurveyScene onDprChange={setDpr} />, [])
   return (
     <GraphicsBoundary>

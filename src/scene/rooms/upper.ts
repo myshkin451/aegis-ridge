@@ -344,12 +344,15 @@ function sump(m: ModelBuilder) {
 function robotCart(m: ModelBuilder, e: EquipmentUnit) {
   m.box(enamel, [0, 0.46, -0.83], [1.46, 0.92, 0.32], 'steel')
   for (const x of [-0.47, 0.47]) m.box(bronze, [x, 0.36, -0.64], [0.14, 0.28, 0.025], 'steel')
+  if (!e.tagCode.endsWith('C')) drawMovingCart(m, e.tagCode.slice(-1))
+}
+export function drawMovingCart(m: ModelBuilder, code: string) {
   m.box(dark, [0, 0.15, 0.12], [1.18, 0.23, 1.46], 'epoxy')
   m.box('#a8b2a1', [0, 0.32, 0.14], [1.3, 0.26, 1.55], 'steel')
   round(m, [0, 0.47, 0.18], [1.05, 0.06, 1.05], inox)
   for (const x of [-0.48, 0.48]) m.box(yellow, [x, 0.3, 0.928], [0.19, 0.071, 0.024], 'lamp')
   round(m, [0.38, 0.55, -0.38], [0.12, 0.14, 0.12], dark)
-  const n = e.tagCode.slice(-1).charCodeAt(0) - 64
+  const n = code.charCodeAt(0) - 64
   for (let i = 0; i < n; i++) m.box(paper, [0.32 + i * 0.081, 0.342, 0.934], [0.04, 0.1, 0.017], 'oak_int')
 }
 function scale(m: ModelBuilder) {
