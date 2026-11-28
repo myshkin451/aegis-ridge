@@ -12,14 +12,14 @@ import {
 } from 'three'
 import { FLOORS, UNDERGROUND } from '../src/data/floors'
 import { roomsOn } from '../src/data/defaultBlueprint'
-import { carDeck, FreightCar } from '../src/geometry/freightCar'
+import { ElevatorBank, elevatorSpecs } from '../src/geometry/elevators'
 import { footprint } from '../src/geometry/coords'
 import { bedrooms } from '../src/geometry/residentialPlan'
 import { ModelBuilder } from '../src/scene/utils/modelBuilder'
 import { closedDoors, roomStructure } from '../src/scene/utils/shellGeometry'
 import { enclosure, structure, verticalCore } from '../src/scene/FloorSliceGroup'
 import { adits } from '../src/data/siteFacilities'
-import { doors, manualDoorAvailable, type WallAxis } from '../src/geometry/doors'
+import { doors, type WallAxis } from '../src/geometry/doors'
 import { defaultBox, moveFace, rulerFraction } from '../src/geometry/viewGeometry'
 import { stairRun } from '../src/geometry/stairs'
 import { appendSolids, positionGeometry } from '../src/scene/utils/solidGeometry'
@@ -263,8 +263,8 @@ it('calls the single car from either loading face and crosses both B1 and B4 on 
       model.dispose()
     }
   }
-  const car = new FreightCar()
-  const world = new WalkCollision(positionGeometry(vertices), car)
+  const bank = new ElevatorBank(), car = bank.cars.freight, carDeck = elevatorSpecs.freight
+  const world = new WalkCollision(positionGeometry(vertices), bank)
   const tree = world.tree
   try {
     expect(car.stop).toBe('B4')
@@ -280,17 +280,21 @@ it('calls the single car from either loading face and crosses both B1 and B4 on 
         end = opposite.base[2] + sign * 0.7
       const feet = new Vector3(x, y, start)
       expect(front.base[0]).toBe(rear.base[0])
-      expect(manualDoorAvailable(arrival, car.stop)).toBe(false)
+      expect(bank.landingOpening(arrival)).toBe(0)
       expect(world.floor(x, y, carDeck.z)).toBeUndefined()
-      car.callFrom(x, y, start)
+      bank.callFrom(x, y, start)
+      expect(car.stop).toBe(oldStop)
+      for (let i = 0; i < 1800 && car.phase !== 'open'; i++) bank.tick(1 / 60)
       expect(car.stop).toBe(stop)
       expect(world.floor(x, FLOORS[oldStop].elevation, carDeck.z)).toBeUndefined()
       expect(world.tree).toBe(tree)
-      const available = doors.filter((d) => d.zones.includes('freight') && manualDoorAvailable(d, car.stop))
+      const available = doors.filter((d) => d.zones.includes('freight') && bank.landingOpening(d) === 1)
       expect(available.map((d) => d.id)).toEqual([front.id, rear.id])
       const through = new Map(available.map((d) => [d.id, 1]))
       for (let z = start; sign * (end - z) > 0; z += sign * 0.05) {
-        expect(world.floor(x, y, z), 'loading axis z=' + z).toBeCloseTo(y, 2)
+        const support = world.floor(x, y, z)
+        expect(support).toBeDefined()
+        expect(Math.abs(support! - y), 'loading axis z=' + z).toBeLessThan(0.025)
         world.move(feet, 0, z - feet.z, doors, through)
         expect(feet.z).toBeCloseTo(z, 3)
       }
@@ -299,5 +303,26 @@ it('calls the single car from either loading face and crosses both B1 and B4 on 
     }
   } finally {
     world.dispose()
+  }
+})
+
+it('slides along a closed leaf and admits a slightly off-centre shoulder through an open jamb', () => {
+  const door = { ...doors[0], base: [0, 0, 0] as Point3, yaw: 0, width: 1.02, trackOffset: 0 }
+  const worldWithJambs = world([
+    { centre: [0, -0.1, 0], size: [5, 0.2, 5] },
+    { centre: [-0.61, 1.3, 0], size: [0.2, 2.6, 0.14] },
+    { centre: [0.61, 1.3, 0], size: [0.2, 2.6, 0.14] },
+  ])
+  try {
+    const feet = new Vector3(-0.2, 0, -0.31)
+    worldWithJambs.move(feet, 0.45, 0.65, [door])
+    expect(feet.z).toBeLessThan(-0.25)
+    expect(feet.x).toBeCloseTo(0.25)
+    feet.set(0.28, 0, -0.8)
+    worldWithJambs.move(feet, 0, 1.6, [door], new Map([[door.id, 1]]))
+    expect(feet.z).toBeCloseTo(0.8)
+    expect(feet.x).toBeCloseTo(0.28)
+  } finally {
+    worldWithJambs.dispose()
   }
 })

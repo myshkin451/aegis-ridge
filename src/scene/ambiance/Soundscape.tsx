@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useShelterStore } from '../../store/useShelterStore'
+import { useElevatorRide } from '../../store/useElevatorRide'
 import { useShiftClock } from '../../store/useShiftClock'
 import type { FloorId } from '../../types/shelter'
 import { floorAt } from '../../geometry/viewGeometry'
@@ -35,6 +36,7 @@ function buildSound(ctx: AudioContext) {
     return gain.gain
   }
   const wind = layer(480), fan = layer(260), water = layer(1700), transformer = layer(100, true)
+  const liftMotor = layer(72, true)
   sources.forEach(source => source.start())
   function fade(floor: FloorId | null, audible: boolean) {
     const t = ctx.currentTime
@@ -57,7 +59,19 @@ function buildSound(ctx: AudioContext) {
     source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect() }
     source.start(0, 0, 1.5)
   }
-  return { fade, pressureRelease, dispose() { sources.forEach(s => s.stop()); void ctx.close().catch(() => {}) } }
+  function elevator(moving: boolean, arrival: boolean) {
+    liftMotor.setTargetAtTime(moving ? 0.035 : 0, ctx.currentTime, 0.15)
+    if (!arrival || !useShiftClock.getState().sound || ctx.state !== 'running') return
+    const bell = ctx.createOscillator(), gain = ctx.createGain(), t = ctx.currentTime
+    bell.frequency.value = 660
+    gain.gain.setValueAtTime(0.04, t)
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.36)
+    bell.connect(gain).connect(master)
+    bell.onended = () => { bell.disconnect(); gain.disconnect() }
+    bell.start(t)
+    bell.stop(t + 0.37)
+  }
+  return { fade, pressureRelease, elevator, dispose() { sources.forEach(s => s.stop()); void ctx.close().catch(() => {}) } }
 }
 
 export function Soundscape() {
@@ -92,6 +106,9 @@ export function Soundscape() {
         void context.close().catch(() => {})
       })
     }
+    const unwatchRide = useElevatorRide.subscribe(({ ride }, previous) => {
+      mix.current?.elevator(ride?.phase === 'moving', previous.ride?.phase === 'moving' && ride?.phase === 'opening')
+    })
     const release = () => mix.current?.pressureRelease()
     const hide = () => { if (document.hidden) { mix.current?.fade(null, false); last.current = '' } }
     window.addEventListener('pointerdown', unlock, true)
@@ -100,6 +117,7 @@ export function Soundscape() {
     window.addEventListener('ars-pressure-release', release)
     document.addEventListener('visibilitychange', hide)
     return () => {
+      unwatchRide()
       window.removeEventListener('pointerdown', unlock, true)
       window.removeEventListener('click', unlock)
       window.removeEventListener('keydown', unlock, true)

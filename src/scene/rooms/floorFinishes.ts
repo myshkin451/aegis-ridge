@@ -4,6 +4,15 @@ import { footprint, undergroundPlan } from '../../geometry/coords'
 import { openingsAlong, type WallAxis } from '../../geometry/doors'
 import { ModelBuilder } from '../utils/modelBuilder'
 
+// The perimeter wall extends 200 mm inward. Internal door frames stand 105 mm
+// proud of the partition centreline. Measure the cavity from the back of the panel.
+export function liningCentre(axis: WallAxis, fixed: number, inward: number, thickness: number) {
+  const perimeter = axis === 'x'
+    ? fixed === undergroundPlan.z0 || fixed === undergroundPlan.z1
+    : fixed === undergroundPlan.x0 || fixed === undergroundPlan.x1
+  return fixed + inward * ((perimeter ? 0.2 : 0.105) + 0.016 + thickness / 2)
+}
+
 export function gymFloor() {
   const m = new ModelBuilder()
   const gym = roomsOn('B1').find((r) => r.id === 'b1_gym')!
@@ -24,7 +33,7 @@ export function gymFloor() {
     }
   }
   const therapy = gym.equipment.find((e) => e.tagCode === 'PHY-153')!
-  const backingX = r.x0 + 0.217,
+  const backingX = liningCentre('z', r.x0, 1, 0.025),
     centerZ = therapy.position[2],
     width = 3.8
   // A wipeable oak lining behind the existing therapy light; the accessible side and aisle stay clear.
@@ -42,11 +51,7 @@ export function cleanRoomPanels() {
   const m = new ModelBuilder()
   const height = FLOORS.B3.clearHeight
   function line(axis: WallAxis, fixed: number, begin: number, end: number, inward: number, glazed: boolean) {
-    const outside =
-      axis === 'x'
-        ? fixed === undergroundPlan.z0 || fixed === undergroundPlan.z1
-        : fixed === undergroundPlan.x0 || fixed === undergroundPlan.x1
-    const at = fixed + inward * (outside ? 0.205 : 0.093)
+    const at = liningCentre(axis, fixed, inward, 0.012)
     function course(a: number, b: number, bottom: number, top: number) {
       if (top <= bottom || b <= a) return
       // Food-safe panels butt against each other with a narrow flush, sealed seam.

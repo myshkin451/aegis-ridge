@@ -5,7 +5,7 @@ export function PhotoButton() {
   const active = usePhotoMode(s => s.active)
   const busy = usePhotoMode(s => s.exporting)
   return <button aria-pressed={active} disabled={busy}
-    onClick={() => usePhotoMode.setState({ active: !active, message: '' })}>照片模式</button>
+    onClick={() => usePhotoMode.setState({ active: !active, message: '' })}>拍照</button>
 }
 
 export function PhotoFrame() {

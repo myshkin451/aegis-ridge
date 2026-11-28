@@ -15,8 +15,11 @@ import { roomTemplates } from '../../data/roomTemplates'
 import type { RoomInstance } from '../../types/shelter'
 import { equipmentSolids } from '../../geometry/equipment'
 import { BoxGeometry, Group } from 'three'
-import { FreightCar } from '../../geometry/freightCar'
-import { doors, doorTints, leafOffset, leafThickness, manualDoorAvailable } from '../../geometry/doors'
+import { elevatorIds, elevatorSpecs } from '../../geometry/elevators'
+import { elevatorBank, setElevatorRider, useElevatorRide } from '../../store/useElevatorRide'
+import { lockdownElapsed, useOperationsStore } from '../../store/useOperationsStore'
+import { closureProgress } from '../../data/lockdown'
+import { doors, doorTints, leafOffset, leafThickness } from '../../geometry/doors'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
 import { FLOORS, FLOOR_ORDER, UNDERGROUND } from '../../data/floors'
 import { useShelterStore } from '../../store/useShelterStore'
@@ -28,6 +31,8 @@ import { surveyRoomFloor, surveyRoomRoutes } from './roomRoutes'
 import { useWalkReveal } from '../mep/lensControl'
 import { WALK, WalkCollision } from './walkCollision'
 
+const garageShutter = (id: string) => id === 'garage-west' || id === 'garage-east'
+const slidingDoors = doors.filter(d => !garageShutter(d.id))
 const variableBays = new Set(roomTemplates.flatMap(t => t.roomIds.concat(t.trialRoomIds)))
 function appendEquipment(rooms: RoomInstance[], mat: ReturnType<typeof pbrMaterial>, vertices: number[]) {
     const hulls = new Group(), cube = new BoxGeometry(1, 1, 1)
@@ -83,7 +88,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     [],
   )
   const placeDoor = useMemo(() => {
-    const installed = doors.map((d) => ({
+    const installed = slidingDoors.map((d) => ({
       door: d,
       cos: Math.cos(d.yaw),
       sin: Math.sin(d.yaw),
@@ -134,7 +139,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     // installation solids for capsule contact, retaining the gaps between gantry legs and cabin walls.
     const initial = useShelterStore.getState().installedRooms
     appendEquipment(initial.filter(r => !variableBays.has(r.id)), mat, vertices)
-    const collision = new WalkCollision(positionGeometry(vertices), new FreightCar())
+    const collision = new WalkCollision(positionGeometry(vertices), elevatorBank)
     mountFittings(collision, initial, mat)
     rt.collision = player.current = collision
     rt.roomRoutes = surveyRoomRoutes(collision, initial)
@@ -172,7 +177,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
   }, [scene, rt, mat, gl])
   useLayoutEffect(() => {
-    doors.forEach((d, i) => {
+    slidingDoors.forEach((d, i) => {
       const tint = new Color(doorTints[d.kind])
       leaves.current!.setColorAt(i * 2, tint)
       leaves.current!.setColorAt(i * 2 + 1, tint)
@@ -192,7 +197,18 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         1 - (2 * (e.clientY - rect.top)) / rect.height,
       )
       tools.ray.setFromCamera(tools.uv, get().camera)
-      const hit = player.current?.raycastFirst(tools.ray.ray, DoubleSide, 0.06, 45)
+      const ray = tools.ray.ray
+      const hit = player.current?.raycastFirst(ray, DoubleSide, 0.15, 45)
+      if (ray.direction.y < -0.001) {
+        for (const id of elevatorIds) {
+          const car = elevatorBank.cars[id]
+          if (car.phase !== 'open') continue
+          const distance = (car.elevation - ray.origin.y) / ray.direction.y
+          if (distance < 0.15 || distance > (hit?.distance ?? 45)) continue
+          const x = ray.origin.x + ray.direction.x * distance, z = ray.origin.z + ray.direction.z * distance
+          if (car.deckAt(x, z)) return new Vector3(x, car.elevation, z)
+        }
+      }
       return hit && Math.abs(hit.face?.normal.y ?? 0) > 0.65 && hit.point.y < get().camera.position.y - 0.12
         ? hit.point
         : null
@@ -204,6 +220,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       rt.stick.x = rt.stick.y = 0
       rt.hold = false
       input.held = 0
+      input.vx = input.vz = 0
     }
     const down = (e: PointerEvent) => {
       if (e.button !== 0 || rt.moving) return
@@ -230,8 +247,8 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
           if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 3) start.moved = true
         }
         if (locked || start?.moved) {
-          rt.yaw -= dx * 0.003
-          rt.pitch = Math.max(-1.32, Math.min(1.32, rt.pitch - dy * 0.003))
+          rt.yaw -= dx * 0.0024
+          rt.pitch = Math.max(-1.25, Math.min(1.25, rt.pitch - dy * 0.0024))
           input.hover = null
         }
       } else input.hover = ground(e)
@@ -287,9 +304,10 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     window.addEventListener('ars-walk', touch)
     return () => {
       clear()
+      setElevatorRider(null)
       rt.nearby = ''
       rt.pressure = 0
-      rt.room = ''
+      rt.room = rt.liftCall = ''
       canvas.removeEventListener('pointerdown', down)
       canvas.removeEventListener('pointermove', move)
       canvas.removeEventListener('pointerup', up)
@@ -307,33 +325,24 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   }, [active, gl, get, input, rt, tools])
   useFrame((_, raw) => {
     if (!player.current || !leaves.current || !doorGroup.current) return
-    const guided = rt.moving && rt.garageTransfer
-    doorGroup.current.visible = active || guided
-    if (rt.moving) {
+    const dt = Math.min(0.08, raw)
+    elevatorBank.tick(dt)
+    doorGroup.current.visible = active
+    if (!active || rt.moving) {
       if (ring.current) ring.current.visible = false
-      if (guided) {
-        const eye = get().camera.position
-        for (let i = 0; i < doors.length; i++) {
-          const [x, y, z] = doors[i].base
-          const distance = Math.hypot(eye.x - x, eye.y - WALK.eye - y, eye.z - z)
-          // The guide's passage is visual. It does not grant a manual pressure-door unlock.
-          const fraction = Math.max(0, Math.min(1, (3.15 - distance) / 1.7))
-          const opening = fraction * fraction * (3 - 2 * fraction)
-          placeDoor(i, manualDoorAvailable(doors[i], player.current.freightCar?.stop) ? opening : 0)
-        }
-        leaves.current.instanceMatrix.needsUpdate = true
-      }
       return
     }
-    if (!active) return
-    const dt = Math.min(0.08, raw),
-      { dir } = tools,
+    const { dir } = tools,
       cam = get().camera
     if (input.revision !== rt.walkRevision) {
       input.revision = rt.walkRevision
+      setElevatorRider(null)
       input.goal = null
       input.vx = input.vz = 0
-      if (!player.current.landing(rt.feet)) rt.feet.set(-4, FLOORS[rt.floor].elevation, -1)
+      if (!player.current.landing(rt.feet)) {
+        const lobby = elevatorSpecs.passenger
+        rt.feet.set(lobby.x, FLOORS[rt.floor].elevation, lobby.front + 1.12)
+      }
     }
     let nearest = '',
       dist = 2.15
@@ -361,20 +370,24 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     rt.nearby = nearest
     rt.pressure = input.unlocked.has(nearest) ? 1 : Math.min(1, input.held / 1.5)
     const snap = reduceMotion()
-    const car = player.current.freightCar
-    car?.callFrom(rt.feet.x, rt.feet.y, rt.feet.z)
-    for (const [i, d] of doors.entries()) {
+    const rider = useElevatorRide.getState().ride?.id
+    const car = rider ? elevatorBank.cars[rider] : null
+    if (car) rt.feet.y = car.elevation
+    const landing = car ? undefined : elevatorBank.callFrom(rt.feet.x, rt.feet.y, rt.feet.z)
+    for (const [i, d] of slidingDoors.entries()) {
       const near = Math.hypot(rt.feet.x - d.base[0], rt.feet.y - d.base[1], rt.feet.z - d.base[2]) < 2.6
       if (!near) input.unlocked.delete(d.id)
-      const available = manualDoorAvailable(d, car?.stop)
-      const open = Number(near && available && (!d.airlock || input.unlocked.has(d.id))),
-        last = input.opened.get(d.id) ?? 0
-      const value = snap || !available ? open : open + (last - open) * Math.exp(-7 * dt)
+      const open = Number(near && (!d.airlock || input.unlocked.has(d.id)))
+      const last = input.opened.get(d.id) ?? 0
+      const value = elevatorBank.landingOpening(d) ?? (snap ? open : open + (last - open) * Math.exp(-7 * dt))
       // Refresh the local shadow once the sliding leaves reach the new open/closed pose.
       if ((value > 0.97 && last <= 0.97) || (value < 0.03 && last >= 0.03)) rt.doorRevision++
       input.opened.set(d.id, value)
       placeDoor(i, value)
     }
+    const shutterOpen = 1 - closureProgress(lockdownElapsed(useOperationsStore.getState()), 5, 10)
+    for (const d of doors) if (garageShutter(d.id))
+      input.opened.set(d.id, shutterOpen * d.height >= WALK.height ? 1 : 0)
     leaves.current.instanceMatrix.needsUpdate = true
     const k = input.keys
     let forward =
@@ -398,13 +411,32 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         dz = (z / d) * Math.min(speed, d * 4)
       }
     }
-    const blend = 1 - Math.exp(-dt / 0.095)
-    input.vx += (dx - input.vx) * blend
-    input.vz += (dz - input.vz) * blend
-    if (Math.abs(input.vx) + Math.abs(input.vz) > 0.002)
-      player.current.move(rt.feet, input.vx * dt, input.vz * dt, doors, input.opened)
-    const level = floorAt(rt.feet.y + 0.02)
-    if (level !== rt.floor && Math.abs(rt.feet.y - FLOORS[level].elevation) < 0.2) {
+    const inTransit = car && car.phase !== 'open'
+    if (inTransit) {
+      input.vx = input.vz = 0
+      input.goal = null
+    } else {
+      // Integrate the exponential velocity curve, so braking distance does not vary with frame rate.
+      const tau = dx || dz ? 0.14 : 0.075
+      const blend = -Math.expm1(-dt / tau)
+      const travelX = dx * dt + (input.vx - dx) * tau * blend
+      const travelZ = dz * dt + (input.vz - dz) * tau * blend
+      input.vx += (dx - input.vx) * blend
+      input.vz += (dz - input.vz) * blend
+      if (Math.abs(travelX) + Math.abs(travelZ) > 0.00002)
+        player.current.move(rt.feet, travelX, travelZ, doors, input.opened)
+    }
+    const aboard = inTransit && rider ? rider : elevatorBank.riderAt(rt.feet.x, rt.feet.y, rt.feet.z)
+    if (landing && !aboard) {
+      const called = elevatorBank.cars[landing.id]
+      const action = called.stop !== landing.floor || called.phase === 'moving' ? '已呼梯 · 请稍候' :
+        called.phase === 'open' ? '已开门 · 向前进入' : '正在开门'
+      rt.liftCall = (landing.id === 'passenger' ? '客梯' : '货梯') + '　' + action
+    } else rt.liftCall = ''
+    setElevatorRider(aboard)
+    if (aboard && !rider && document.pointerLockElement === gl.domElement) document.exitPointerLock()
+    const level = car ? car.stop : floorAt(rt.feet.y + 0.02)
+    if (level && level !== rt.floor && Math.abs(rt.feet.y - FLOORS[level].elevation) < 0.2) {
       rt.floor = level
       queueMicrotask(() => {
         if (useShelterStore.getState().cameraState === 'walkthrough')
@@ -418,7 +450,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     cam.getWorldDirection(dir)
     rt.target.copy(cam.position).add(dir)
     const room = roomAt(rt.floor, rt.feet.x, rt.feet.z, rooms)
-    rt.room = room?.name ?? (Math.abs(rt.feet.x) > 16 ? '平硐步道' : '主通道')
+    rt.room = aboard ? (aboard === 'passenger' ? '客梯轿厢' : '3t 货梯轿厢') : room?.name ?? (Math.abs(rt.feet.x) > 16 ? '平硐步道' : '主通道')
     const exposure = rt.floor.startsWith('L') ? 0.98 : room?.id === 'b3_hydroponics' ? 1.09 : 1.2
     gl.toneMappingExposure += (exposure - gl.toneMappingExposure) * (snap ? 1 : 1 - Math.exp(-dt / 1.05))
     if (ring.current) {
@@ -435,7 +467,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   }, -2)
   return (
     <group ref={doorGroup} visible={active}>
-      <instancedMesh userData={{ localDoorShadow: true }} ref={leaves} args={[undefined, mat, doors.length * 2]} frustumCulled={false}>
+      <instancedMesh userData={{ localDoorShadow: true }} ref={leaves} args={[undefined, mat, slidingDoors.length * 2]} frustumCulled={false}>
         <boxGeometry />
       </instancedMesh>
       <mesh ref={ring} visible={false} rotation-x={-Math.PI / 2}>

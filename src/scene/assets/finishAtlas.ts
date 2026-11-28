@@ -1,4 +1,5 @@
-import { DataArrayTexture, LinearFilter, LinearMipmapLinearFilter, RepeatWrapping } from 'three'
+import { setSurfaceSampling } from '../materials/surfaceSampling'
+import { DataArrayTexture, RepeatWrapping } from 'three'
 import { fieldPrints, finishScans, scanSize, type AtlasSources, type PackedAtlas } from './finishScans'
 
 export interface FinishAtlas {
@@ -30,7 +31,7 @@ async function pack(sources: AtlasSources) {
   }
 }
 
-export async function loadFinishAtlas(art: boolean): Promise<FinishAtlas | null> {
+export async function loadFinishAtlas(art: boolean, maxAnisotropy: number): Promise<FinishAtlas | null> {
   const [surfaces, prints] = await Promise.all([
     Promise.all(finishScans.map((scan) => Promise.all(scan.files.map(readLocalAsset)))),
     art ? Promise.all(fieldPrints.map((print) => readLocalAsset(print.file))) : [],
@@ -39,9 +40,7 @@ export async function loadFinishAtlas(art: boolean): Promise<FinishAtlas | null>
   if (!(result.scanMask || result.printMask)) return null
   const texture = new DataArrayTexture(result.pixels, scanSize, scanSize, result.layers)
   texture.name = 'ARS · sRGB/R + packed normal XY + field prints'
-  texture.magFilter = LinearFilter
-  texture.minFilter = LinearMipmapLinearFilter
   texture.wrapS = texture.wrapT = RepeatWrapping
-  texture.generateMipmaps = texture.needsUpdate = true
+  setSurfaceSampling(texture, maxAnisotropy)
   return { texture, scanMask: result.scanMask, printMask: result.printMask }
 }

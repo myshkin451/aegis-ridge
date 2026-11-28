@@ -38,7 +38,7 @@ export function PilotPreload({ children }: { children: ReactNode }) {
     let mounted = true
     let resources: Awaited<ReturnType<typeof loadPilotAssets>> | undefined
     async function load() {
-      const result = await loadPilotAssets()
+      const result = await loadPilotAssets(gl.capabilities.getMaxAnisotropy())
       if (!mounted) {
         releasePilotAssets(result)
         return

@@ -1,0 +1,69 @@
+.fortress .title-block {
+  display: block;
+  min-width: 216px;
+  border-color: var(--rule);
+  border-top-color: var(--ink);
+}
+.fortress .title-block h1 { padding: 8px 12px 7px; border: 0; font-size: 17px; }
+.fortress .title-block .title-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding: 4px 9px 5px 12px; border: 0; border-top: 1px solid var(--rule); font-size: 12px;
+}
+.title-line select { border: 0; font-size: 12px; }
+.fortress .tabs { gap: 18px; }
+.fortress .tool-row { gap: 13px; }
+.tool-row button[aria-expanded=true] { text-decoration: underline; text-underline-offset: 3px; }
+.fortress .drawer h2 { margin: 0; font: 600 18px/1.5 var(--drawing); }
+.fortress-status, .car-panel { padding: 12px 14px; width: min(285px, calc(100vw - 32px)); }
+.fortress-status { position: absolute; top: calc(100% + 9px); right: 0; }
+.fortress-status .sheet-head { border: 0; padding: 0 0 6px; }
+.fortress-status dl > div { grid-template-columns: 6.3em 1fr; padding: 9px 0; }
+.fortress-status dt { color: var(--dim); font-size: 12px; }
+.fortress-status dd b { display: block; font-weight: 600; color: #24624b; }
+.night .fortress-status dd b { color: #a4ceb8; }
+.fortress[data-scenario=cryo] .fortress-status dd b { color: #37667b; }
+.fortress.night[data-scenario=cryo] .fortress-status dd b { color: #abd1e2; }
+.fortress-status dd small { display: block; color: var(--dim); font-size: 11px; line-height: 1.5; margin-top: 3px; }
+.seal-action { display: block; border-top: 1px solid var(--rule); width: 100%; padding-top: 8px; text-align: right; }
+.fortress .help label { display: flex; align-items: center; margin-top: 8px; gap: 4px; }
+.day-clock, .section-slider, .share-receipt {
+  position: absolute; bottom: var(--margin); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); display: flex; align-items: center; gap: 8px; padding: 4px 9px;
+}
+.day-clock { left: 50%; transform: translateX(-50%); }
+.day-clock output, .day-clock span { font: 11px var(--mono); }
+.day-clock span { color: var(--dim); white-space: nowrap; }
+.day-clock input, .section-slider input { accent-color: var(--ink); width: clamp(85px, 9vw, 160px); }
+.day-clock button { font-size: 18px; line-height: 1.15; }
+.section-slider { left: var(--margin); font-size: 12px; }
+.share-receipt { right: var(--margin); top: 95px; bottom: auto; }
+.car-panel { position: absolute; top: 46%; right: var(--margin); transform: translateY(-50%); width: 190px; }
+.car-panel > output { display: block; margin: 3px 0 11px; color: var(--dim); }
+.floor-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.floor-keys button { font: 16px var(--mono); border: 1px solid var(--rule); min-height: 39px; }
+.floor-keys button:disabled { cursor: default; color: var(--dim); }
+.floor-keys button[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+.fortress .room-sheet { padding: 12px; }
+@media (max-width:740px) {
+  .fortress .title-block { min-width: 204px; }
+  .fortress .title-block h1 { font-size: 15px; }
+  .fortress .view-tools { top: 83px; }
+  .fortress .tabs { gap: 16px; }
+  .fortress .tool-row { gap: 13px; }
+  .fortress .day-clock { bottom: calc(63px + env(safe-area-inset-bottom)); }
+  .fortress:has(.crosshair) .day-clock { bottom: calc(12px + env(safe-area-inset-bottom)); right: var(--margin); left: auto; transform: none; }
+  .section-slider { bottom: 105px; }
+  .fortress-status, .view-menu, .help { max-height: calc(100dvh - 165px); overflow-y: auto; }
+  .share-receipt { top: 144px; }
+}
+.lobby-shortcuts { display: flex; gap: 12px; padding: 2px 9px 8px; border-bottom: 1px solid var(--rule); }
+.lobby-shortcuts button { font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+#elevator-call:not(:empty) {
+  position: absolute; left: 50%; top: 58%; transform: translateX(-50%); background: var(--paper);
+  border: 1px solid var(--rule); padding: 5px 9px; white-space: nowrap;
+}
+.tour-play { margin-top: 9px; border-bottom: 1px solid var(--rule); }
+.fortress.night .view-tools .tabs, .fortress.night .view-tools .tool-row {
+  width: fit-content; margin-left: auto; padding: 0 5px;
+  background-color: rgba(19, 23, 22, 0.81);
+}

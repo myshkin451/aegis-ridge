@@ -53,7 +53,3 @@ export const SHAFTS: Shaft[] = [
   { id: 'escape', name: '东侧无烟联络楼梯', bounds: gridRect(14, 15, 5, 5), topFloor: 'B1' },
 ]
 export const ADIT = { floorId: 'B1', roomId: 'b1_decon', gz: 2, width: 2.6, height: 2.65 } as const
-
-/** The freight car can be called to any underground landing. The passenger car stays at B2. */
-export const INITIAL_FREIGHT_STOP: UndergroundId = 'B4'
-export const PASSENGER_STOP: UndergroundId = 'B2'

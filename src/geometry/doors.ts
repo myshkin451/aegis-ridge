@@ -1,4 +1,5 @@
-import { FLOORS, PASSENGER_STOP, UNDERGROUND } from '../data/floors'
+import { FLOORS, UNDERGROUND } from '../data/floors'
+import { elevatorLandings } from './elevators'
 import { adits } from '../data/siteFacilities'
 import { bedrooms, eastLinkDoorX, eastLobbyEntryX, escapeLobby, quietHall } from './residentialPlan'
 import type { FloorId, Point3, RoomInstance } from '../types/shelter'
@@ -103,13 +104,16 @@ export const doors: Doorway[] = [
   door('B4', 'pump-suite', 'z', -8, -7, 1.45, 'fire', ['b4_drainage', 'b4_geothermal']),
   ...UNDERGROUND.flatMap((floor) => [
     door(floor, floor + '-niche', 'x', 5, -8, 1.05, 'sliding', [branch, 'service-niche'], 2.1, -0.17),
-    door(floor, floor + '-freight-front', 'x', -4, -2, 1.98, 'fire', [main, 'freight'], 2.6, -0.17),
     door(floor, floor + '-personnel', 'x', -0.85, -2, 1.45, 'fire', [main, 'personnel']),
-    door(floor, floor + '-passenger', 'x', 1.16, -2, 1.02, 'fire', [main, 'passenger']),
     door(floor, floor + '-east-stair', 'z', 12, -1, 1.45, 'fire', [main, 'escape']),
   ]),
-  door('B1', 'B1-freight-rear', 'x', -4, -6, 1.98, 'fire', ['freight', 'b1_logistics'], 2.6),
-  door('B4', 'B4-freight-rear', 'x', -4, -6, 1.98, 'fire', ['freight', 'b4_geothermal'], 2.6),
+  ...elevatorLandings.map(({ id, floor, face, x, z, width, height }) => {
+    const outside = face === 'rear' ? (floor === 'B1' ? 'b1_logistics' : 'b4_geothermal')
+      : floor === 'L2' ? 'l2_observatory' : floor !== 'L1' ? main
+      : id === 'freight' ? 'l1_garage' : 'l1_vestibule'
+    return door(floor, floor + '-' + (id === 'freight' ? id + '-' + face : id),
+      'x', x, z, width, 'fire', [outside, id], height, face === 'front' ? -0.17 : 0.17)
+  }),
   ...Object.values(adits).map((b) => {
     const [x, , z] = b.points[0]
     return door(
@@ -178,12 +182,6 @@ export function openingsAlong(floor: FloorId, axis: WallAxis, fixed: number, beg
         d.base[along] < end,
     )
     .sort((a, b) => a.base[along] - b.base[along])
-}
-/** Landing doors may open to a person only while that car supports the crossing. */
-export function manualDoorAvailable(d: Doorway, freightStop?: FloorId) {
-  if (d.zones.includes('freight')) return d.floor === freightStop
-  if (d.zones.includes('passenger')) return d.floor === PASSENGER_STOP
-  return true
 }
 export const leafThickness = 0.075
 /** The two leaves meet at the centreline when closed; open leaves park beyond each jamb. */

@@ -34,6 +34,18 @@ describe('operating controls and the engine share a single clock', () => {
     expect(operations.getState().report.feasibility.chpInterlocked).toBe(false)
     expect(operations.getState().people).toBe(14)
   })
+  it('shelters eight residents from a storm and keeps the filtered air and spring intake available', () => {
+    expect(operations.getState().people).toBe(8)
+    operations.getState().setScenario('cryo')
+    const start = operations.getState().lockdownStartedAt!
+    operations.getState().advance(start + 15_000)
+    expect(operations.getState().lockdownSeconds).toBe(15)
+    operations.getState().advance(start + 30_000)
+    expect(operations.getState().report.feasibility.externalWater).toBeGreaterThan(0)
+    expect(operations.getState().lockdownStartedAt).toBeNull()
+    operations.getState().setScenario('normal')
+    expect(operations.getState().lockdownSeconds).toBe(0)
+  })
   it('restores the ordinary floor, X-ray and section-box views after a route overview', () => {
     const path: [number, number, number][] = [
       [2, -10, 0],
@@ -65,7 +77,7 @@ describe('operating controls and the engine share a single clock', () => {
     view.getState().photograph('shot-03')
     expect(operations.getState().scenario).toBe('cryo')
     expect(view.getState().shot).toBe('shot-03')
-    expect(operations.getState().lockdownSeconds).toBe(0)
+    expect(operations.getState().lockdownSeconds).toBe(30)
     view.getState().photograph('shot-02')
     expect(operations.getState().scenario).toBe('normal')
   })

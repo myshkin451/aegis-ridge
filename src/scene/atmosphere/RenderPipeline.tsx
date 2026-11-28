@@ -2,7 +2,6 @@ import { circadianAt } from '../../data/lighting'
 import { usePhotoMode } from '../../store/usePhotoMode'
 import { PhotographicDepth, shiftLens } from '../photo/photographicLens'
 import { capturePhotograph, exposureProcessor } from '../photo/capturePhotograph'
-import type { SurveyRuntime } from '../camera/runtime'
 import { shadowPasses } from './roomShadows'
 import { floorAt } from '../../geometry/viewGeometry'
 import { precompileSurvey } from './warmPrograms'
@@ -185,7 +184,7 @@ function skipUnlitEmitters(source: string) {
     .replace(fill, '}\n' + fill)
 }
 
-export function SunShadows({ rt }: { rt: SurveyRuntime }) {
+export function SunShadows() {
   const { scene, gl, get } = useThree()
   const tier = useQuality(),
     csm = useRef<CSM | null>(null)
@@ -209,7 +208,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
       shadowMapSize: tier.shadow,
       mode: 'practical',
       lightDirection: sunAt(time).negate(),
-      shadowBias: -0.00014,
+      shadowBias: -0.00016,
       lightMargin: 90,
     })
     ShaderChunk.lights_fragment_begin = skipUnlitEmitters(ShaderChunk.lights_fragment_begin)
@@ -225,7 +224,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
       mat.needsUpdate = true
     })
     for (const l of shadows.lights) {
-      l.shadow.normalBias = 0.035
+      l.shadow.normalBias = 0.04
       l.shadow.autoUpdate = false
       l.shadow.needsUpdate = true
     }
@@ -255,7 +254,7 @@ export function SunShadows({ rt }: { rt: SurveyRuntime }) {
   useFrame(({ camera }) => {
     const s = csm.current
     if (!s) return
-    const sunlight = outdoors && sunlightGain > 0 && !(rt.garageTransfer && camera.position.y < 0)
+    const sunlight = outdoors && sunlightGain > 0
     for (const light of s.lights) light.intensity = sunlight ? (cold ? 1.1 : 2.75) * sunlightGain : 0
     if (fill.current) {
       const living =
@@ -344,7 +343,10 @@ export function RenderPipeline() {
     ao.configuration.gammaCorrection = false
     ao.configuration.halfRes = true
     ao.setQualityMode('Low')
-    ao.configuration.intensity = 1.6
+    // Ignore sub-centimetre surface noise; keep the half-resolution depth-aware blur on real edges.
+    ao.configuration.biasOffset = 0.008
+    ao.configuration.biasMultiplier = 0.25
+    ao.configuration.intensity = 1.45
     pipe.addPass(ao)
     const bloom = new FixtureBloom(scene, camera, {
       luminanceThreshold: 0.66,
@@ -461,8 +463,8 @@ export function RenderPipeline() {
     p.grade.transition(scenario === 'normal' && state.cold ? 'cryo' : scenario, dt)
     ao.enabled = tier.ao && state.mode !== 'xray'
     const closeInterior = state.cameraState === 'walkthrough' && camera.position.y < -6
-    ao.configuration.aoRadius = closeInterior ? 0.36 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
-    ao.configuration.intensity = closeInterior ? 2.15 : 1.6
+    ao.configuration.aoRadius = closeInterior ? 0.32 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
+    ao.configuration.intensity = closeInterior ? 1.75 : 1.45
     const photo = usePhotoMode.getState()
     // With the background masked out, hidden emitters contribute exactly zero bloom.
     p.glow.enabled = p.bloom.hasVisibleFixture()

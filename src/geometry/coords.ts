@@ -1,6 +1,7 @@
 import { ADIT, BUFFER_DEPTH, DATUM, FLOORS, GRID, SHAFTS, SLAB } from '../data/floors'
 import type { FloorId, GridBounds, Point3 } from '../types/shelter'
 
+export const WALK_EYE_HEIGHT = 1.65
 export const altitude = (y: number) => DATUM + y
 export const getFloorElevation = (id: FloorId) => FLOORS[id].elevation
 

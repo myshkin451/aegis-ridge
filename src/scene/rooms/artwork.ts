@@ -14,8 +14,8 @@ export function roomArtwork() {
     box('#eee8d9', 0.014, width + 0.051, height + 0.051, 0.004, 'plaster')
     box('#ffffff', 0.018, width, height, 0.004, finish)
   }
-  framed('art_herbarium', [0.563, 1.76, 11.767], Math.PI, 0.46, 0.69)
-  framed('art_ridge', [-6.12, 1.98, 6.03], -Math.PI / 2, 2.13, 1.42)
-  framed('art_water', [-3.38, 2.09, 11.767], Math.PI, 0.51, 0.765)
+  framed('art_herbarium', [0.563, 1.76, 11.742], Math.PI, 0.46, 0.69)
+  framed('art_ridge', [-6.161, 1.98, 6.03], -Math.PI / 2, 2.13, 1.42)
+  framed('art_water', [-3.38, 2.09, 11.742], Math.PI, 0.51, 0.765)
   return m
 }

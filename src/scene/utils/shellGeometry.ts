@@ -1,4 +1,4 @@
-import { BRANCH_CORRIDOR, FLOORS, FLOOR_ORDER, PASSENGER_STOP, SLAB } from '../../data/floors'
+import { BRANCH_CORRIDOR, FLOORS, SLAB } from '../../data/floors'
 import { atriumFootprint, clipZSpan } from '../../geometry/atrium'
 import {
   doors,
@@ -12,6 +12,7 @@ import { bedrooms, escapeLobby, publicBath, quietHall, westVestibule } from '../
 import { roomsOn } from '../../data/defaultBlueprint'
 import type { FloorId, Point3, UndergroundId } from '../../types/shelter'
 import { footprint, shaftsAt, shaftPlans, undergroundPlan } from '../../geometry/coords'
+import { elevatorLandings, elevatorSpecs } from '../../geometry/elevators'
 import { stairRun } from '../../geometry/stairs'
 import { ModelBuilder } from './modelBuilder'
 import { slabPlan } from '../../geometry/planGeometry'
@@ -45,7 +46,7 @@ export function iBeam(
       alongX ? [length, flange, width] : [width, flange, length],
       'steel',
     )
-  m.box('#596369', [x, y, z], alongX ? [length, depth, flange] : [flange, depth, length], 'steel')
+  m.box('#596369', [x, y, z], alongX ? [length, depth - 2 * flange, flange] : [flange, depth - 2 * flange, length], 'steel')
 }
 
 export function shaftFrames(m: ModelBuilder, bottom: number, top: number, arrival: FloorId) {
@@ -83,20 +84,27 @@ export function shaftFrames(m: ModelBuilder, bottom: number, top: number, arriva
       const cx = s.x1 - 0.84
       m.box('#929b97', [cx - 0.84, cy, s.z], [0.08, h, 2.1])
       for (const dx of [-0.78, 0.78]) m.box(steel, [cx + dx, cy, s.z], [0.04, h, 0.08], 'steel')
-      if (FLOOR_ORDER[FLOOR_ORDER.indexOf(arrival) + 1] === PASSENGER_STOP) {
-        m.box('#9da7a4', [cx, bottom - 0.08, s.z], [1.6, 0.16, 2.0], 'steel')
-        m.box('#788384', [cx, bottom - 0.05, s.z1 - 0.5], [1.6, 0.1, 1.0], 'steel')
-        m.box('#899695', [cx, bottom + 1.11, s.z - 0.96], [1.6, 2.22, 0.08], 'steel')
-        for (const dx of [-0.77, 0.77])
-          m.box('#99a6a6', [cx + dx, bottom + 1.11, s.z], [0.06, 2.22, 2.0], 'steel')
-        m.box(steel, [cx, bottom + 2.25, s.z], [1.6, 0.09, 2.0], 'steel')
-      }
     }
     if (s.id === 'freight') {
       for (const x of [s.x0 + 0.18, s.x1 - 0.18]) m.box('#a49276', [x, cy, s.z], [0.075, h, 0.13], 'steel')
       // Keep the head and sill clear at both ends of a through-loading landing.
       m.beam([s.x0 + 0.1, bottom + 0.1, s.z0 + 0.09], [s.x0 + 0.1, top - 0.1, s.z1 - 0.09], 0.09, 0.08, trim)
     }
+  }
+}
+
+export function elevatorThresholds(m: ModelBuilder, floor: FloorId) {
+  for (const landing of elevatorLandings.filter(l => l.floor === floor)) {
+    const s = elevatorSpecs[landing.id]
+    const direction = Math.sign(landing.z - s.z)
+    const carEdge = s.z + direction * s.depth / 2
+    const slabEdge = landing.z + direction * 0.04 // bridge the rounded slab lip
+    const depth = Math.abs(slabEdge - carEdge)
+    m.box('#788384', [s.x, -0.049, (carEdge + slabEdge) / 2], [s.width, 0.1, depth], 'steel')
+    // The portals are recessed into the shared shaft. Lined returns enclose the crossing.
+    for (const side of [-1, 1])
+      m.box('#747e7f', [s.x + side * (s.width / 2 + 0.04), landing.height / 2, (carEdge + landing.z) / 2],
+        [0.07, landing.height, Math.abs(landing.z - carEdge)], 'steel')
   }
 }
 
@@ -188,7 +196,7 @@ export function partition(
       right = at + d.width / 2
     solid(cursor, left)
     box(at, (h + d.height) / 2, d.width, h - d.height, 0.15, stone)
-    for (const jamb of [left, right]) box(jamb, d.height / 2, 0.08, d.height, 0.21, steel, 'steel', '门框')
+    for (const jamb of [left, right]) box(jamb, (d.height - 0.05) / 2, 0.08, d.height - 0.05, 0.21, steel, 'steel', '门框')
     box(at, d.height, d.width + 0.08, 0.1, 0.21, steel, 'steel', '门框')
     cursor = right
   }
@@ -196,9 +204,10 @@ export function partition(
 }
 
 /** Closed drawing-view counterparts of the animated leaves, excluded from the static walk BVH. */
-export function closedDoors(floor: FloorId) {
+export function closedDoors(floor: FloorId, includeGarage = true) {
   const m = new ModelBuilder()
   for (const d of doors.filter((d) => d.floor === floor && d.axis !== 'bearing')) {
+    if (!includeGarage && ['garage-west', 'garage-east'].includes(d.id)) continue
     for (let leaf = 0; leaf < 2; leaf++) {
       const offset = leafOffset(d, leaf, 0),
         track = d.trackOffset ?? 0

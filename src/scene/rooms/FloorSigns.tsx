@@ -1,3 +1,5 @@
+import { useThree } from '@react-three/fiber'
+import { setSurfaceSampling } from '../materials/surfaceSampling'
 import { useLayoutEffect, useMemo } from 'react'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 import { ModelBuilder } from '../utils/modelBuilder'
@@ -8,7 +10,7 @@ import { footprint } from '../../geometry/coords'
 import type { FloorId } from '../../types/shelter'
 
 /** A recessed end-wall installation. A single atlas holds the artificial view and the cabinet faces. */
-function endWall(id: FloorId) {
+function endWall(id: FloorId, maxAnisotropy: number) {
   const c = document.createElement('canvas')
   c.width = 768
   c.height = 1024
@@ -79,7 +81,7 @@ function endWall(id: FloorId) {
   g.fillText(id + '　' + load, 42, 974)
   const texture = new CanvasTexture(c)
   texture.colorSpace = SRGBColorSpace
-  texture.anisotropy = 4
+  setSurfaceSampling(texture, maxAnisotropy)
   return texture
 }
 function cabinetFrame() {
@@ -96,21 +98,22 @@ function cabinetFrame() {
 }
 
 export function FloorSigns({ id }: { id: FloorId }) {
-  const tex = useMemo(() => endWall(id), [id])
+  const gl = useThree((s) => s.gl)
+  const tex = useMemo(() => endWall(id, gl.capabilities.getMaxAnisotropy()), [id, gl])
   useLayoutEffect(() => () => tex.dispose(), [tex])
   const r = footprint(FLOORS[id].bounds)
   const cut = useBuildingCut()
   const below = id.startsWith('B')
   return (
     <group
-      position={below ? [r.x0 + 0.213, 1.51, -1] : [id === 'L2' ? -10.45 : 5.3, 1.51, r.z0 + 0.29]}
+      position={below ? [r.x0 + 0.32, 1.51, -1] : [id === 'L2' ? -10.45 : 5.3, 1.51, r.z0 + 0.46]}
       rotation-y={below ? Math.PI / 2 : 0}
       userData={{ annotation: true }}
     >
       <Model build={cabinetFrame} interior />
       <mesh userData={{ annotation: true }}>
         <planeGeometry args={[1.72, 2.3]} />
-        <meshBasicMaterial map={tex} toneMapped={false} clippingPlanes={cut?.planes} />
+        <meshBasicMaterial map={tex} toneMapped={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} clippingPlanes={cut?.planes} />
       </mesh>
     </group>
   )

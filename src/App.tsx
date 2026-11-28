@@ -18,7 +18,7 @@ export default function App() {
     return () => window.removeEventListener('ars-ready', opened)
   }, [])
   return (
-    <main className={'viewport' + (ready ? ' ready' : '')} aria-label="磐石山脊观测站工程模型">
+    <main className={'viewport' + (ready ? ' ready' : '')} aria-label="磐石山脊私人高山堡垒">
       <div className="canvas-wrap">
         <Suspense fallback={null}>
           <ShelterCanvas />

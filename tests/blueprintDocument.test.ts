@@ -6,6 +6,9 @@ import {
 } from '../src/data/blueprintDocument'
 import { roomTemplates } from '../src/data/roomTemplates'
 import { stationAtlas, stationNetwork } from '../src/engine/__tests__/networkFixture'
+import { FLOORS } from '../src/data/floors'
+import { WALK_EYE_HEIGHT } from '../src/geometry/coords'
+import { elevatorBank, setElevatorRider } from '../src/store/useElevatorRide'
 import { defaultBox } from '../src/geometry/viewGeometry'
 import { blueprintStorageKey, createViewLink, exportBlueprintJson, importBlueprintJson,
   initializeBlueprintSession, resetBlueprint, useBlueprintNotice } from '../src/store/blueprintSession'
@@ -131,6 +134,38 @@ describe('blueprint session persistence', () => {
     resetBlueprint()
     expect(parseBlueprintJson(values.get(blueprintStorageKey)!)).toEqual(baselineDocument)
     expect(shelter.getState()).toMatchObject({ floor: 'ALL', cameraState: 'site' })
+  })
+  it.each([false, true])('reopens a shared passenger cabin on a supported deck (in transit: %s)', moving => {
+    browser()
+    const car = elevatorBank.cars.passenger
+    car.restoreParked('L2')
+    shelter.setState({ cameraState: 'walkthrough', mode: 'cutaway', floor: 'L2', lastFloor: 'L2', shot: null })
+    if (moving) {
+      car.request('B4')
+      for (let i = 0; i < 150; i++) car.tick(1 / 60)
+      expect(car.phase).toBe('moving')
+    }
+    setElevatorRider('passenger')
+    const { x, z } = car.spec, y = car.elevation + WALK_EYE_HEIGHT
+    const release = bindCameraReader(() => ({ eye: [x, y, z], target: [x + 0.4, y + 0.2, z - 0.8],
+      zoom: 1, projection: 'perspective', fov: 68 }))
+    try {
+      const receipt = vi.fn(), url = createViewLink(receipt), floor = moving ? 'B4' : 'L2'
+      expect(receipt.mock.calls).toEqual(moving ? [['B4']] : [])
+      car.restoreParked('B2')
+      setElevatorRider(null)
+      browser(url)
+      cleanup = initializeBlueprintSession(stationAtlas)
+      const saved = takeRestoredPose(shelter.getState().cameraRevision)!
+      const [sx, sy, sz] = saved.eye
+      expect(shelter.getState().lastFloor).toBe(floor)
+      expect(car.stop).toBe(floor)
+      expect(car.phase).toBe('open')
+      expect(elevatorBank.supportAt(sx, sy - WALK_EYE_HEIGHT, sz, 0.01)).toBe(FLOORS[floor].elevation)
+      expect(saved.target[1] - sy).toBeCloseTo(0.2)
+      expect(saved.target[0] - sx).toBeCloseTo(0.4)
+      expect(saved.target[2] - sz).toBeCloseTo(-0.8)
+    } finally { release(); car.restoreParked(car.spec.initial); setElevatorRider(null) }
   })
   it('uses the local design after an invalid URL and reports the damaged document', () => {
     const values = browser(origin + '&ars=oops')

@@ -18,7 +18,7 @@ export interface BlueprintDocument {
   lockdownSeconds: number
 }
 export const baselineDocument: BlueprintDocument = {
-  version: '2.0', roomChanges: {}, scenario: 'normal', people: 10, time: '07:40', isolatedId: null, lockdownSeconds: 0,
+  version: '2.0', roomChanges: {}, scenario: 'normal', people: 8, time: '07:40', isolatedId: null, lockdownSeconds: 0,
 }
 
 export type CameraPose = { eye: Point3; target: Point3; zoom: number } & (
@@ -87,7 +87,7 @@ function validateBlueprint(value: unknown): BlueprintDocument {
   if (typeof b.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.time)) fail('time', '须为 24 小时时刻 HH:mm')
   const scenario = choice(b.scenario, ['normal', 'cryo', 'bio', 'fallout'] as const, 'scenario')
   const lockdownSeconds = numberIn(b.lockdownSeconds, 0, 30, 'lockdownSeconds', true)
-  if (lockdownSeconds && (scenario === 'normal' || scenario === 'cryo')) fail('lockdownSeconds', '当前情景没有封锁进度')
+  if (lockdownSeconds && scenario === 'normal') fail('lockdownSeconds', '当前情景没有封锁进度')
   return {
     version: '2.0', roomChanges: validateRoomChanges(b.roomChanges), scenario,
     people: numberIn(b.people, 5, 14, 'people', true), time: b.time,

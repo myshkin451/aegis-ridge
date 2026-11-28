@@ -2,11 +2,12 @@ import { roomsOn } from '../../data/defaultBlueprint'
 import { FLOORS } from '../../data/floors'
 import { pilotFixtures } from '../../data/roomLayouts/residential'
 import { atriumFootprint } from '../../geometry/atrium'
-import { footprint, undergroundPlan } from '../../geometry/coords'
+import { footprint } from '../../geometry/coords'
 import { openingsAlong, type WallAxis } from '../../geometry/doors'
 import { bedrooms, laundry, publicBath, type PlanRect } from '../../geometry/residentialPlan'
 import type { Point3 } from '../../types/shelter'
 import type { Finish } from '../materials/pbrLibrary'
+import { liningCentre } from './floorFinishes'
 import { ModelBuilder } from '../utils/modelBuilder'
 
 const plaster = '#eae5da',
@@ -26,11 +27,7 @@ function wallFace(
   tiled: boolean,
   glazing: boolean,
 ) {
-  const exterior =
-    axis === 'x'
-      ? fixed === undergroundPlan.z0 || fixed === undergroundPlan.z1
-      : fixed === undergroundPlan.x0 || fixed === undergroundPlan.x1
-  const face = fixed + inward * (exterior ? 0.202 : 0.086)
+  const face = liningCentre(axis, fixed, inward, 0.012)
   function panel(
     a: number,
     b: number,
@@ -56,11 +53,11 @@ function wallFace(
       panel(a, b, 0, h, 0, '#d8d3c4', 'tile')
     } else {
       const glazed = glazing && b - a > 1
-      panel(a, b, 0.85, glazed ? 1.05 : h, 0, plaster, 'plaster')
+      panel(a, b, 0.867, glazed ? 1.05 : h, 0, plaster, 'plaster')
       if (glazed) panel(a, b, 2.6, h, 0, plaster, 'plaster')
       // Boards run to a continuous cap rail. Shallow reveals break the lower wall into joinery bays.
       for (let x = a; x < b; x += 0.59)
-        panel(x + 0.002, Math.min(x + 0.588, b), 0.068, 0.851, 0.009, oak, 'oak_int')
+        panel(x + 0.002, Math.min(x + 0.588, b), 0.075, 0.843, 0.009, oak, 'oak_int')
       panel(a, b, 0.843, 0.867, 0.016, oak, 'oak_int')
       panel(a, b, 0, 0.075, 0.022, skirting, 'oak_int')
     }
@@ -108,7 +105,7 @@ function rug(m: ModelBuilder, x: number, z: number, w: number, d: number, main: 
   m.box(main, [x, 0.029, z], [w, 0.012, d], 'fabric')
   for (const side of [-1, 1]) {
     for (const offset of [0.073, 0.108, 0.17])
-      m.box('#c9bda4', [x, 0.036, z + side * (d / 2 - offset)], [w - 0.025, 0.002, 0.011], 'fabric')
+      m.decalBox('#c9bda4', [x, 0.04, z + side * (d / 2 - offset)], [w - 0.025, 0.002, 0.011], 'fabric')
     for (let u = 0.028; u < w; u += 0.052)
       m.box('#c3b69e', [x - w / 2 + u, 0.027, z + side * (d / 2 + 0.017)], [0.013, 0.003, 0.042], 'fabric')
   }

@@ -6,6 +6,7 @@ import { circadianAt, lightingCues } from '../../data/lighting'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { roomsOn } from '../../data/defaultBlueprint'
 import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, UNDERGROUND } from '../../data/floors'
+import { elevatorSpecs } from '../../geometry/elevators'
 import { footprint, shaftPlans } from '../../geometry/coords'
 import { atriumFootprint, clearCeilingPatches, clipZSpan } from '../../geometry/atrium'
 import type { FloorId, UndergroundId } from '../../types/shelter'
@@ -17,7 +18,6 @@ import { Inscription } from './Inscription'
 import { CommandScreens } from './CommandScreens'
 import { drawEquipment, roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
-import type { SurveyRuntime } from '../camera/runtime'
 import { addLivingCoves, residentialFinishes } from './residentialFinishes'
 import { archiveSpines } from './archiveBindings'
 import { roomArtwork } from './artwork'
@@ -47,7 +47,7 @@ const freight = shaftPlans.find((s) => s.id === 'freight')!
 const commons = footprint(roomsOn('B2').find((r) => r.id === 'b2_commons')!.bounds)
 const mainCorridor = footprint(CORRIDOR)
 const library = footprint(roomsOn('B2').find((r) => r.id === 'b2_library')!.bounds)
-export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
+export function RoomInteriors({ id }: { id: FloorId }) {
   const rooms = useOperationsStore(useShallow(s => s.rooms.filter(r => r.floorId === id)))
   const build = useMemo(() => () => roomModels(id), [id])
   const changes = useMemo(() => {
@@ -65,7 +65,6 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
     return { hidden, build: added.length ? install : null }
   }, [id, rooms])
   const root = useRef<Group>(null)
-  const floor = FLOORS[id]
   const archive = useRef<Group>(null)
   const hasArchive = rooms.some(r => r.id === 'b2_library' && r.templateId === r.id)
   const walkingFloor = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === id)
@@ -74,19 +73,18 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
     const state = useShelterStore.getState()
     const p = camera.position
     const aboveGround = id === 'L1' || id === 'L2'
-    const nearBuilding = aboveGround && Math.hypot(p.x, p.z) < 40 && Math.abs(p.y - floor.elevation) < 18
-    const besideShaft = rt.garageTransfer && Math.abs(p.y - floor.elevation - 1.65) < floor.pitch
+    const nearBuilding = aboveGround && Math.hypot(p.x, p.z) < 40 && Math.abs(p.y - FLOORS[id].elevation) < 18
     const orbit = state.cameraState === 'floorOrbit' || state.cameraState === 'plan'
     // Opaque slabs occlude lower fit-outs. The glazed B2 floor also exposes the B3 crop beds.
     const seesAtrium =
       (p.x >= commons.x0 && p.x <= commons.x1 && p.z >= commons.z0 && p.z <= commons.z1) ||
       (p.z >= mainCorridor.z0 && p.z <= mainCorridor.z1 && p.x >= mainCorridor.x0 && p.x <= mainCorridor.x1)
     const throughAtrium =
-      id === 'B3' && state.lastFloor === 'B2' && (orbit || rt.garageTransfer || rt.dropping || seesAtrium)
+      id === 'B3' && state.lastFloor === 'B2' && (orbit || seesAtrium)
     let visible = true
-    if (state.cameraState === 'site') visible = nearBuilding || besideShaft
+    if (state.cameraState === 'site') visible = nearBuilding
     else if (orbit || state.cameraState === 'walkthrough')
-      visible = state.lastFloor === id || throughAtrium || besideShaft
+      visible = state.lastFloor === id || throughAtrium
     if (archive.current)
       archive.current.visible =
         hasArchive && walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
@@ -123,6 +121,10 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
     <>
       <Model walkSurface="ceiling" build={build} />
       <group visible={view === 'walkthrough'}>
+        <Inscription text={id + ' · 客梯'} position={[elevatorSpecs.passenger.x, 2.65, elevatorSpecs.passenger.front + 0.14]}
+          width={1.14} height={0.18} />
+        <Inscription text={id + ' · 3T 货梯'} position={[freight.x, 2.79, freight.z1 + 0.14]}
+          width={1.6} height={0.18} color="#292d2d" background="#c9ab60" />
         <Inscription
           text={id}
           position={[freight.x, id === 'B1' || id === 'B4' ? 3.32 : 1.62, freight.z0 + 0.13]}
@@ -130,7 +132,7 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
           height={1.2}
         />
         {id === 'B3' && (
-          <Inscription text="B3　分层水培" width={2.35} height={0.34} position={[-7, 2.69, -0.013]} reverse />
+          <Inscription text="B3　分层水培" width={2.35} height={0.34} position={[-7, 2.69, -0.118]} reverse />
         )}
       </group>
     </>

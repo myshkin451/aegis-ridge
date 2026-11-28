@@ -2,24 +2,22 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
 import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, FLOOR_ORDER, SLAB } from '../data/floors'
-import { carDeck } from '../geometry/freightCar'
 import { openingsAlong } from '../geometry/doors'
 import { useShelterStore } from '../store/useShelterStore'
 import type { UndergroundId } from '../types/shelter'
 import {
   floorSection,
   footprint,
-  shaftsAt,
   getFloorElevation,
   undergroundPlan as plan,
 } from '../geometry/coords'
 import { ModelBuilder } from './utils/modelBuilder'
 import { CorridorFixtures, RoomInteriors, WalkCeiling } from './rooms/RoomInteriors'
 import { atriumFootprint, clipZSpan } from '../geometry/atrium'
-import type { SurveyRuntime } from './camera/runtime'
 import { Model } from './utils/Model'
 import {
   addSlab,
+  elevatorThresholds,
   closedDoors,
   iBeam,
   roomStructure,
@@ -35,9 +33,9 @@ export function structure(id: UndergroundId) {
   addSlab(m, id)
   roomStructure(m, id)
   for (const r of [route, footprint(BRANCH_CORRIDOR)])
-    m.box('#707b7d', [r.x, -0.01, r.z], [r.w, 0.024, r.d], id === 'B4' ? 'grate' : 'epoxy')
+    m.box('#707b7d', [r.x, 0.004, r.z], [r.w, 0.024, r.d], id === 'B4' ? 'grate' : 'epoxy')
   for (const z of [route.z0 + 0.14, route.z1 - 0.14])
-    m.box('#d0b286', [route.x, 0.0025, z], [route.w - 0.2, 0.001, 0.055], 'epoxy')
+    m.decalBox('#d0b286', [route.x, 0.0205, z], [route.w - 0.2, 0.001, 0.055], 'epoxy')
   // Drainage grate sits outside the circulation strip, just inside the perimeter.
   for (const z of [plan.z0 + 0.13, plan.z1 - 0.13]) {
     m.box(steel, [plan.x, 0.022, z], [plan.w - 0.18, 0.035, 0.18], 'steel')
@@ -57,22 +55,7 @@ export function verticalCore(id: UndergroundId) {
   const m = new ModelBuilder()
   shaftFrames(m, 0, FLOORS[id].pitch, id === 'B4' ? 'B3' : id === 'B3' ? 'B2' : id === 'B2' ? 'B1' : 'L1')
   stairStructure(m, id, 0, -Infinity, FLOORS[id].pitch)
-  const s = shaftsAt(FLOORS[id].elevation).find((shaft) => shaft.id === 'freight')!
-  // The slab stops at the shaft frame. Steel thresholds bridge from each landing
-  // to the parked car, leaving the car footprint clear for vertical travel.
-  const apron = (s.d - carDeck.depth) / 2
-  for (const opening of openingsAlong(id, 'x', s.z1, s.x0, s.x1).concat(
-    openingsAlong(id, 'x', s.z0, s.x0, s.x1),
-  )) {
-    const z = opening.base[2]
-    const overlap = 0.035 // Span the bevel at the slab edge.
-    m.box(
-      '#788384',
-      [s.x, -0.049, z + (Math.sign(s.z - z) * (apron - overlap)) / 2],
-      [carDeck.width, 0.1, apron + overlap],
-      'steel',
-    )
-  }
+  elevatorThresholds(m, id)
   return m
 }
 
@@ -149,7 +132,7 @@ function plenumFrame(id: UndergroundId) {
   return m
 }
 
-export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRuntime }) {
+export function FloorSliceGroup({ id }: { id: UndergroundId }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
@@ -170,26 +153,12 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
     }),
     [id],
   )
-  const floorGroup = useRef<Group>(null),
-    fixedLeaves = useRef<Group>(null),
-    ceiling = useRef<Group>(null)
+  const floorGroup = useRef<Group>(null)
   useFrame(({ camera }) => {
-    if (fixedLeaves.current)
-      fixedLeaves.current.visible = seen && mode !== 'xray' && !walk && !rt.garageTransfer
-    if (ceiling.current)
-      ceiling.current.visible =
-        (walk || rt.garageTransfer) && !(rt.dropping && camera.position.y > FLOORS[id].elevation + 2.5)
     if (!floorGroup.current) return
-    if (!walk && mode === 'exterior') {
-      floorGroup.current.visible =
-        rt.garageTransfer && Math.abs(camera.position.y - FLOORS[id].elevation - 1.65) < 6
-      return
-    }
     if (walk && floor !== 'ALL') {
       const closeToEye = Math.abs(camera.position.y - getFloorElevation(id) - 1.65) < 5.8
-      floorGroup.current.visible = rt.dropping
-        ? FLOOR_ORDER.indexOf(id) >= FLOOR_ORDER.indexOf(floor)
-        : closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
+      floorGroup.current.visible = closeToEye || Math.abs(FLOOR_ORDER.indexOf(id) - FLOOR_ORDER.indexOf(floor)) <= 1
     }
   })
   const closed = mode !== 'xray' && (floor === 'ALL' || walk)
@@ -207,12 +176,12 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
     >
       <group visible={seen && mode !== 'xray'}>
         <CorridorFixtures id={id} />
-        <RoomInteriors id={id} rt={rt} />
+        <RoomInteriors id={id} />
       </group>
-      <group ref={ceiling} visible={walk}>
+      <group visible={walk}>
         <WalkCeiling id={id} />
       </group>
-      <group ref={fixedLeaves} visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
+      <group visible={seen && mode !== 'xray' && !walk} userData={{ skipWalk: true }}>
         <Model build={builders.leaves} interior />
       </group>
       <Model

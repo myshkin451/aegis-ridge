@@ -24,7 +24,7 @@ export function useTerrainSurvey() {
     async function prepare() {
       const [field, photos] = await Promise.allSettled([
         new AtlasLoader().loadAsync(import.meta.env.BASE_URL + 'terrain/atlas.json'),
-        terrainV2 ? loadTerrainScans() : Promise.resolve(null),
+        terrainV2 ? loadTerrainScans(gl.capabilities.getMaxAnisotropy()) : Promise.resolve(null),
       ])
       if (field.status === 'rejected' || photos.status === 'rejected' || !active) {
         if (photos.status === 'fulfilled') photos.value?.dispose()

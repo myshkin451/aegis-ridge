@@ -175,7 +175,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
         kit.plane.setComponents(0, 1, 0, -(FLOORS[s.lastFloor].elevation + s.cutHeight))
         rt.hit = !!kit.ray.ray.intersectPlane(kit.plane, rt.readout)
       } else if (walking && rt.collision) {
-        const hit = rt.collision.raycastFirst(kit.ray.ray, DoubleSide, 0.12, 350)
+        const hit = rt.collision.raycastFirst(kit.ray.ray, DoubleSide, camera.near, camera.far)
         rt.hit = !!hit
         if (hit) rt.readout.copy(hit.point)
       } else {
@@ -217,7 +217,8 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
     if (walking) {
       const aimed = rt.hit && aimedEquipment(rt.floor, rt.readout)
       content('equipment-sight', aimed ? aimed.unit.tagCode + '　' + aimed.unit.name : '')
-      content('walk-room', rt.room || '竖井下潜')
+      content('walk-room', rt.room || '电梯厅')
+      content('elevator-call', rt.liftCall)
       content('flight-level', '▽ ' + (rt.moving ? camera.position.y : rt.feet.y).toFixed(3) + ' m')
       content('walk-altitude', '海拔 ' + altitude(camera.position.y).toFixed(2) + ' m')
       const pin = el('map-heading')

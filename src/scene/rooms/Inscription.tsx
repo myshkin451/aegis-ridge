@@ -1,3 +1,5 @@
+import { useThree } from '@react-three/fiber'
+import { setSurfaceSampling } from '../materials/surfaceSampling'
 import { useLayoutEffect, useMemo } from 'react'
 import { CanvasTexture, SRGBColorSpace } from 'three'
 
@@ -20,6 +22,7 @@ export function Inscription({
   reverse?: boolean
   flat?: boolean
 }) {
+  const gl = useThree((s) => s.gl)
   const texture = useMemo(() => {
     const c = document.createElement('canvas')
     c.width = 768
@@ -34,9 +37,9 @@ export function Inscription({
     ctx.fillText(text, c.width / 2, c.height * 0.53, c.width * 0.95)
     const t = new CanvasTexture(c)
     t.colorSpace = SRGBColorSpace
-    t.anisotropy = 4
+    setSurfaceSampling(t, gl.capabilities.getMaxAnisotropy())
     return t
-  }, [text, width, height, color, background])
+  }, [text, width, height, color, background, gl])
   useLayoutEffect(() => () => texture.dispose(), [texture])
   return (
     <mesh
@@ -46,7 +49,7 @@ export function Inscription({
       userData={{ annotation: true }}
     >
       <planeGeometry args={[width, height]} />
-      <meshBasicMaterial map={texture} toneMapped={false} />
+      <meshBasicMaterial map={texture} toneMapped={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
     </mesh>
   )
 }

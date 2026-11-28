@@ -48,13 +48,15 @@ it('releases an interrupted tour without continuing its demonstration lockdown o
   try {
     useShelterStore.setState({ time: '17:35' })
     ops.setScenario('cryo')
+    const stormStart = useOperationsStore.getState().lockdownStartedAt
+    expect(stormStart).toBeTypeOf('number')
     useShiftClock.setState({ playing: true })
     startTour('opening')
     expect(useShiftClock.getState().playing).toBe(false)
     useShelterStore.setState({ time: '06:15' })
     ops.setScenario('fallout')
     stopTour(true)
-    expect(useOperationsStore.getState()).toMatchObject({ scenario: 'cryo', lockdownStartedAt: null, lockdownSeconds: 0 })
+    expect(useOperationsStore.getState()).toMatchObject({ scenario: 'cryo', lockdownStartedAt: stormStart, lockdownSeconds: 0 })
     expect(useShelterStore.getState()).toMatchObject({ time: '17:35', cold: true })
     expect(useShiftClock.getState().playing).toBe(true)
   } finally {

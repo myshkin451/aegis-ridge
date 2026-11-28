@@ -38,8 +38,8 @@ function makePool() {
     light.shadow.needsUpdate = true
     light.shadow.mapSize.set(512, 512)
     light.shadow.camera.near = 0.1
-    light.shadow.bias = -0.00032
-    light.shadow.normalBias = 0.012
+    light.shadow.bias = -0.00036
+    light.shadow.normalBias = 0.016
     group.add(light, light.target)
     return light
   })

@@ -66,6 +66,7 @@ interface Batch {
   shape: Shape
   finish: Finish
   stamps: Stamp[]
+  decal: boolean
 }
 export type Tint = string | Color
 export interface BuiltModel {
@@ -110,11 +111,12 @@ export class ModelBuilder {
     size: Point3,
     rotation?: Point3 | Quaternion,
     cutLabel?: string,
+    decal = false,
   ) {
-    const key = shape + '/' + finish
+    const key = shape + '/' + finish + (decal ? '/decal' : '')
     let batch = this.batches.get(key)
     if (!batch) {
-      batch = { shape, finish, stamps: [] }
+      batch = { shape, finish, stamps: [], decal }
       this.batches.set(key, batch)
     }
     const q =
@@ -131,6 +133,11 @@ export class ModelBuilder {
 
   box(tint: Tint, centre: Point3, size: Point3, finish: Finish = 'stone', rotation?: Point3, cutLabel?: string) {
     this.part('box', finish, tint, centre, size, rotation, cutLabel)
+  }
+
+  /** Printed markings use their own material batch so walls keep their actual depth. */
+  decalBox(tint: Tint, centre: Point3, size: Point3, finish: Finish, rotation?: Point3) {
+    this.part('box', finish, tint, centre, size, rotation, undefined, true)
   }
 
   beam(a: Point3, b: Point3, width: number, depth: number, tint: Tint, finish: Finish = 'steel') {
@@ -180,7 +187,7 @@ export class ModelBuilder {
     const textures: { dispose(): void }[] = []
     const shapes = new Map<Shape, BufferGeometry>()
     const paints = new Map<string, MeshStandardMaterial>()
-    for (const { shape, finish, stamps } of this.batches.values()) {
+    for (const { shape, finish, stamps, decal } of this.batches.values()) {
       const ordinaryBedding = shape === 'standard-pillow' || shape === 'standard-duvet'
       const fallbackShape = ordinaryBedding ? 'cushion' : shape
       let geom = shapes.get(fallbackShape)
@@ -270,7 +277,7 @@ export class ModelBuilder {
       const closedFoliage = finish === 'foliage' && shape !== 'leaf' && !crop
       const paintKey = crop
         ? 'crop-atlas'
-        : finish + (shape === 'box' ? '-edge' : '') + (closedFoliage ? '-hull' : '')
+        : finish + (shape === 'box' ? '-edge' : '') + (closedFoliage ? '-hull' : '') + (decal ? '-decal' : '')
       let mat = paints.get(paintKey)
       if (!mat) {
         if (crop) mat = makeCropMaterial()
@@ -281,6 +288,11 @@ export class ModelBuilder {
         } else mat = pbrMaterial(finish, shape === 'box')
         // Shrubs are closed icosahedra. Only the thin hydroponic leaves need two-sided shading.
         if (closedFoliage) mat.side = FrontSide
+        if (decal) {
+          mat.polygonOffset = true
+          mat.polygonOffsetFactor = -1
+          mat.polygonOffsetUnits = -1
+        }
         paints.set(paintKey, mat)
         materials.add(mat)
       }
@@ -298,7 +310,7 @@ export class ModelBuilder {
       mesh.userData.shape = shape
       if (stamps.some(stamp => stamp.cutLabel))
         mesh.userData.cutLabels = stamps.map(stamp => stamp.cutLabel)
-      mesh.castShadow = finish !== 'glass' && finish !== 'lamp'
+      mesh.castShadow = !decal && finish !== 'glass' && finish !== 'lamp'
       mesh.receiveShadow = finish !== 'glass'
       mesh.computeBoundingSphere()
       if (shape === 'dining-chair') unregister.push(registerChairMesh(mesh))

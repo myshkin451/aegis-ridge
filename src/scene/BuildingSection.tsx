@@ -102,6 +102,10 @@ function makeCaps(cut: Cut) {
       }
       const material = sectionMaterial(kind)
       material.side = DoubleSide
+      // A slice exactly at a slab or jamb face should consistently show the cut material.
+      material.polygonOffset = true
+      material.polygonOffsetFactor = -1
+      material.polygonOffsetUnits = -1
       material.clipping = true
       material.clippingPlanes = cut.planes.filter((other) => other !== plane)
       material.stencilWrite = true

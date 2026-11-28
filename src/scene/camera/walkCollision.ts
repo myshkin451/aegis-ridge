@@ -1,9 +1,10 @@
 import { Box3, BufferGeometry, DoubleSide, Line3, Ray, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
-import type { FreightCar } from '../../geometry/freightCar'
+import { WALK_EYE_HEIGHT } from '../../geometry/coords'
+import type { ElevatorBank } from '../../geometry/elevators'
 import { leafOffset, leafThickness, type Doorway } from '../../geometry/doors'
 
-export const WALK = { radius: 0.25, height: 1.75, eye: 1.65, step: 0.2, walk: 1.4, fast: 2.5 }
+export const WALK = { radius: 0.25, height: 1.75, eye: WALK_EYE_HEIGHT, step: 0.2, walk: 1.4, fast: 2.5 }
 const down = new Vector3(0, -1, 0)
 
 /** Plan distance to either leaf on its track, including the parked position beyond the jamb. */
@@ -18,6 +19,17 @@ export function doorBlocks(door: Doorway, px: number, pz: number, opening: numbe
   const edgeDistance = Math.max(0, Math.abs(u - centre) - door.width / 4)
   const faceDistance = Math.max(0, v - leafThickness / 2)
   return edgeDistance * edgeDistance + faceDistance * faceDistance < radius * radius
+}
+
+function passageRadius(x: number, y: number, z: number, doors: Doorway[], opening: ReadonlyMap<string, number>) {
+  for (const door of doors) {
+    if (Math.abs(y - door.base[1]) > WALK.step || (opening.get(door.id) ?? 0) < 0.9) continue
+    const dx = x - door.base[0], dz = z - door.base[2]
+    const c = Math.cos(door.yaw), s = Math.sin(door.yaw)
+    if (Math.abs(dx * c - dz * s) < door.width / 2 && Math.abs(dx * s + dz * c) < 0.48)
+      return WALK.radius - 0.035
+  }
+  return WALK.radius
 }
 
 export class WalkCollision {
@@ -41,13 +53,13 @@ export class WalkCollision {
   private candidate = new Vector3()
   constructor(
     readonly geometry: BufferGeometry,
-    readonly freightCar?: FreightCar,
+    readonly elevators?: ElevatorBank,
   ) {
     this.tree = new MeshBVH(geometry, { maxLeafTris: 12 })
   }
   floor(x: number, y: number, z: number) {
-    const car = this.freightCar
-    if (car && Math.abs(y - car.elevation) <= WALK.step && car.deckAt(x, z)) return car.elevation
+    const deck = this.elevators?.supportAt(x, y, z, WALK.step)
+    if (deck !== undefined) return deck
     this.ray.origin.set(x, y + WALK.step + 0.015, z)
     this.ray.direction.copy(down)
     const hit = this.raycastFirst(this.ray, DoubleSide, 0, 2 * WALK.step + 0.05)
@@ -56,7 +68,7 @@ export class WalkCollision {
   stands(x: number, y: number, z: number, clearance = 0) {
     const floor = this.floor(x, y, z)
     if (floor === undefined || Math.abs(floor - y) > 0.19) return false
-    if (this.freightCar?.hitsSide(x, floor, z, WALK.radius + clearance, WALK.height)) return false
+    if (this.elevators?.hitsSide(x, floor, z, WALK.radius + clearance, WALK.height)) return false
     const segment = this.capsule
     segment.start.set(x, floor + WALK.radius, z)
     segment.end.set(x, floor + WALK.height - WALK.radius, z)
@@ -108,6 +120,7 @@ export class WalkCollision {
       const y = this.floor(p.x, p.y, p.z)
       if (y === undefined) continue
       p.y = y
+      const radius = passageRadius(p.x, p.y, p.z, doors, opening)
       const segment = this.capsule
       segment.start.copy(p).y += WALK.radius
       segment.end.copy(p).y += WALK.height - WALK.radius
@@ -122,7 +135,7 @@ export class WalkCollision {
           if (Math.max(tri.a.y, tri.b.y, tri.c.y) <= y + WALK.step + 0.002) return false
           const n = tri.getNormal(this.normal)
           const d = tri.closestPointToSegment(segment, this.closest, this.axisPoint)
-          if (d >= WALK.radius) return false
+          if (d >= radius) return false
           if (Math.abs(n.y) > 0.8 && this.closest.y > p.y + 0.9) {
             p.copy(feet)
             return true
@@ -130,7 +143,7 @@ export class WalkCollision {
           n.subVectors(this.axisPoint, this.closest)
           n.y = 0
           if (n.lengthSq() < 0.000001) return false
-          n.normalize().multiplyScalar(WALK.radius - d + 0.0002)
+          n.normalize().multiplyScalar(radius - d + 0.0002)
           segment.start.add(n)
           segment.end.add(n)
           p.add(n)
@@ -139,18 +152,27 @@ export class WalkCollision {
       }
       this.tree.shapecast(slide)
       this.fittings?.shapecast(slide)
-      if (this.freightCar?.hitsSide(p.x, p.y, p.z, WALK.radius, WALK.height)) {
+      if (this.elevators?.hitsSide(p.x, p.y, p.z, WALK.radius, WALK.height)) {
         // Slide along the side of the car, matching the capsule response along a static shaft wall.
-        if (!this.freightCar.hitsSide(feet.x, p.y, p.z, WALK.radius, WALK.height)) p.x = feet.x
-        else if (!this.freightCar.hitsSide(p.x, p.y, feet.z, WALK.radius, WALK.height)) p.z = feet.z
+        if (!this.elevators.hitsSide(feet.x, p.y, p.z, WALK.radius, WALK.height)) p.x = feet.x
+        else if (!this.elevators.hitsSide(p.x, p.y, feet.z, WALK.radius, WALK.height)) p.z = feet.z
         else continue
       }
       let blocked = false
       for (const door of doors) {
         if (Math.abs(door.base[1] - p.y) > 0.5) continue
-        if (doorBlocks(door, p.x, p.z, opening.get(door.id) ?? 0)) {
-          blocked = true
-          break
+        const fraction = opening.get(door.id) ?? 0
+        if (doorBlocks(door, p.x, p.z, fraction, radius)) {
+          // Keep the tangent component of a diagonal step along a closed or still-opening leaf.
+          const c = Math.cos(door.yaw), s = Math.sin(door.yaw)
+          const slide = (p.x - feet.x) * c - (p.z - feet.z) * s
+          const x = feet.x + c * slide, z = feet.z - s * slide
+          if (doorBlocks(door, x, z, fraction, radius) || !this.stands(x, p.y, z)) {
+            blocked = true
+            break
+          }
+          p.x = x
+          p.z = z
         }
       }
       if (!blocked && this.floor(p.x, p.y, p.z) !== undefined) feet.copy(p)

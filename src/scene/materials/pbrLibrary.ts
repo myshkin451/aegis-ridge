@@ -2,8 +2,6 @@ import {
   Color,
   DoubleSide,
   DataTexture,
-  LinearFilter,
-  LinearMipmapLinearFilter,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -13,6 +11,7 @@ import { materialAtlas, materialScanMask, fieldPrintMask, walkingMaterials } fro
 import { fieldPrints, finishScans, normalLayerOffset, printLayerOffset } from '../assets/finishScans'
 import { shadowUniforms } from '../atmosphere/shadowUniforms'
 import { walkRevealFragment, walkRevealPars, walkRevealUniforms } from '../mep/lens'
+import { setSurfaceSampling } from './surfaceSampling'
 import { FLOORS } from '../../data/floors'
 
 export type Finish =
@@ -94,9 +93,7 @@ function mineralMap() {
     }
   const map = new DataTexture(bytes, size, size)
   map.wrapS = map.wrapT = RepeatWrapping
-  map.magFilter = LinearFilter
-  map.minFilter = LinearMipmapLinearFilter
-  map.generateMipmaps = map.needsUpdate = true
+  map.needsUpdate = true
   return map
 }
 let atlas: DataTexture | undefined,
@@ -121,7 +118,7 @@ const parameters: Partial<Record<Finish, MeshStandardMaterialParameters>> = {
   rubber_gym: { roughness: 0.97 },
 }
 const legacyLarch = `float joint=1.-smoothstep(.002,.008+aa,abs(fract(axes.x/.16+.5)-.5)*.16);
-    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
+    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2))*(1.-smoothstep(.012,.033,aa)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
     diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.24,.91,.65),vec3(.37,.36,.33),weather*.6);
     diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0008*fibre-.004*joint;`
 const metricScan = `
@@ -149,10 +146,13 @@ const metricScan = `
         vec2 span=i==0 ? vExtent.zy : i==1 ? vExtent.xz : vExtent.xy;
         if (scanSlot == 0 && boxEdges && span.x>span.y) {vec3 t=T; T=B; B=-t;}
         vec2 st=vec2(dot(vMetric,T), dot(vMetric,B))/repeatMetres;
-        vec4 colorR=texture(finishLayers,vec3(st,float(scanSlot)));
+        // Explicit gradients survive the varying plane selection at curved edges and bevels.
+        vec2 gx=vec2(dot(metricDx,T),dot(metricDx,B))/repeatMetres;
+        vec2 gy=vec2(dot(metricDy,T),dot(metricDy,B))/repeatMetres;
+        vec4 colorR=textureGrad(finishLayers,vec3(st,float(scanSlot)),gx,gy);
         albedo+=w*sRGBTransferEOTF(colorR).rgb;
         scanRough+=w*colorR.a;
-        vec4 pairs=texture(finishLayers,vec3(st,float(${normalLayerOffset}+scanSlot/2)));
+        vec4 pairs=textureGrad(finishLayers,vec3(st,float(${normalLayerOffset}+scanSlot/2)),gx,gy);
         vec2 xy=((scanSlot%2)==0 ? pairs.rg : pairs.ba)*2.-1.;
         float nz=sqrt(max(.01,1.-dot(xy,xy)));
         tilt+=w*(T*xy.x+B*xy.y)/nz;
@@ -201,7 +201,7 @@ const glsl = {
     diffuseColor.rgb*=vec3(1.12,.89,.73)*(.82+.18*mottle+.27*streak); relief+=streak*.002;`,
   wood: legacyLarch,
   oak_int: `if (walkFinish) {
-      float ribbon=sin(axes.x*110.+1.3*sin(axes.y*2.2)+3.*mottle);
+      float ribbon=sin(axes.x*110.+1.3*sin(axes.y*2.2)+3.*mottle)*(1.-smoothstep(.012,.029,aa));
       diffuseColor.rgb*=1.+detail*(.035*ribbon+.065*(grain.b-.5)); relief+=.00016*ribbon;
     } else {
       ${legacyLarch}
@@ -222,7 +222,7 @@ const glsl = {
     float scuff=pow(max(0.,sin(axes.y*41.+sin(axes.x*.84))),22.)*grain.r;
     rough+=.09*(grain.g-.5)-.23*track; diffuseColor.rgb*=1.+scuff*.14*detail+.05*track;`,
   grate: `vec2 rib=abs(fract(axes/vec2(.045,.12))-.5);
-    float bar=1.-smoothstep(.075,.12+aa*5.,min(rib.x,rib.y));
+    float bar=mix(1.-smoothstep(.075,.12+aa*5.,min(rib.x,rib.y)),.36,smoothstep(.012,.036,aa));
     diffuseColor.rgb*=mix(.25,1.18,bar); relief+=.004*bar;`,
 }
 const finishOrder = Object.keys(glsl)
@@ -259,7 +259,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
     }
   })
   const pattern = family === 'solid' ? solidPatterns : glsl[family]
-  mat.onBeforeCompile = (shader) => {
+  mat.onBeforeCompile = (shader, renderer) => {
+    setSurfaceSampling(map, renderer.capabilities.getMaxAnisotropy())
     Object.assign(shader.uniforms, shadowUniforms)
     if (walkFamily) {
       const walkSurface = mat.userData.walkSurface
@@ -315,7 +316,8 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        vec3 surfaceNormal=normalize(cross(dFdx(vMetric),dFdy(vMetric))); vec3 axis=abs(surfaceNormal);
+        vec3 metricDx=dFdx(vMetric), metricDy=dFdy(vMetric);
+        vec3 surfaceNormal=normalize(cross(metricDx,metricDy)); vec3 axis=abs(surfaceNormal);
         vec2 axes=axis.y>.64?vMetric.xz:vec2(axis.x>axis.z?vMetric.z:vMetric.x,vMetric.y);
         float aa=max(fwidth(axes.x),fwidth(axes.y)); float detail=1.-smoothstep(.009,.15,aa);
         vec3 grain=texture2D(grains,axes*3.1).rgb;

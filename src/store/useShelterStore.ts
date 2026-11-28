@@ -1,3 +1,4 @@
+import { elevatorSpecs, type ElevatorId } from '../geometry/elevators'
 import { create } from 'zustand'
 import { defaultBox, moveFace } from '../geometry/viewGeometry'
 import type { SectionBounds } from '../geometry/viewGeometry'
@@ -63,6 +64,7 @@ interface ShelterView {
   focusFacility: (id: number) => void
   focusRoom: (id: string | null, equipmentTag?: string) => void
   selectAnchor: (index: number) => void
+  enterLobby: (id: ElevatorId, floor: FloorId) => void
   enterRoom: () => void
   refocus: () => void
   photograph: (shot: ShotId) => void
@@ -223,6 +225,13 @@ export const useShelterStore = create<ShelterView>((set) => ({
       }
     }),
   selectAnchor: (anchorIndex) => set({ anchorIndex }),
+  enterLobby: (id, floor) => set(s => {
+    const spec = elevatorSpecs[id]
+    if (!spec.stops.includes(floor)) return s
+    const y = FLOORS[floor].elevation
+    return { ...viewFields(s, 'walkthrough'), floor, lastFloor: floor,
+      landing: [spec.x, y, spec.front + 1.12], landingTarget: [spec.x, y + 1.62, spec.front] }
+  }),
   enterRoom: () =>
     set((s) => {
       const room = s.installedRooms.find((r) => r.id === s.roomId)

@@ -40,7 +40,7 @@ interface OperationsState {
 }
 
 export function requiresLockdown(scenario: Scenario) {
-  return scenario === 'bio' || scenario === 'fallout'
+  return scenario !== 'normal'
 }
 type Clock = Pick<OperationsState, 'lockdownStartedAt' | 'lockdownSeconds'>
 export function lockdownElapsed(state: Clock, now = performance.now()) {
@@ -56,13 +56,13 @@ function calculate(s: Pick<OperationsState, 'scenario' | 'people' | 'isolatedId'
       scenario: s.scenario,
       people: s.people,
       hour: hour + minute / 60,
-      sealed: requiresLockdown(s.scenario) && s.lockdownSeconds === 30,
+      sealed: (s.scenario === 'bio' || s.scenario === 'fallout') && s.lockdownSeconds === 30,
       isolatedId: s.isolatedId,
     },
     network, s.rooms,
   )
 }
-const initial = { roomChanges: {}, rooms: defaultBlueprint.rooms, scenario: 'normal' as const, people: 10, isolatedId: null, lockdownSeconds: 0 }
+const initial = { roomChanges: {}, rooms: defaultBlueprint.rooms, scenario: 'normal' as const, people: 8, isolatedId: null, lockdownSeconds: 0 }
 export const useOperationsStore = create<OperationsState>((set, get) => ({
   ...initial,
   setRoomChanges: (value) => {
@@ -139,10 +139,8 @@ useShelterStore.subscribe((s, previous) => {
   const operations = useOperationsStore.getState()
   if (s.shot && s.shot !== previous.shot) {
     const scenario = s.cold ? 'cryo' : 'normal'
-    if (scenario !== operations.scenario) {
-      operations.setScenario(scenario, true)
-      return
-    }
+    if (scenario !== operations.scenario) operations.setScenario(scenario, true)
+    if (s.cold) operations.skip() // Fixed storm photograph depicts the completed closure.
   }
   if (s.time !== previous.time || (s.mepNetwork !== previous.mepNetwork && s.installedRooms === previous.installedRooms)) operations.refresh()
 })

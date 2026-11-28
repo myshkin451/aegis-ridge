@@ -7,6 +7,10 @@ import { buildMepNetwork } from '../data/mepNetwork'
 import { FLOORS } from '../data/floors'
 import { resolveRooms } from '../data/roomTemplates'
 import type { TerrainAtlas } from '../geometry/siteElevations'
+import { WALK_EYE_HEIGHT } from '../geometry/coords'
+import { elevatorIds } from '../geometry/elevators'
+import { elevatorBank, useElevatorRide } from './useElevatorRide'
+import type { FloorId } from '../types/shelter'
 import { defaultBox } from '../geometry/viewGeometry'
 import { currentPose, restorePose } from './sharedCamera'
 import { stopTour, useCrewTour } from './useCrewTour'
@@ -65,6 +69,15 @@ function applyBlueprint(doc: BlueprintDocument, view?: SavedView) {
     if (view) {
       const { pose, ...state } = view
       const revision = useShelterStore.getState().cameraRevision + 1
+      if (view.cameraState === 'walkthrough') {
+        const [x, eyeY, z] = pose.eye
+        if (Math.abs(eyeY - WALK_EYE_HEIGHT - FLOORS[view.lastFloor].elevation) < 0.03) {
+          for (const id of elevatorIds) {
+            const car = elevatorBank.cars[id]
+            if (car.deckAt(x, z)) car.restoreParked(view.lastFloor)
+          }
+        }
+      }
       restorePose(revision, pose)
       useShelterStore.setState({ ...state, cameraRevision: revision, landing: null, landingTarget: null, anchorIndex: 0 })
     }
@@ -89,13 +102,27 @@ export function resetBlueprint() {
   detachLink()
   persist()
 }
-export function createViewLink() {
+export function createViewLink(onArrival?: (floor: FloorId) => void) {
   const s = useShelterStore.getState()
   const { cameraState, mode, floor, lastFloor, preset, shot, facilityId, roomId, sectionZ, sectionPerspective,
     orbitCut, plenum, walkCeiling, routeOverview, layers, box } = s
   const cutHeight = Math.min(s.cutHeight, FLOORS[lastFloor].pitch - 0.02)
   const view = { cameraState, mode, floor, lastFloor, preset, shot, facilityId, roomId, sectionZ, cutHeight,
     sectionPerspective, orbitCut, plenum, walkCeiling, routeOverview, layers, box, pose: currentPose() }
+  const ride = useElevatorRide.getState().ride
+  if (view.cameraState === 'walkthrough' && ride && (ride.phase === 'moving' || ride.phase === 'closing')) {
+    // A share link describes a fixed viewpoint. Preserve the rider's bearing and position
+    // inside the car, and place its deck at the destination in the receiving session.
+    const car = elevatorBank.cars[ride.id], destination = car.target
+    const offset = FLOORS[destination].elevation + WALK_EYE_HEIGHT - view.pose.eye[1]
+    view.pose = { ...view.pose,
+      eye: [view.pose.eye[0], view.pose.eye[1] + offset, view.pose.eye[2]],
+      target: [view.pose.target[0], view.pose.target[1] + offset, view.pose.target[2]] }
+    view.floor = view.lastFloor = destination
+    view.cutHeight = Math.min(view.cutHeight, FLOORS[destination].pitch - 0.02)
+    view.roomId = null
+    onArrival?.(destination)
+  }
   const blueprint = configuration()
   blueprint.lockdownSeconds = Math.floor(lockdownElapsed(useOperationsStore.getState()))
   return encodeViewLink(location.href, { blueprint, view })

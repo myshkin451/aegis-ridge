@@ -55,15 +55,32 @@ function movingParts(atlas: TerrainAtlas) {
     })
   // Stacked leaves telescope from the existing header, staying inside the gallery roof.
   for (let i = 0; i < 10; i++)
-    add('steel', i % 2 ? '#747e7c' : '#697572', 6.8, 0.392, 0.1, (o, p) => {
+    add('steel', i % 2 ? '#747e7c' : '#697572', 6.8, 0.382, 0.055, (o, p) => {
       o.position.set(
-        gate.x + Math.sin(gate.yaw) * (0.25 - i * 0.02),
+        gate.x + Math.sin(gate.yaw) * (0.48 - i * 0.072),
         gate.y + 4.13 - (0.18 + i * 0.39) * p.gate,
-        gate.z + Math.cos(gate.yaw) * (0.25 - i * 0.02),
+        gate.z + Math.cos(gate.yaw) * (0.48 - i * 0.072),
       )
       o.rotation.y = gate.yaw
     })
 
+  // Each sectional garage door rolls along an overhead track as its sill rises.
+  for (const door of doors.filter(d => d.id === 'garage-west' || d.id === 'garage-east')) {
+    const pitch = door.height / 14
+    for (let i = 0; i < 14; i++) {
+      add('steel', i === 9 ? '#82999c' : i % 2 ? '#556265' : '#4a5659',
+        door.width - 0.02, pitch - 0.001, 0.075, (o, p) => {
+          const arcRadius = 0.29
+          const run = (i + 0.5) * pitch + (1 - p.entry) * (door.height + arcRadius)
+          const corner = door.height - arcRadius
+          const angle = Math.min(Math.PI / 2, Math.max(0, (run - corner) / arcRadius))
+          const overhead = Math.max(0, run - corner - Math.PI / 2 * arcRadius)
+          o.position.set(door.base[0], Math.min(run, corner) + arcRadius * Math.sin(angle),
+            door.base[2] - 0.12 - arcRadius * (1 - Math.cos(angle)) - overhead)
+          o.rotation.x = -angle
+        })
+    }
+  }
   for (const side of [-1, 1]) {
     // The entrance leaves park on either side of the door behind the public glazing.
     add('steel', '#677477', entry.width / 2 - 0.012, entry.height - 0.04, 0.14, (o, p) => {
@@ -78,17 +95,19 @@ function movingParts(atlas: TerrainAtlas) {
   const obsSouthW = 11.3,
     obsSouthX = -4.85
   for (let i = 0; i < 6; i++) {
-    add('wood', i % 3 ? '#aa8966' : '#ad9171', obsSouthW, 0.075, 0.365, (o, p) => {
-      const openY = FLOORS.L2.elevation + 2.86 + i * 0.052
+    add('wood', i % 3 ? '#aa8966' : '#ad9171', obsSouthW, 0.062, 0.341, (o, p) => {
+      const openY = FLOORS.L2.elevation + 2.84 + i * 0.082
       const closedY = FLOORS.L2.elevation + 1.13 + i * 0.365
-      o.position.set(obsSouthX, openY + (closedY - openY) * p.slats, upper.z1 - 0.08)
-      o.rotation.x = p.slats * (Math.PI / 2)
+      // Extend the ladder first so rotating blades never pass through their neighbours.
+      const extend = Math.min(1, p.slats / 0.55)
+      o.position.set(obsSouthX, openY + (closedY - openY) * extend, upper.z1 + 0.25)
+      o.rotation.x = Math.max(0, (p.slats - 0.55) / 0.45) * (Math.PI / 2)
     })
   }
   // L2 Observatory west recessed bay (z = -5.6..3.4): 18 vertical armored larch slats rotate flush closed.
   for (let i = 0; i < 18; i++) {
-    add('wood', i % 3 ? '#aa8966' : '#a18464', 0.49, 2.02, 0.085, (o, p) => {
-      o.position.set(upper.x0 + 0.08, FLOORS.L2.elevation + 2.08, -5.35 + i * 0.5)
+    add('wood', i % 3 ? '#aa8966' : '#a18464', 0.465, 2.02, 0.075, (o, p) => {
+      o.position.set(upper.x0 - 0.30, FLOORS.L2.elevation + 2.08, -5.35 + i * 0.5)
       o.rotation.y = p.slats * (Math.PI / 2)
     })
   }
@@ -97,7 +116,7 @@ function movingParts(atlas: TerrainAtlas) {
     const xc = 4.95 + (i + 0.5) * (8.1 / 4)
     add('wood', i % 2 ? '#ae916e' : '#a38566', 8.1 / 4 - 0.06, 2.6, 0.08, (o, p) => {
       const drop = p.slats
-      o.position.set(xc, 3.13 - 1.3 * drop, lobby.z1 - 0.08)
+      o.position.set(xc, 3.13 - 1.3 * drop, lobby.z1 + 0.105)
       o.scale.y = Math.max(0.02, 2.6 * drop)
     })
   }
@@ -107,7 +126,7 @@ function movingParts(atlas: TerrainAtlas) {
     const zc = -7.6 + (i + 0.5) * slotSpan
     add('steel', '#5a6668', 0.075, 0.74, slotSpan - 0.72, (o, p) => {
       const drop = Math.max(p.slats, p.roof)
-      o.position.set(-16 + 0.11, 3.2 - 0.375 * drop, zc)
+      o.position.set(-16 - 0.092, 3.2 - 0.375 * drop, zc)
       o.scale.y = Math.max(0.02, 0.74 * drop)
     })
   }
@@ -115,14 +134,14 @@ function movingParts(atlas: TerrainAtlas) {
   for (let i = 0; i < 4; i++) {
     const xc = 2 + (i + 0.5) * (8.8 / 4)
     add('steel', i % 2 ? '#a2aaa6' : '#96a09d', 8.8 / 4 - 0.06, 2.4, 0.065, (o, p) => {
-      o.position.set(xc, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, upper.z1 - 0.04)
+      o.position.set(xc, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, upper.z1 + 0.105)
       o.scale.y = Math.max(0.02, 2.4 * p.roof)
     })
   }
   for (let i = 0; i < 6; i++) {
     const zc = -8.4 + (i + 0.5) * (13.2 / 6)
     add('steel', i % 2 ? '#a2aaa6' : '#96a09d', 0.065, 2.4, 13.2 / 6 - 0.06, (o, p) => {
-      o.position.set(upper.x1 - 0.04, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, zc)
+      o.position.set(upper.x1 + 0.105, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, zc)
       o.scale.y = Math.max(0.02, 2.4 * p.roof)
     })
   }
@@ -135,11 +154,13 @@ function movingParts(atlas: TerrainAtlas) {
       const tilt = -side * Math.atan2(rise, span / 2)
       const length = Math.hypot(span / 2, rise)
       for (let i = 0; i < 7; i++)
-        add('steel', i % 3 ? '#b4b7af' : '#a3aba7', length / 7 + 0.018, 0.045, garden.d - 0.07, (o, p) => {
-          const run = length * (1 - (i + 0.5) / 7)
+        add('steel', i % 3 ? '#b4b7af' : '#a3aba7', length / 7 - 0.018, 0.045, garden.d - 0.07, (o, p) => {
+          const spread = Math.min(1, p.roof / 0.9)
+          const run = length * (0.5 + (6 - i) * spread) / 7
+          const stackHeight = i * 0.068 * Math.min(1, (1 - p.roof) / 0.1)
           o.position.set(
-            ridge + side * (span / 2 - run * Math.cos(tilt) * p.roof),
-            roof - rise + 0.13 + run * Math.abs(Math.sin(tilt)) * p.roof + i * 0.006,
+            ridge + side * (span / 2 - run * Math.cos(tilt)),
+            roof - rise + 0.18 + run * Math.abs(Math.sin(tilt)) + stackHeight,
             garden.z,
           )
           o.rotation.z = tilt
@@ -160,7 +181,7 @@ function movingParts(atlas: TerrainAtlas) {
     for (let i = 0; i < 6; i++)
       for (let j = 0; j < 3; j++)
         add('solar', (i + j) % 3 ? '#405c70' : '#354f64', 5.8 / 6 - 0.06, 0.045, 0.955, (o, p) =>
-          wing(o, p, ((i - 2.5) * 5.8) / 6, 0.11, j - 1),
+          wing(o, p, ((i - 2.5) * 5.8) / 6, 0.122, j - 1),
         )
     for (const dx of [-1.9, 1.9])
       add('steel', '#707d7e', 0.12, 1, 0.12, (o, p) => {
@@ -184,7 +205,8 @@ function movingParts(atlas: TerrainAtlas) {
           2.03,
           (o, p) => {
             o.rotation.x = 0.32 * (1 - p.roof)
-            o.position.set(x, sy + 1.35 + (seam ? 0.046 : 0), z)
+            const standOff = seam ? 0.066 : 0
+            o.position.set(x, sy + 1.35 + standOff * Math.cos(o.rotation.x), z + standOff * Math.sin(o.rotation.x))
           },
         )
     }
@@ -208,13 +230,13 @@ function buildDrive(atlas: TerrainAtlas) {
     return { mesh, rows }
   })
   const object = new Object3D()
-  const update = (seconds: number, cold: boolean) => {
+  const update = (seconds: number) => {
     const p = {
       posts: closureProgress(seconds, 0, 2.8),
       gate: closureProgress(seconds, 1.2, 5),
       entry: closureProgress(seconds, 5, 10),
-      slats: Math.max(cold ? 0.92 : 0, closureProgress(seconds, 10, 15)),
-      roof: Math.max(cold ? 1 : 0, closureProgress(seconds, 15, 20)),
+      slats: closureProgress(seconds, 10, 15),
+      roof: closureProgress(seconds, 15, 20),
     }
     for (const { mesh, rows } of batches) {
       rows.forEach((row, i) => {
@@ -227,7 +249,7 @@ function buildDrive(atlas: TerrainAtlas) {
       mesh.instanceMatrix.needsUpdate = true
     }
   }
-  update(0, false)
+  update(0)
   return {
     root,
     update,
@@ -243,20 +265,19 @@ function buildDrive(atlas: TerrainAtlas) {
 
 export function StationClosures({ atlas }: { atlas: TerrainAtlas }) {
   const drive = useMemo(() => buildDrive(atlas), [atlas])
-  const previous = useRef({ time: -1, cold: false })
+  const previous = useRef(-1)
   useLayoutEffect(() => () => drive.dispose(), [drive])
   useFrame(({ camera }) => {
     const view = useShelterStore.getState(),
       op = useOperationsStore.getState()
     const t = lockdownElapsed(op)
-    const cold = view.cold || op.scenario === 'cryo'
     drive.root.visible =
       view.mode === 'exterior' ||
       (view.cameraState === 'walkthrough' &&
         nearSurfaceOpening(camera.position.x, camera.position.y, camera.position.z))
-    if (drive.root.visible && (previous.current.time !== t || previous.current.cold !== cold)) {
-      drive.update(t, cold)
-      previous.current = { time: t, cold }
+    if (drive.root.visible && previous.current !== t) {
+      drive.update(t)
+      previous.current = t
     }
   })
   return <primitive object={drive.root} />

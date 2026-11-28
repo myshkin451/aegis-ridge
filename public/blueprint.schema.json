@@ -26,6 +26,6 @@
     },
     "lockdownSeconds": { "type": "integer", "minimum": 0, "maximum": 30 }
   },
-  "if": { "properties": { "scenario": { "enum": ["normal", "cryo"] } } },
+  "if": { "properties": { "scenario": { "const": "normal" } } },
   "then": { "properties": { "lockdownSeconds": { "const": 0 } } }
 }

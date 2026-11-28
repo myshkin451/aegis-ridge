@@ -13,7 +13,7 @@ declare module 'n8ao' {
     effectCompositerQuad: { material: ShaderMaterial; dispose(): void }
     depthDownsampleQuad?: { dispose(): void }
     autoDetectTransparency: boolean
-    configuration: { gammaCorrection: boolean; halfRes: boolean; aoRadius: number; intensity: number }
+    configuration: { gammaCorrection: boolean; halfRes: boolean; aoRadius: number; intensity: number; biasOffset: number; biasMultiplier: number }
     setQualityMode(mode: 'Low' | 'Medium'): void
   }
 }

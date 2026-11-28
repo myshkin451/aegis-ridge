@@ -18,10 +18,11 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm6'
+const milestone = process.argv[2] ?? 'v3-1'
+const fortress = milestone === 'v3-1'
 const m6 = milestone === 'm6'
 const m5 = milestone === 'm5-v1lite' || milestone === 'wave1'
-if (!m5 && !/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
+if (!fortress && !m5 && !/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
 const shots = [
@@ -69,12 +70,12 @@ try {
   }
   server = await preview({ root, preview: { host: '127.0.0.1', port: 0, open: false }, logLevel: 'error' })
   const executablePath = process.env.CHROME_PATH
-  const channel = m5 || m6 ? 'chrome' : existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
+  const channel = fortress || m5 || m6 ? 'chrome' : existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
   browser = await chromium.launch({
     executablePath,
     channel: executablePath ? undefined : channel,
     headless: true,
-    args: m5 || m6 ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'],
+    args: fortress || m5 || m6 ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'],
   })
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },
@@ -109,8 +110,8 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
   async function openStage(stage, extra = '') {
-    const legacy = !m5 && !m6 ? '&veg=v2' : ''
-    await page.goto(base + '/?quality=' + (m5 || m6 ? 3 : 2) + legacy + '&pilot=' + stage + extra, {
+    const legacy = !fortress && !m5 && !m6 ? '&veg=v2' : ''
+    await page.goto(base + '/?quality=' + (fortress || m5 || m6 ? 3 : 2) + legacy + '&pilot=' + stage + extra, {
       waitUntil: 'networkidle',
     })
     await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
@@ -140,7 +141,7 @@ try {
   }
   async function capture(id, view, projection, time, file, expectedFeet) {
     const revision = await page.locator('canvas').getAttribute('data-revision')
-    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByRole('button', { name: '房间直达' }).click()
     await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption(id)
     // selectOption need not move a physical mouse. Leave the canvas as a user picking from the menu would.
     await page.locator('canvas').dispatchEvent('pointerleave')
@@ -159,13 +160,13 @@ try {
       },
       [view, projection, revision],
     )
-    await page.waitForFunction((t) => document.querySelector('.condition')?.textContent?.includes(t), time)
+    await page.waitForFunction((t) => document.querySelector('.day-clock output')?.textContent?.includes(t), time)
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     )
     if ((await page.getByRole('alert').count()) || errors.length)
       throw Error('浏览器验收失败 ' + errors.join('\n').slice(0, 3500))
-    if (view !== 'walkthrough')
+    if (!fortress && view !== 'walkthrough')
       await page.waitForFunction(() => document.querySelector('#cursor-coords')?.textContent?.includes('X —'))
     if (expectedFeet) {
       const feet = (await page.locator('canvas').getAttribute('data-feet')).split(',').map(Number)
@@ -258,7 +259,7 @@ try {
     await page.screenshot({ path: join(staging, name) })
     captures.push(name)
   })
-  for (const stage of m5 || m6 ? [] : materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
+  for (const stage of fortress || m5 || m6 ? [] : materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
     if (stage !== 'r3') await openStage(stage)
     for (const [name, time, feet] of pilots)
       await capture(
@@ -301,7 +302,7 @@ try {
       'canvas[data-view=walkthrough][data-command-screen^="fallout/14/30/"][data-ready=settled]',
     )
     await plate('command.png')
-    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByRole('button', { name: '房间直达' }).click()
     await page.getByLabel('房间索引').selectOption('b1_decon')
     const room = page.getByRole('region', { name: '房间数据表' })
     await room.getByRole('combobox', { name: '室内机位' }).selectOption({ label: '门旁压差表' })
@@ -320,11 +321,11 @@ try {
     await plate('maintenance.png')
     await button('结束隔离检修').click()
     await button('关闭工程面板').click()
-    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByRole('button', { name: '房间直达' }).click()
     await page.getByLabel('固定摄影机位').selectOption('pilot-bath')
     await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
   }
-  if (!materialStudy && !m5 && !m6) {
+  if (!materialStudy && !m5 && !m6 && !fortress) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
     await page.setViewportSize({ width: 390, height: 844 })
@@ -371,6 +372,15 @@ try {
       if (!fitsPhone) throw Error('工程体检超出手机视口')
     }
   }
+  if (fortress) {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: '堡垒状态', exact: true }).click()
+    const fits = await page.getByRole('region', { name: '堡垒状态' }).evaluate(el => {
+      const r = el.getBoundingClientRect()
+      return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && el.scrollWidth <= el.clientWidth + 1
+    })
+    if (!fits) throw Error('堡垒状态超出手机视口')
+  }
   if (errors.length) throw Error(errors.join('\n').slice(0, 4000))
   await page.close()
   const review = await browser.newPage()
@@ -378,7 +388,7 @@ try {
     const before = join(
       root,
       'docs/shots',
-      m6 ? 'wave1' : m5 ? 'm4' : materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
+      fortress ? 'm6' : m6 ? 'wave1' : m5 ? 'm4' : materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
       id + '.png',
     )
     const after = join(staging, id + '.png')
@@ -387,6 +397,7 @@ try {
       ? await comparePhotographs(review, before, after, controlRects.get(id), m6)
       : full
     console.log(id, '全幅较签收图', full, '模型画面', result)
+    if (fortress) continue // V3-1 intentionally replaces the HUD, lighting and garage closure.
     if (m6) {
       // Unchanged Wave 1 recaptures vary with exposure and moving crops (SSIM 0.963–1).
       if (result.mean > 4 || result.ssim < 0.94) throw Error(id + ' 的模型结构或曝光偏离 Wave 1')
@@ -423,7 +434,7 @@ try {
       console.log(name, '同机位室内反射差异', delta)
       if (!delta.changed) throw Error(name + ' 的反射未改变任何可辨像素')
     }
-  } else if (!m6) {
+  } else if (!m6 && !fortress) {
     for (const [name] of pilots) {
       const file = 'pilot/r3-' + name + '.png'
       const result = await comparePhotographs(

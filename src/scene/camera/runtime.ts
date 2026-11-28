@@ -7,8 +7,7 @@ export function surveyRuntime() {
   return {
     controls: null as CameraControls | null,
     moving: false,
-    garageTransfer: false,
-    dropping: false,
+    liftCall: '',
     finish: null as (() => void) | null,
     target: new Vector3(),
     feet: new Vector3(),

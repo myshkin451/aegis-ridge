@@ -89,9 +89,9 @@ export function setChairWalkthrough(walk: boolean) {
   for (const [mesh, procedural] of batches) mesh.geometry = (walk && glb) || procedural
 }
 
-export async function loadPilotAssets(): Promise<PilotAssets> {
+export async function loadPilotAssets(maxAnisotropy: number): Promise<PilotAssets> {
   const [finishes, chair, domestic] = await Promise.all([
-    pilotVariant !== 'r1' ? loadFinishAtlas(pilotVariant === 'r3').catch(() => null) : null,
+    pilotVariant !== 'r1' ? loadFinishAtlas(pilotVariant === 'r3', maxAnisotropy).catch(() => null) : null,
     pilotVariant === 'r3' ? loadChair().catch(() => null) : null,
     pilotVariant === 'r3' ? loadDomesticAssets().catch(() => null) : null,
   ])

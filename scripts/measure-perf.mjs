@@ -1,4 +1,4 @@
-import { measureM6 } from './perf-m6.mjs'
+import { exerciseFortress } from './perf-fortress.mjs'
 import { chromium } from 'playwright'
 import { preview } from 'vite'
 import { installTextureAudit } from './texture-storage-audit.mjs'
@@ -81,7 +81,6 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   await page.addInitScript((debug) => {
     sessionStorage.setItem('ars-keys', '1')
-    localStorage.setItem('ars-opening-seen', '1')
     const webgl = WebGL2RenderingContext.prototype,
       link = webgl.linkProgram
     const perf = (window.surveyPerf = { links: 0, frames: [], running: false, prev: 0, started: 0 })
@@ -267,10 +266,8 @@ try {
     ['剖面', '2', ['section', 'cutaway']],
     ['平面', '3', ['plan', 'cutaway']],
     ['楼层俯瞰', ']', ['floorOrbit', 'cutaway']],
-    ['剖切盒', 'box', ['sectionBox', 'cutaway']],
-    ['X 光', '4', ['site', 'xray']],
     ['现场', '1', site],
-    ['漫游', '5', ['walkthrough', 'cutaway']],
+    ['漫游', '4', ['walkthrough', 'cutaway']],
     ['返回现场', '1', site],
   ]
   function checkClearance(label, eyes) {
@@ -307,25 +304,18 @@ try {
   checkClearance('低位环绕', orbit)
   for (let round = 1; round <= 2; round++)
     for (const [name, key, target] of steps) {
-      const action =
-        key === 'box'
-          ? async () => {
-              await page.getByRole('button', { name: '机位与图幅' }).click()
-              await page.getByRole('button', { name: '剖切盒', exact: true }).click()
-            }
-          : key === ']'
-            ? async () => {
-                await page.getByRole('button', { name: '机位与图幅' }).click()
-                await page.getByRole('button', { name: '楼层俯瞰', exact: true }).click()
-              }
-            : view(key, target)
+      const action = key === ']'
+        ? async () => {
+            await view('1', site)()
+            await page.getByRole('button', { name: /^B2 / }).click()
+          } : view(key, target)
       await measure(round + '·' + name, action, target)
       if (round === 2 && name === '漫游') {
         const before = (await read('feet')).split(',').map(Number)
         await measure('步行 4 s', async () => {
-          await page.keyboard.down('w')
+          await page.keyboard.down('a')
           await wait(4000)
-          await page.keyboard.up('w')
+          await page.keyboard.up('a')
         })
         const after = (await read('feet')).split(',').map(Number),
           walked = Math.hypot(after[0] - before[0], after[2] - before[2])
@@ -397,45 +387,9 @@ try {
       await view('1', site)()
     })
   }
-  const flyModes = [
-    ['现场飞行', site, null],
-    ['剖切盒飞行', ['sectionBox', 'cutaway'], '剖切盒'],
-    ['楼层俯瞰飞行', ['floorOrbit', 'cutaway'], '楼层俯瞰'],
-    ['X 光飞行', null, '4'],
-  ]
-  for (const [name, expected, select] of flyModes) {
-    await measure(name, async () => {
-      if (select === '4') await page.keyboard.press('4')
-      else if (select) {
-        await page.getByRole('button', { name: '机位与图幅' }).click()
-        await page.getByRole('button', { name: select, exact: true }).click()
-      }
-      await page.waitForFunction((expected) => {
-        const d = document.querySelector('canvas').dataset
-        return (
-          d.ready === 'settled' &&
-          (expected ? d.view === expected[0] && d.mode === expected[1] : d.mode === 'xray')
-        )
-      }, expected)
-      const eye = async () => (await read('eye')).split(',').map(Number)
-      const a = await eye()
-      await page.keyboard.down('e')
-      await wait(250)
-      await page.keyboard.up('e')
-      await cycle()
-      const b = await eye()
-      await page.keyboard.down('w')
-      await wait(250)
-      await page.keyboard.up('w')
-      await cycle()
-      const c = await eye()
-      if (b[1] - a[1] < 0.55 || Math.hypot(c[0] - b[0], c[2] - b[2]) < 0.55)
-        failures.push(name + ' 升降/平移不足')
-    })
-  }
-  await measure('下潜途中直达平面', async () => {
+  await measure('漫游转场中切回平面', async () => {
     await view('1', site)()
-    await page.keyboard.press('5')
+    await page.keyboard.press('4')
     await page.waitForSelector('canvas[data-view=walkthrough][data-ready=moving]')
     await wait(350)
     await view('3', ['plan', 'cutaway'])()
@@ -446,7 +400,7 @@ try {
     const name = 'shot-0' + number
     await measure(name, async () => {
       const previous = await read('revision')
-      await page.getByRole('button', { name: '机位与图幅' }).click()
+      await page.getByRole('button', { name: '房间直达' }).click()
       await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption(name)
       await page.waitForFunction((revision) => {
         const c = document.querySelector('canvas').dataset
@@ -458,12 +412,8 @@ try {
   for (const room of ['l2_observatory', 'l1_garage', 'b1_workshop', 'b2_commons', 'b3_aquaponics', 'b4_switchgear']) {
     await measure('室内 ' + room, async () => {
       await view('1', site)()
-      await page.getByRole('button', { name: '机位与图幅' }).click()
+      await page.getByRole('button', { name: '房间直达' }).click()
       await page.getByLabel('房间索引').selectOption(room)
-      await page
-        .getByLabel('房间数据表')
-        .getByRole('button', { name: /进入漫游/ })
-        .click()
       await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
       await wait(250)
     })
@@ -471,7 +421,7 @@ try {
   }
   async function selectPilot(name) {
     const before = await read('revision')
-    await page.getByRole('button', { name: '机位与图幅' }).click()
+    await page.getByRole('button', { name: '房间直达' }).click()
     await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption('pilot-' + name)
     await page.waitForFunction((revision) => {
       const d = document.querySelector('canvas').dataset
@@ -482,6 +432,12 @@ try {
   for (const name of ['bedroom', 'commons', 'bath']) {
     await measure('漫游进入样板 ' + name, () => selectPilot(name))
     await measure('样板稳态 ' + name, () => wait(2500))
+    await measure('室内拖动 ' + name, async () => {
+      const before = await read('feet')
+      await drag(210, 25, 36)
+      await drag(-210, -25, 36)
+      if (await read('feet') !== before) throw Error('转头改变了站立位置')
+    })
   }
   await measure('切房阴影更新', async () => {
     for (const [name, room] of [
@@ -505,190 +461,9 @@ try {
     }
   })
   await view('3', ['plan', 'cutaway'])()
-  const valveTable = page.getByRole('region', { name: '阀门数据表' })
-  const traceTable = page.getByRole('region', { name: '水路追踪' })
-  await measure('M3 图例与夹层', async () => {
-    const legend = page.locator('.legend')
-    for (const [system, label] of [
-      ['power', '强电'],
-      ['data', '弱电与智控'],
-      ['water', '给排水'],
-      ['air', '三防新风'],
-      ['freight', '重载物流'],
-      ['structure', '结构与防护'],
-    ]) {
-      const check = legend.getByRole('checkbox', { name: label, exact: true })
-      for (const enabled of [false, true]) {
-        await check.setChecked(enabled)
-        await page.waitForFunction(
-          ([id, on]) => {
-            const d = document.querySelector('canvas').dataset
-            return d.view === 'plan' && d.mode === 'cutaway' && d.mepLayers?.split(',').includes(id) === on
-          },
-          [system, enabled],
-        )
-      }
-    }
-    const plenum = legend.getByRole('checkbox', { name: /机电夹层/ })
-    await plenum.uncheck()
-    await page.waitForSelector('canvas[data-mep-plenum=off]')
-    await plenum.check()
-    await page.waitForSelector('canvas[data-mep-plenum=on]')
-  })
-  // Move focus out of the form using the actual view control.
-  await page.getByRole('button', { name: /^漫游\s*5$/ }).click()
-  await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
-  await measure('M3 漫游 Alt 透镜', async () => {
-    await page.mouse.move(1030, 610)
-    await page.keyboard.down('Alt')
-    await page.waitForSelector('canvas[data-mep-lens=on]')
-    const ring = page.locator('#mep-lens-ring')
-    const bounds = await ring.boundingBox()
-    if (!bounds || Math.hypot(bounds.x + bounds.width / 2 - 1030, bounds.y + bounds.height / 2 - 610) > 2)
-      throw Error('透镜准环未对准画布中的鼠标')
-    await wait(2200)
-    await page.keyboard.up('Alt')
-    await ring.waitFor({ state: 'hidden' })
-    await page.waitForSelector('canvas[data-mep-lens=off]')
-  })
-  await measure('M3 走廊仰视夹层', async () => {
-    await drag(0, -285 * 1440 / viewport.height)
-    await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) > 0.7)
-    await wait(2200)
-    await drag(0, 285 * 1440 / viewport.height)
-    await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) < 0.02)
-  })
-  await page.getByRole('button', { name: '机位与图幅' }).click()
-  await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption('shot-04')
-  await page.waitForSelector('canvas[data-view=site][data-mode=xray][data-ready=settled]')
-  // Ask only for projected hit locations. Selection and highlighting must result from actual mouse input.
-  const targets = await page.locator('canvas').evaluate((canvas) => {
-    let found = []
-    canvas.dispatchEvent(
-      new CustomEvent('ars-mep-targets', {
-        detail: {
-          callback: (items) => {
-            found = items
-          },
-        },
-      }),
-    )
-    return found.filter(({ x, y }) => document.elementFromPoint(x, y) === canvas)
-  })
-  for (const kind of ['pipe', 'valve'])
-    if (!targets.some((t) => t.kind === kind)) throw Error('X 光视口未找到可拾取的 ' + kind)
-  await measure('M3 点水管追踪', async () => {
-    const hit = targets.find((t) => t.kind === 'pipe')
-    await page.mouse.click(hit.x, hit.y)
-    await page.mouse.move(centre[0], 100)
-    await traceTable.waitFor()
-    if ((await traceTable.getAttribute('data-edge')) !== hit.id || Number(await read('mep-trace-count')) < 2)
-      throw Error('点击的管段和实际高亮不符')
-    await wait(400)
-  })
-  await measure('M3 悬停阀门', async () => {
-    const hit = targets.find((t) => t.kind === 'valve')
-    await page.mouse.move(hit.x, hit.y)
-    await valveTable.waitFor()
-    if ((await valveTable.getAttribute('data-valve')) !== hit.id || !(await read('mep-affected-rooms')))
-      throw Error('阀牌或下游房间描红缺失')
-    await wait(400)
-    await page.mouse.move(centre[0], 100)
-    await valveTable.waitFor({ state: 'hidden' })
-  })
-  await view('1', site)()
-  if (await read('mep-layers')) failures.push('现场室外仍绘制地下管网')
-  // Drive the same visible controls the operator uses. Keep the whole 30-second sequence inside Chrome Trace.
   const button = (name) => page.getByRole('button', { name, exact: true })
-  const scenario = page.getByLabel('工况', { exact: true })
-  await measure('M4 打开工程体检', () => button('工程体检').click())
-  for (const id of ['cryo', 'bio', 'normal']) {
-    await measure('M4 切工况 ' + id, async () => {
-      await scenario.selectOption(id)
-      await page.waitForSelector('.hud[data-scenario="' + id + '"]')
-      await wait(1050)
-    })
-  }
-  await measure('M4 入住 10 → 14', async () => {
-    const before = await page.locator('[data-diagnostic=oxygen] strong').textContent()
-    const slider = page.getByRole('slider', { name: '入住人数' })
-    const bounds = await slider.boundingBox()
-    await page.mouse.move(bounds.x + (bounds.width * 5) / 9, bounds.y + bounds.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(bounds.x + bounds.width - 1, bounds.y + bounds.height / 2, { steps: 12 })
-    await page.mouse.up()
-    await page.waitForSelector('.hud[data-people="14"]')
-    const after = await page.locator('[data-diagnostic=oxygen] strong').textContent()
-    if (before === after) throw Error('人数已改变，供氧余量未更新')
-  })
-  await measure('M4 尘埃封锁 30 s', async () => {
-    await scenario.selectOption('fallout')
-    await page.waitForSelector('.hud[data-scenario=fallout][data-lockdown=running]')
-    await button('跟拍封锁编排').click()
-    const started = performance.now()
-    await page.waitForSelector('.hud[data-lockdown=sealed]', { timeout: 36000 })
-    if (performance.now() - started < 29000) throw Error('封锁在第 30 秒之前完成')
-    if (Number(await read('decon-pressure-pa')) <= 0) throw Error('B1 压差未升高')
-    await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
-    const [, level] = (await read('feet')).split(',').map(Number)
-    if (Math.abs(level + 10.2) > 0.1) throw Error('封锁跟拍没有抵达 B1')
-    await page.waitForSelector(
-      'canvas[data-lighting-circuit=emergency][data-command-screen^="fallout/14/30/"]',
-    )
-    if (
-      !(await page
-        .locator('.condition')
-        .textContent()
-        .then((t) => t.includes('封锁 · 第 1 天')))
-    )
-      throw Error('全密闭工程图签未更新')
-  })
-  await measure('M4 封锁稳态', () => wait(2500))
-  await measure('M4 B2 中控室', async () => {
-    await button('进入 B2 中控室').click()
-    await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
-    await wait(700)
-  })
-  await measure('M4 模拟隔离与接管', async () => {
-    await button('模拟隔离检修').click()
-    await page.getByLabel('检修目标').selectOption('HV-B2-001')
-    await button('隔离所选目标').click()
-    await page.waitForSelector('.hud[data-isolation="HV-B2-001"]')
-    await page.waitForSelector('canvas[data-ready=settled]')
-    await wait(400)
-    const paths = (await read('maintenance-routes')).split('/').map(Number)
-    if (paths.length !== 3 || !paths.every((n) => n > 0) || Number(await read('maintenance-segments')) < 3)
-      throw Error('隔离、接管与搬运路径未同时进入 3D 图层')
-    const report = page.locator('.maintenance-result')
-    await report.waitFor()
-    if (!(await report.innerText()).includes('HV-B2-001')) throw Error('检修表缺少隔离段')
-    await button('查看全程搬运').click()
-    await page.waitForSelector('canvas[data-view=sectionBox][data-mode=xray][data-ready=settled]')
-    if (
-      (await read('route-overview')) !== 'true' ||
-      (await read('mep-layers')) ||
-      Number(await read('maintenance-segments')) < 3 ||
-      (await page.getByLabel('剖切面位置').isVisible())
-    )
-      throw Error('全程图的检修路线、背景管线或剖切控制状态错误')
-  })
-  await measure('M4 搬运全景稳态', () => wait(2500))
-  await measure('M4 解除隔离', async () => {
-    await button('结束隔离检修').click()
-    await page.waitForSelector('.hud[data-isolation=""]')
-  })
-  await measure('M4 重播、快进与复位', async () => {
-    await button('重播封锁').click()
-    await page.waitForSelector('.hud[data-lockdown=running]')
-    await button('快进封锁').click()
-    await page.waitForSelector('.hud[data-lockdown=sealed]')
-    await button('重置封锁').click()
-    await page.waitForSelector('.hud[data-scenario=normal][data-lockdown=open]')
-    await page.waitForSelector('canvas[data-lighting-circuit=normal]')
-    await button('关闭工程面板').click()
-  })
+  await exerciseFortress(page, measure)
   await measure('M5 时间轴拖动与延时', async () => {
-    await button('站内时钟').click()
     const slider = page.getByRole('slider', { name: '24 小时时间轴' })
     const box = await slider.boundingBox()
     await page.mouse.move(box.x + 5, box.y + box.height / 2)
@@ -699,9 +474,8 @@ try {
     await slider.evaluate(e => e.blur())
     if (await slider.inputValue() !== '1439') throw Error('时间轴未到午夜前')
     await button('延时播放').click()
-    await page.waitForFunction(() => Number(document.querySelector('.clock-slider input').value) < 10)
+    await page.waitForFunction(() => Number(document.querySelector('.day-clock input').value) < 10)
     await button('延时播放').click()
-    await button('站内时钟').click()
   })
   await measure('M5 真实房间反射切换', async () => {
     if (Number(await read('probe-count')) < 16) throw Error('缺少房间反射')
@@ -714,34 +488,17 @@ try {
       }, room)
     }
   })
-  await measure('M5 晨间巡检与鼠标接管', async () => {
-    await button('专家团').click()
-    await page.locator('[data-crew-id=mechanical]').click()
-    await page.waitForSelector('canvas[data-ready=settled][data-view=plan]')
-    if (!(await read('mep-affected-rooms')).includes('b1_workshop') ||
-        Number(await read('mep-trace-count')) < 1 || await page.locator('[data-partner=true]').count() !== 2)
-      throw Error('专家的责任房间、管线或互助搭档未高亮')
-    await page.locator('[data-morning]').click()
-    await page.waitForSelector('canvas[data-tour=inspection][data-view=walkthrough][data-ready=settled]')
-    const before = (await read('feet')).split(',').map(Number)
-    await wait(1900)
-    const after = (await read('feet')).split(',').map(Number)
-    if (Math.hypot(after[0] - before[0], after[2] - before[2]) < 0.8) throw Error('巡检人员未沿实际路线行走')
-    await page.locator('.tour-caption').waitFor()
-    await page.mouse.move(...centre)
-    await page.waitForSelector('canvas[data-tour=idle]')
-    if (await page.locator('.tour-caption').isVisible()) throw Error('巡检接管后字幕仍在')
-  })
   await measure('M5 照片模式与画幅', async () => {
-    await button('照片模式').click()
+    await button('拍照').click()
     await page.waitForSelector('canvas[data-photo-mode=on]')
     for (const frame of ['4:5', '2.39:1', '16:9']) await page.getByLabel('取景画幅').selectOption(frame)
     await page.getByLabel('垂直校正').uncheck()
     await page.getByLabel('垂直校正').check()
+    await page.keyboard.press('Tab') // Leave the checkbox before using the global HUD shortcut.
     await page.keyboard.press('h')
     await page.locator('.hud').waitFor({ state: 'hidden' })
     await page.keyboard.press('h')
-    await button('照片模式').click()
+    await button('拍照').click()
     await page.waitForSelector('canvas[data-photo-mode=off]')
   })
   await measure('M5 开场全程', async () => {
@@ -756,7 +513,6 @@ try {
     await page.keyboard.press('w')
     await page.waitForSelector('canvas[data-tour=idle]')
   })
-  await measureM6(page, measure)
   async function checkDpr() {
     const min = await page.evaluate(() => window.surveyPerf.minDpr)
     console.log('自动画质最低 DPR', min, '目标', deviceScaleFactor)
@@ -801,7 +557,7 @@ try {
     if (
       (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) ||
         row.label.startsWith('样板稳态') ||
-        row.label === 'M4 封锁稳态' ||
+        row.label === '堡垒封锁稳态' ||
         row.label === 'M4 搬运全景稳态' || row.label === 'M5 开场全程') &&
       (row.fps < 59.4 || row.p95 > 18)
     )
@@ -890,7 +646,7 @@ try {
   )
   if (glbTriangles <= proceduralTriangles) failures.push('迟到餐椅未进入实际绘制批次')
   if (late.links !== beforeLate || late.links !== late.ready) failures.push('迟到资产触发新增链接')
-  await button('照片模式').click()
+  await button('拍照').click()
   await page.waitForSelector('canvas[data-photo-mode=on]')
   const storageBefore = await page.evaluate(() => window.arsTextureAudit())
   const downloadReady = page.waitForEvent('download', { timeout: 120000 })

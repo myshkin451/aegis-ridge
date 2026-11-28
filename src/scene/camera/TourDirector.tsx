@@ -4,7 +4,6 @@ import { Vector3 } from 'three'
 import { crewById } from '../../data/crew'
 import { FLOORS } from '../../data/floors'
 import { useCrewTour, startTour, stopTour } from '../../store/useCrewTour'
-import { viewParameter } from '../../data/blueprintDocument'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { useShelterStore } from '../../store/useShelterStore'
 import { walkRevealUniforms } from '../mep/lens'
@@ -13,15 +12,15 @@ import { inspectionPath, inspectionStop } from './inspectionRoute'
 import { WALK } from './walkCollision'
 
 export const openingCues = [
-  [0, '黎明，云层停在观测站下方。'],
-  [10, '沿南侧平台接近科研站房。'],
+  [0, '黎明，云层停在堡垒下方。'],
+  [10, '沿南侧平台接近堡垒入口。'],
   [20, '南向剖面展开，地表以下是四层工程空间。'],
-  [31, '经过车库吊装口，沿货梯井下行至 B2。'],
+  [31, '抵达 B2 电梯厅，餐厅在走廊西侧。'],
   [40, '餐厅的阅读角和共餐长桌已亮灯。'],
   [49, '穿过夹层透镜，查看走廊上方的风管和桥架。'],
   [60, '启动封锁，外侧设施依次关闭。'],
   [65, '封锁 · 第 1 天'],
-  [70, '返回观测站现场。'],
+  [70, '返回山脊外景。'],
 ] as const
 function openingShot(index: number) {
   const view = useShelterStore.getState(), op = useOperationsStore.getState()
@@ -89,14 +88,6 @@ export function TourDirector({ rt }: { rt: SurveyRuntime }) {
         }
       }
     }
-    const first = () => {
-      if (new URLSearchParams(location.search).has(viewParameter)) return
-      try {
-        if (localStorage.getItem('ars-opening-seen') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-        localStorage.setItem('ars-opening-seen', '1')
-      } catch { /* The tour still runs once for this mount when storage is unavailable. */ }
-      startTour('opening')
-    }
     const hide = () => { if (document.hidden) cancel() }
     const blur = (e: FocusEvent) => { if (e.target === window) cancel() }
     const events = ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'touchstart'] as const
@@ -104,7 +95,6 @@ export function TourDirector({ rt }: { rt: SurveyRuntime }) {
     window.addEventListener('blur', blur)
     window.addEventListener('keydown', key, true)
     document.addEventListener('visibilitychange', hide)
-    window.addEventListener('ars-ready', first, { once: true })
     const sync = () => {
       const s = useCrewTour.getState()
       canvas.dataset.tour = s.tour
@@ -119,7 +109,6 @@ export function TourDirector({ rt }: { rt: SurveyRuntime }) {
       window.removeEventListener('blur', blur)
       window.removeEventListener('keydown', key, true)
       document.removeEventListener('visibilitychange', hide)
-      window.removeEventListener('ars-ready', first)
       rt.inspectionTarget = null
       clearLens()
     }

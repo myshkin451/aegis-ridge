@@ -26,23 +26,14 @@ export function useClockPlayback() {
 }
 
 export function ShiftClock() {
-  const { playing, sound, motion } = useShiftClock()
+  const playing = useShiftClock(s => s.playing)
   const time = useShelterStore(s => s.time)
-  return (
-    <fieldset className="shift-clock">
-      <legend>站内时钟</legend>
-      <label className="clock-slider">
-        <output>{time}</output>
-        <input aria-label="24 小时时间轴" aria-valuetext={time} type="range" min="0" max="1439"
-          value={minutesAt(time)} onChange={e => { useShiftClock.setState({ playing: false }); setMinute(+e.target.value) }}/>
-      </label>
-      <div className="clock-controls">
-        <button aria-label="延时播放" aria-pressed={playing} onClick={() => useShiftClock.setState({ playing: !playing })}>
-          {playing ? '暂停' : '延时播放'} · 360×
-        </button>
-        <label><input type="checkbox" checked={motion} onChange={e => useShiftClock.setState({ motion: e.target.checked })}/> 轻动态</label>
-        <label><input type="checkbox" checked={sound} onChange={e => useShiftClock.setState({ sound: e.target.checked })}/> 声景</label>
-      </div>
-    </fieldset>
-  )
+  return <div className="day-clock" aria-label="堡垒时钟">
+    <button aria-label="延时播放" aria-pressed={playing}
+      onClick={() => useShiftClock.setState({ playing: !playing })}>{playing ? 'Ⅱ' : '▷'}</button>
+    <output>{time}</output>
+    <input type="range" aria-label="24 小时时间轴" aria-valuetext={time} min="0" max="1439"
+      value={minutesAt(time)} onChange={e => { useShiftClock.setState({ playing: false }); setMinute(+e.target.value) }}/>
+    <span>24 h</span>
+  </div>
 }

@@ -1,6 +1,8 @@
 import { useShiftClock } from '../store/useShiftClock'
 import { RoomInteriors } from './rooms/RoomInteriors'
 import { doors, openingsAlong, type WallAxis } from '../geometry/doors'
+import { elevatorSpecs } from '../geometry/elevators'
+import { Inscription } from './rooms/Inscription'
 import { slabPlan } from '../geometry/planGeometry'
 import { Color, Group } from 'three'
 import { useFrame } from '@react-three/fiber'
@@ -9,15 +11,15 @@ import { roomsOn } from '../data/defaultBlueprint'
 import { FLOORS, SLAB } from '../data/floors'
 import { useShelterStore } from '../store/useShelterStore'
 import type { Point3 } from '../types/shelter'
-import { footprint, getFloorElevation, shaftPlans } from '../geometry/coords'
+import { footprint, getFloorElevation } from '../geometry/coords'
 import { lid, outline } from './utils/planGeometry'
-import type { SurveyRuntime } from './camera/runtime'
 import { groundAt, type TerrainAtlas } from '../geometry/siteElevations'
 import { Model, reduceMotion } from './utils/Model'
 import { ModelBuilder } from './utils/modelBuilder'
 import {
   addSlab,
   closedDoors,
+  elevatorThresholds,
   iBeam,
   partition,
   shaftFrames,
@@ -57,7 +59,7 @@ const innerEntry = doors.find((d) => d.id === 'entry-inner')!
 const garageDoors = doors.filter(
   (d) => d.floor === 'L1' && d.zones.includes('l1_garage') && d.zones.includes('surface'),
 )
-const lowerDoorLeaves = () => closedDoors('L1')
+const lowerDoorLeaves = () => closedDoors('L1', false)
 const upperDoorLeaves = () => closedDoors('L2')
 
 /** Watertight closed triangular prism along Z for solid gable walls (compatible with stencil section caps). */
@@ -85,6 +87,16 @@ function gablePrism(
   m.quad(fR, bR, bT, fT, tint)
 }
 
+function passengerLobby(m: ModelBuilder, floor: 'L1' | 'L2') {
+  const s = elevatorSpecs.passenger
+  const left = s.x - 0.83, right = s.x + 0.83
+  partition(m, floor, 'x', s.front, left, right, FLOORS[floor].clearHeight)
+  m.box(concrete, [s.x, 1.8, s.rear], [right - left, 3.6, 0.1])
+  m.box(concrete, [left - 0.035, 1.8, s.z], [0.07, 3.6, 3.86])
+  // L2's east wall belongs to the greenhouse. L1 has a shared open service core.
+  if (floor === 'L1') m.box(concrete, [right, 1.8, s.z], [0.07, 3.6, 3.86])
+}
+
 function groundFloor() {
   const m = new ModelBuilder()
   addSlab(m, 'L1')
@@ -101,11 +113,17 @@ function groundFloor() {
   partition(m, 'L1', 'x', innerEntry.base[2], vestibule.x0, vestibule.x1, l1Top)
   m.box('#8b9290', [garage.x, 0.095, l1.z1 + 0.85], [garage.w - 0.4, 0.07, 1.67])
   for (let x = garage.x0 + 0.75; x < garage.x1; x += 1.3)
-    m.box('#d0b58a', [x, 0.138, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
-  const freight = shaftPlans.find((s) => s.id === 'freight')!
-  for (const x of [freight.x - 0.91, freight.x + 0.91])
-    for (const z of [freight.z - 0.91, freight.z + 0.91])
-      m.box('#b6a382', [x, 0.53, z], [0.11, 1.06, 0.11], 'steel')
+    m.decalBox('#d0b58a', [x, 0.142, l1.z1 + 1.25], [0.1, 0.014, 0.65], 'wood', [0, 0.44, 0])
+  const f = elevatorSpecs.freight
+  partition(m, 'L1', 'x', f.front, f.x - 2, f.x + 2, l1Top)
+  // The east side already shares the garage partition. Close the exposed rear and west side.
+  m.box(concrete, [f.x, l1Top / 2, f.rear], [3.92, l1Top, 0.16])
+  m.box(concrete, [f.x - 1.92, l1Top / 2, f.z], [0.16, l1Top, 4])
+  for (const x of [f.x - 1.37, f.x + 1.37])
+    m.decalBox('#c7a145', [x, 0.017, f.front + 1.13], [0.085, 0.006, 2.06], 'epoxy')
+  m.decalBox('#c7a145', [f.x, 0.017, f.front + 2.12], [2.66, 0.006, 0.08], 'epoxy')
+  passengerLobby(m, 'L1')
+  elevatorThresholds(m, 'L1')
   shaftFrames(m, 0, FLOORS.L1.pitch, 'L2')
   stairStructure(m, 'L1')
   return m
@@ -117,17 +135,17 @@ function groundFacade() {
 
   // North windward wall: full monolithic reinforced concrete sealed flush to L2 slab underside (y = 4.10).
   m.box(concrete, [l1.x, l1Top / 2, l1.z0 + wt / 2], [l1.w, l1Top, wt])
-  m.box(plinth, [l1.x, 0.28, l1.z0 + wt / 2 - 0.02], [l1.w + 0.04, 0.56, wt + 0.04])
+  m.box(plinth, [l1.x, 0.28, l1.z0 - 0.038], [l1.w + 0.04, 0.56, 0.04])
   for (const x of [-15.78, -10, -4, 2, 8, 13.78])
     m.box(concreteHi, [x, l1Top / 2, l1.z0 + 0.02], [0.42, l1Top, 0.1])
 
   // West garage wall (x = -16): monolithic bunker plinth with 5 deeply recessed high armored clerestories.
   const wx = l1.x0 + wt / 2
   m.box(concrete, [wx, 2.45 / 2, l1.z], [wt, 2.45, l1.d])
-  m.box(plinth, [wx - 0.02, 0.28, l1.z], [wt + 0.04, 0.56, l1.d + 0.04])
+  m.box(plinth, [l1.x0 - 0.038, 0.28, l1.z], [0.04, 0.56, l1.d + 0.04])
   m.box(concrete, [wx, (3.2 + l1Top) / 2, l1.z], [wt, l1Top - 3.2, l1.d])
-  m.box(concrete, [wx, 2.825, (l1.z0 + -7.6) / 2], [wt, 0.75, -7.6 - l1.z0])
-  m.box(concrete, [wx, 2.825, (5.6 + l1.z1) / 2], [wt, 0.75, l1.z1 - 5.6])
+  m.box(concrete, [wx, 2.825, (l1.z0 + -7.96) / 2], [wt, 0.75, -7.96 - l1.z0])
+  m.box(concrete, [wx, 2.825, (5.96 + l1.z1) / 2], [wt, 0.75, l1.z1 - 5.96])
   const slotSpan = 13.2 / 5
   for (let i = 0; i <= 5; i++) m.box(concrete, [wx, 2.825, -7.6 + i * slotSpan], [wt, 0.75, 0.72])
   for (let i = 0; i < 5; i++) {
@@ -137,56 +155,54 @@ function groundFacade() {
     // Recessed dark-steel window frame, flashing sill, and deep-set double glazing.
     m.box(extGlass, [l1.x0 + 0.26, 2.825, zc], [0.08, 0.71, openW], 'glass')
     m.box(mullion, [l1.x0 + 0.16, 2.47, zc], [0.36, 0.06, openW + 0.04], 'steel')
-    m.box(mullion, [l1.x0 + 0.16, 3.18, zc], [0.34, 0.06, openW + 0.04], 'steel')
+    m.box(mullion, [l1.x0 + 0.15, 3.18, zc], [0.35, 0.06, openW + 0.04], 'steel')
     m.box(mullion, [l1.x0 + 0.24, 2.825, zc], [0.12, 0.71, 0.07], 'steel')
     for (const dz of [-openW / 2, openW / 2])
       m.box(mullion, [l1.x0 + 0.18, 2.825, zc + dz], [0.28, 0.75, 0.07], 'steel')
   }
 
   // South garage facade (x = -16..-2, z = 8): full-height concrete wall + deep armored door portals.
-  partition(m, 'L1', 'x', garage.z1, garage.x0, garage.x1, l1Top)
   const gcz = garage.z1 - wt / 2
-  m.box(concrete, [(-16 + -14.61) / 2, l1Top / 2, gcz], [1.39, l1Top, wt])
-  m.box(concrete, [(-10.39 + -7.61) / 2, l1Top / 2, gcz], [2.78, l1Top, wt])
-  m.box(concrete, [(-3.39 + -2) / 2, l1Top / 2, gcz], [1.39, l1Top, wt])
+  m.box(concrete, [(-16 + -14.61) / 2, 3.06 / 2, gcz], [1.39, 3.06, wt])
+  m.box(concrete, [(-10.39 + -7.61) / 2, 3.06 / 2, gcz], [2.78, 3.06, wt])
+  m.box(concrete, [(-3.39 + -2) / 2, 3.06 / 2, gcz], [1.39, 3.06, wt])
   m.box(concrete, [garage.x, (3.06 + l1Top) / 2, gcz], [garage.w, l1Top - 3.06, wt])
-  m.box(plinth, [(-16 + -14.61) / 2, 0.28, gcz + 0.02], [1.41, 0.56, wt + 0.04])
-  m.box(plinth, [(-10.39 + -7.61) / 2, 0.28, gcz + 0.02], [2.8, 0.56, wt + 0.04])
-  m.box(plinth, [(-3.39 + -2) / 2, 0.28, gcz + 0.02], [1.41, 0.56, wt + 0.04])
+  m.box(plinth, [(-16 + -14.61) / 2, 0.28, garage.z1 + 0.038], [1.41, 0.56, 0.04])
+  m.box(plinth, [(-10.39 + -7.61) / 2, 0.28, garage.z1 + 0.038], [2.8, 0.56, 0.04])
+  m.box(plinth, [(-3.39 + -2) / 2, 0.28, garage.z1 + 0.038], [1.41, 0.56, 0.04])
   for (const d of garageDoors) {
     const [dx, , dz] = d.base
     // Deep armored lintel hood, steel portal surround & crash bollards clear of the drive opening.
-    m.box(corten, [dx, d.height + 0.15, dz + 0.16], [d.width + 0.44, 0.22, 0.46], 'corten')
-    m.box(mullion, [dx, d.height + 0.02, dz + 0.04], [d.width + 0.28, 0.12, 0.34], 'steel')
+    m.box(corten, [dx, d.height + 0.15, dz + 0.35], [d.width + 0.44, 0.22, 0.46], 'corten')
+    m.box(mullion, [dx, d.height + 0.02, dz + 0.19], [d.width + 0.28, 0.12, 0.34], 'steel')
     for (const side of [-1, 1]) {
-      m.box(mullion, [dx + side * (d.width / 2 + 0.09), d.height / 2, dz + 0.04], [0.16, d.height, 0.34], 'steel')
+      m.box(mullion, [dx + side * (d.width / 2 + 0.09), d.height / 2, dz + 0.19], [0.16, d.height - 0.08, 0.34], 'steel')
       m.part('round', 'steel', '#c49a4e', [dx + side * (d.width / 2 + 0.34), 0.46, dz + 0.42], [0.17, 0.92, 0.17])
       m.part('round', 'steel', mullion, [dx + side * (d.width / 2 + 0.34), 0.06, dz + 0.42], [0.24, 0.12, 0.24])
     }
-    m.box('#f0d4a4', [dx, d.height + 0.03, dz + 0.24], [d.width - 0.6, 0.055, 0.09], 'lamp')
+    m.box('#f0d4a4', [dx, d.height + 0.03, dz + 0.41], [d.width - 0.6, 0.055, 0.09], 'lamp')
   }
 
   // South armored vestibule portal (x = -2..4, z = 7.92): full concrete massing + corten storm porch.
-  partition(m, 'L1', 'x', outerEntry.base[2], vestibule.x0, vestibule.x1, l1Top)
   const vcz = vestibule.z1 - wt / 2
   const entryLeft = outerEntry.base[0] - outerEntry.width / 2
   const entryRight = outerEntry.base[0] + outerEntry.width / 2
-  m.box(concrete, [(vestibule.x0 + entryLeft) / 2, l1Top / 2, vcz], [entryLeft - vestibule.x0, l1Top, wt])
-  m.box(concrete, [(entryRight + vestibule.x1) / 2, l1Top / 2, vcz], [vestibule.x1 - entryRight, l1Top, wt])
+  m.box(concrete, [(vestibule.x0 + entryLeft) / 2, outerEntry.height / 2, vcz], [entryLeft - vestibule.x0, outerEntry.height, wt])
+  m.box(concrete, [(entryRight + vestibule.x1) / 2, outerEntry.height / 2, vcz], [vestibule.x1 - entryRight, outerEntry.height, wt])
   m.box(concrete, [vestibule.x, (outerEntry.height + l1Top) / 2, vcz], [vestibule.w, l1Top - outerEntry.height, wt])
-  m.box(plinth, [(vestibule.x0 + entryLeft) / 2, 0.28, vcz + 0.02], [entryLeft - vestibule.x0 + 0.02, 0.56, wt + 0.04])
-  m.box(plinth, [(entryRight + vestibule.x1) / 2, 0.28, vcz + 0.02], [vestibule.x1 - entryRight + 0.02, 0.56, wt + 0.04])
+  m.box(plinth, [(vestibule.x0 + entryLeft) / 2, 0.28, vestibule.z1 + 0.038], [entryLeft - vestibule.x0 + 0.02, 0.56, 0.04])
+  m.box(plinth, [(entryRight + vestibule.x1) / 2, 0.28, vestibule.z1 + 0.038], [vestibule.x1 - entryRight + 0.02, 0.56, 0.04])
   // Projecting corten armored entry hood and protective side cheeks.
   for (const side of [-1, 1]) {
     const cx = outerEntry.base[0] + side * (outerEntry.width / 2 + 0.16)
-    m.box(corten, [cx, 1.49, outerEntry.base[2] + 0.28], [0.28, 2.98, 0.66], 'corten')
+    m.box(corten, [cx, 1.49, vestibule.z1 + 0.35], [0.28, 2.98, 0.66], 'corten')
   }
-  m.box(corten, [outerEntry.base[0], outerEntry.height + 0.22, outerEntry.base[2] + 0.38], [outerEntry.width + 0.64, 0.28, 0.88], 'corten')
-  m.box(mullion, [outerEntry.base[0], outerEntry.height + 0.04, outerEntry.base[2] + 0.1], [outerEntry.width + 0.2, 0.1, 0.34], 'steel')
+  m.box(corten, [outerEntry.base[0], outerEntry.height + 0.22, vestibule.z1 + 0.46], [outerEntry.width + 0.64, 0.28, 0.88], 'corten')
+  m.box(mullion, [outerEntry.base[0], outerEntry.height + 0.04, vestibule.z1 + 0.19], [outerEntry.width + 0.2, 0.1, 0.34], 'steel')
   m.box('#f6dca8', [outerEntry.base[0], outerEntry.height + 0.06, outerEntry.base[2] + 0.44], [outerEntry.width - 0.3, 0.05, 0.1], 'lamp')
   // Entry access panel & intercom bezel beside the armored vestibule portal.
-  m.box(mullion, [entryRight + 0.55, 1.48, vestibule.z1 + 0.05], [0.24, 0.44, 0.09], 'steel')
-  m.box('#a7d1b0', [entryRight + 0.55, 1.58, vestibule.z1 + 0.1], [0.1, 0.06, 0.02], 'lamp')
+  m.box(mullion, [entryRight + 0.55, 1.48, vestibule.z1 + 0.065], [0.24, 0.44, 0.09], 'steel')
+  m.box('#a7d1b0', [entryRight + 0.55, 1.58, vestibule.z1 + 0.135], [0.1, 0.06, 0.02], 'lamp')
 
   // South public research lobby (x = 4..14, z = 8): solid concrete piers, plinth curb, full upper spandrel & recessed bays.
   const lcz = lobby.z1 - wt / 2
@@ -196,7 +212,7 @@ function groundFacade() {
   m.box(concrete, [(lobby.x0 + lobbyOpen0) / 2, l1Top / 2, lcz], [0.95, l1Top, wt])
   m.box(concrete, [(lobbyOpen1 + lobby.x1) / 2, l1Top / 2, lcz], [0.95, l1Top, wt])
   m.box(concrete, [lobby.x, 0.26, lcz], [lobbySpan, 0.52, wt])
-  m.box(plinth, [lobby.x, 0.26, lcz + 0.02], [lobby.w + 0.02, 0.52, wt + 0.04])
+  m.box(plinth, [lobby.x, 0.26, lobby.z1 + 0.038], [lobby.w + 0.02, 0.52, 0.04])
   m.box(mullion, [lobby.x, 0.54, lcz + 0.01], [lobbySpan + 0.06, 0.06, wt + 0.04], 'steel')
   m.box(concrete, [lobby.x, (3.16 + l1Top) / 2, lcz], [lobbySpan, l1Top - 3.16, wt])
   m.box(cedar, [lobby.x, 3.13, lobby.z1 - 0.14], [lobbySpan, 0.08, 0.32], 'wood')
@@ -222,18 +238,20 @@ function groundFacade() {
   m.box(concrete, [ex, l1Top / 2, (l1.z0 + -7.2) / 2], [wt, l1Top, -7.2 - l1.z0])
   m.box(concrete, [ex, l1Top / 2, (5.2 + l1.z1) / 2], [wt, l1Top, l1.z1 - 5.2])
   m.box(concrete, [ex, 1.18 / 2, -1], [wt, 1.18, 12.4])
-  m.box(plinth, [ex + 0.02, 0.28, l1.z], [wt + 0.04, 0.56, l1.d + 0.04])
+  m.box(plinth, [l1.x1 + 0.038, 0.28, l1.z], [0.04, 0.56, l1.d + 0.04])
   m.box(concrete, [ex, (2.96 + l1Top) / 2, -1], [wt, l1Top - 2.96, 12.4])
   const eastBays = 3,
     eastStep = 12.4 / eastBays
-  for (let i = 0; i <= eastBays; i++) m.box(concrete, [ex, 2.07, -7.2 + i * eastStep], [wt, 1.78, 0.78])
+  for (const zc of [-7.2 + 0.195, 5.2 - 0.195])
+    m.box(concrete, [ex, 2.07, zc], [wt, 1.78, 0.39])
+  for (let i = 1; i < eastBays; i++) m.box(concrete, [ex, 2.07, -7.2 + i * eastStep], [wt, 1.78, 0.78])
   for (let i = 0; i < eastBays; i++) {
     const z0 = -7.2 + i * eastStep
     const zc = z0 + eastStep / 2
     const openW = eastStep - 0.78
     m.box(extGlass, [l1.x1 - 0.25, 2.07, zc], [0.09, 1.76, openW], 'glass')
     m.box(mullion, [l1.x1 - 0.16, 1.2, zc], [0.36, 0.06, openW + 0.04], 'steel')
-    m.box(mullion, [l1.x1 - 0.16, 2.94, zc], [0.34, 0.06, openW + 0.04], 'steel')
+    m.box(mullion, [l1.x1 - 0.15, 2.94, zc], [0.35, 0.06, openW + 0.04], 'steel')
     m.box(mullion, [l1.x1 - 0.22, 2.07, zc], [0.14, 1.74, 0.08], 'steel')
     for (const dz of [-openW / 2, openW / 2])
       m.box(mullion, [l1.x1 - 0.18, 2.07, zc + dz], [0.28, 1.78, 0.08], 'steel')
@@ -241,24 +259,14 @@ function groundFacade() {
   return m
 }
 
-function garageShutters() {
+function entryHardware() {
   const m = new ModelBuilder()
-  for (const d of garageDoors) {
-    const [x, , z] = d.base
-    for (let j = 0; j < 14; j++)
-      m.box(
-        j === 9 ? '#82999c' : j % 2 ? '#556265' : '#4a5659',
-        [x, ((j + 0.5) / 14) * d.height, z + 0.22],
-        [d.width - 0.08, d.height / 16, 0.06],
-        'steel',
-      )
-  }
   // Armored stainless push-bar & seam detail on the closed outer vestibule airlock leaves.
   const [ex, , ez] = outerEntry.base
   m.box('#4e4337', [ex, outerEntry.height / 2, ez + 0.22], [0.05, outerEntry.height - 0.08, 0.04], 'steel')
   for (const side of [-1, 1]) {
     m.box('#b7c2be', [ex + side * 0.22, 1.12, ez + 0.24], [0.045, 0.56, 0.05], 'steel')
-    m.box('#929c98', [ex + side * 0.55, 1.92, ez + 0.22], [0.46, 0.36, 0.04], 'glass')
+    m.box('#929c98', [ex + side * 0.55, 1.92, ez + 0.26], [0.46, 0.36, 0.04], 'glass')
     m.box(mullion, [ex + side * 0.55, 1.92, ez + 0.225], [0.52, 0.42, 0.02], 'steel')
   }
   return m
@@ -354,6 +362,8 @@ function glassPartition(m: ModelBuilder, axis: WallAxis, fixed: number, from: nu
 function observationFloor() {
   const m = new ModelBuilder()
   addSlab(m, 'L2')
+  passengerLobby(m, 'L2')
+  elevatorThresholds(m, 'L2')
   const hallPlan = slabPlan(roomsOn('L2')[0].bounds, FLOORS.L2.elevation)
   lid(m, hallPlan, 0.012, '#bca688')
   outline(m, hallPlan, 0.015, '#8e8372')
@@ -405,11 +415,11 @@ function upperFacade() {
   for (let x = l2.x0 + 0.35; x < l2.x1 - 0.25; x += 0.42) {
     const inWin = northWins.some((wx) => Math.abs(x - wx) < nwW / 2 + 0.12)
     if (inWin) {
-      m.box(warm, [x, 0.85, l2.z0 - 0.03], [0.16, 1.46, 0.06], 'wood')
-      m.box(warm, [x, 3.4, l2.z0 - 0.03], [0.16, 1.24, 0.06], 'wood')
+      m.box(warm, [x, 0.85, l2.z0 - 0.05], [0.16, 1.46, 0.06], 'wood')
+      m.box(warm, [x, 3.4, l2.z0 - 0.05], [0.16, 1.24, 0.06], 'wood')
     } else {
       const topH = x < hall.x1 ? 3.96 : 3.52
-      m.box(warm, [x, topH / 2 + 0.06, l2.z0 - 0.03], [0.16, topH - 0.12, 0.06], 'wood')
+      m.box(warm, [x, topH / 2 + 0.06, l2.z0 - 0.05], [0.16, topH - 0.12, 0.06], 'wood')
     }
   }
 
@@ -419,8 +429,8 @@ function upperFacade() {
   m.box(concrete, [wx, l2Top / 2, (-10 + -5.6) / 2], [wt, l2Top, 4.4])
   m.box(concrete, [wx, l2Top / 2, (3.4 + 6) / 2], [wt, l2Top, 2.6])
   // Vertical weathered-larch timber rainscreen accent on the NW & SW windward piers.
-  for (let z = -9.6; z <= -5.85; z += 0.36) m.box(warm, [l2.x0 - 0.03, 2.05, z], [0.06, 3.85, 0.16], 'wood')
-  for (let z = 3.65; z <= 5.75; z += 0.36) m.box(warm, [l2.x0 - 0.03, 2.05, z], [0.06, 3.85, 0.16], 'wood')
+  for (let z = -9.6; z <= -5.85; z += 0.36) m.box(warm, [l2.x0 - 0.05, 2.05, z], [0.06, 3.85, 0.16], 'wood')
+  for (let z = 3.65; z <= 5.75; z += 0.36) m.box(warm, [l2.x0 - 0.05, 2.05, z], [0.06, 3.85, 0.16], 'wood')
   // Recessed west panoramic bay (z = -5.6..3.4, span 9.0 m): solid dado (0..1.05) + full upper spandrel (3.10..4.10).
   m.box(concrete, [wx, 1.05 / 2, -1.1], [wt, 1.05, 9.0])
   m.box(concrete, [wx, (3.1 + l2Top) / 2, -1.1], [wt, l2Top - 3.1, 9.0])
@@ -466,16 +476,16 @@ function upperFacade() {
   // --- L2 ALPINE GREENHOUSE SOUTH (z = 6, x = 2..12) & EAST (x = 12, z = -10..6) WALLS ---
   const gwt = 0.32
   // Solid insulated concrete knee wall (0..1.05) + solid SE & NE structural anchor piers.
-  m.box(concrete, [garden.x, 1.05 / 2, l2.z1 - gwt / 2], [garden.w, 1.05, gwt])
-  m.box(concrete, [l2.x1 - gwt / 2, 1.05 / 2, garden.z], [gwt, 1.05, garden.d])
+  m.box(concrete, [(2 + 10.8) / 2, 1.05 / 2, l2.z1 - gwt / 2], [8.8, 1.05, gwt])
+  m.box(concrete, [l2.x1 - gwt / 2, 1.05 / 2, -1.8], [gwt, 1.05, 13.2])
   m.box(concrete, [(10.8 + garden.x1) / 2, 3.66 / 2, l2.z1 - gwt / 2], [1.2, 3.66, gwt])
   m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (4.8 + l2.z1) / 2], [gwt, 3.66, 1.2])
   m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (l2.z0 + -8.4) / 2], [gwt, 3.66, 1.6])
   // Steel sills & heavy eave header box beams sealing cleanly to the twin pitched rafters.
   m.box(mullion, [(2 + 10.8) / 2, 1.07, l2.z1 - 0.14], [8.84, 0.065, 0.36], 'steel')
   m.box(mullion, [l2.x1 - 0.14, 1.07, (-8.4 + 4.8) / 2], [0.36, 0.065, 13.24], 'steel')
-  m.box(mullion, [garden.x, 3.56, l2.z1 - 0.12], [garden.w, 0.22, 0.24], 'steel')
-  m.box(mullion, [l2.x1 - 0.12, 3.56, garden.z], [0.24, 0.22, garden.d], 'steel')
+  m.box(mullion, [(2 + 10.8) / 2, 3.56, l2.z1 - 0.10], [8.8, 0.22, 0.28], 'steel')
+  m.box(mullion, [l2.x1 - 0.10, 3.56, -1.8], [0.28, 0.22, 13.2], 'steel')
   // Greenhouse South glazed bays (x = 2..10.8, y = 1.08..3.46).
   const gsBays = 4,
     gsStep = 8.8 / gsBays
@@ -610,9 +620,9 @@ function roofscape() {
       // Heavy gable verge rafters at north and south ends.
       for (const gz of [garden.z0 + 0.08, garden.z1 - 0.08])
         m.beam([edge, l2h, gz], [ridge, roof, gz], 0.13, 0.16, mullion)
-      m.box(mullion, [ridge, roof, garden.z], [0.14, 0.15, garden.d + 0.08], 'steel')
       m.box(steelTrim, [centre, l2h + rise / 2, garden.z], [0.08, 0.07, garden.d], 'steel')
     }
+    m.box(mullion, [ridge, roof, garden.z], [0.14, 0.15, garden.d + 0.08], 'steel')
     // South gable structural king-post & intermediate vertical mullions (framing the glazed south gable).
     m.box(mullion, [ridge, l2h + rise / 2, garden.z1 - 0.12], [0.1, rise, 0.14], 'steel')
     for (const dx of [-span / 4, span / 4])
@@ -748,19 +758,14 @@ export function surfaceEnvelopeModels() {
   }
 }
 
-export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyRuntime }) {
+export function SurfaceStation({ atlas }: { atlas: TerrainAtlas }) {
   const floor = useShelterStore((s) => s.floor),
     mode = useShelterStore((s) => s.mode),
     plenum = useShelterStore((s) => s.plenum)
   const walk = useShelterStore((s) => s.cameraState === 'walkthrough'),
     cold = useShelterStore((s) => s.cold)
   const apron = useMemo(() => () => stationApron(atlas), [atlas])
-  const panels = useRef<Group>(null),
-    gardenLeaves = useRef<Group>(null),
-    building = useRef<Group>(null),
-    upperFloor = useRef<Group>(null),
-    roofShell = useRef<Group>(null),
-    setback = useRef<Group>(null),
+  const building = useRef<Group>(null),
     radar = useRef<Group>(null),
     a = useRef<Group>(null),
     b = useRef<Group>(null)
@@ -771,14 +776,7 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
       if (!cold && a.current) a.current.rotation.y += step * 0.47
       if (!cold && b.current) b.current.rotation.y += step * 0.39
     }
-    if (panels.current) panels.current.visible = !rt.garageTransfer && !walk && lower && !wire
-    if (gardenLeaves.current) gardenLeaves.current.visible = !rt.garageTransfer && !walk && upper && !wire
-    if (building.current)
-      building.current.visible =
-        (!walk || camera.position.y > -10.3) && (!rt.dropping || floor === 'L1' || floor === 'L2')
-    if (upperFloor.current) upperFloor.current.visible = !(rt.dropping && floor === 'L1')
-    if (roofShell.current) roofShell.current.visible = !rt.dropping
-    if (setback.current) setback.current.visible = !(rt.dropping && floor === 'L1')
+    if (building.current) building.current.visible = !walk || camera.position.y > -10.3
   })
   const lower = walk || floor === 'ALL' || floor === 'L1' || floor === 'L2'
   const upper = walk || floor === 'ALL' || floor === 'L2'
@@ -790,7 +788,13 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
           <Model build={apron} />
         </group>
         <group visible={lower && !wire}>
-          <RoomInteriors id="L1" rt={rt} />
+          <RoomInteriors id="L1" />
+          <group visible={walk}>
+            <Inscription text="客梯 · L2—B4" position={[elevatorSpecs.passenger.x, 2.66, elevatorSpecs.passenger.front + 0.14]} width={1.36} height={0.18} />
+          </group>
+          <group visible={walk}>
+            <Inscription text="3T 重载货梯 · L1—B4" position={[elevatorSpecs.freight.x, 2.94, elevatorSpecs.freight.front + 0.14]} width={2.25} height={0.24} color="#292d2d" background="#c9ab60" />
+          </group>
         </group>
         <Model walkSurface="wall" build={groundFloor} opacity={lower ? (wire ? 0.1 : 1) : 0} />
         <Model build={lowerServices} opacity={Number(lower && !wire && (plenum || floor === 'L2'))} />
@@ -800,20 +804,23 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
           opacity={Number(lower && !wire && !plenum && (floor === 'ALL' || walk))}
         />
         <Model walkSurface="wall" build={groundFacade} opacity={Number(lower && !wire && (floor !== 'L1' || walk))} />
-        <group ref={panels} visible={!walk && lower && !wire} userData={{ skipWalk: true }}>
+        <group visible={!walk && lower && !wire} userData={{ skipWalk: true }}>
           <Model build={lowerDoorLeaves} />
-          <Model build={garageShutters} />
+          <Model build={entryHardware} />
         </group>
-        <group ref={setback}>
+        <group>
           <Model walkSurface="wall" build={lowerCeiling} opacity={upper ? (wire ? 0.06 : 1) : 0} />
         </group>
         <Model build={lowerOutline} opacity={lower && wire ? 0.12 : 0} />
       </group>
-      <group ref={upperFloor} position-y={getFloorElevation('L2')}>
+      <group position-y={getFloorElevation('L2')}>
         <group visible={upper && !wire}>
-          <RoomInteriors id="L2" rt={rt} />
+          <RoomInteriors id="L2" />
+          <group visible={walk}>
+            <Inscription text="客梯 · L2—B4" position={[elevatorSpecs.passenger.x, 2.66, elevatorSpecs.passenger.front + 0.14]} width={1.36} height={0.18} />
+          </group>
         </group>
-        <group ref={gardenLeaves} visible={!walk && upper && !wire} userData={{ skipWalk: true }}>
+        <group visible={!walk && upper && !wire} userData={{ skipWalk: true }}>
           <Model build={upperDoorLeaves} />
         </group>
         <Model walkSurface="wall" build={observationFloor} opacity={upper ? (wire ? 0.12 : 1) : 0} />
@@ -824,7 +831,7 @@ export function SurfaceStation({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyR
           opacity={Number(upper && !wire && !plenum && (floor === 'ALL' || walk))}
         />
         <Model walkSurface="wall" build={upperFacade} opacity={Number(upper && !wire)} />
-        <group ref={roofShell}>
+        <group>
           <Model walkSurface="wall" build={roofscape} opacity={wire ? 0.09 : Number(floor === 'ALL' || walk)} />
           <Model build={greenhouseGableGlass} opacity={Number(upper && !wire && (floor === 'ALL' || walk))} />
           <group visible={upper && !wire && (floor === 'ALL' || walk)}>

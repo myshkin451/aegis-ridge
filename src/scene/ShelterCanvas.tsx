@@ -43,9 +43,9 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <MultiScaleMountain atlas={atlas} surface={surface} />
         <group visible={routeOverview || !xray || structure}>
           <BuildingSection>
-            <UndergroundShell rt={rt} />
-            <ShiftActivity rt={rt} />
-            <SurfaceStation atlas={atlas} rt={rt} />
+            <UndergroundShell />
+            <ShiftActivity />
+            <SurfaceStation atlas={atlas} />
             <group visible={!routeOverview}><TunnelModels /></group>
           </BuildingSection>
         </group>
@@ -67,7 +67,7 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <Soundscape />
         <SceneReadouts rt={rt} />
         <MeasurementScene rt={rt} />
-        <SunShadows rt={rt} />
+        <SunShadows />
         <RenderPipeline />
       </QualityControl>}
     </PilotPreload>
@@ -98,7 +98,7 @@ export function ShelterCanvas() {
       <Canvas
         dpr={dpr}
         shadows={{ type: PCFSoftShadowMap }}
-        camera={{ position: [-88, 19, -41], near: 0.5, far: 15000, fov: 23 }}
+        camera={{ position: [-88, 19, -41], near: 0.8, far: 12000, fov: 23 }}
         onCreated={({ gl }) => {
           gl.localClippingEnabled = true
           gl.shadowMap.autoUpdate = false
