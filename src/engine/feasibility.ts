@@ -49,7 +49,7 @@ export function evaluateFeasibility(
   const hour = ((point.hour % 24) + 24) % 24
   const lit = hour >= 20 || hour < 12
   const leaf = by('GR-331'),
-    staple = by('GR-332')
+    staple = units.filter(e => e.cropKind === 'staple' || e.tagCode.startsWith('GR-332'))
   const leafArea = sum(leaf.map(area)) * a.trayUseFraction * a.leafLayers
   const stapleArea = sum(staple.map(area)) * a.trayUseFraction * a.stapleLayers
   const proteinArea = sum([...by('AQ-341'), ...by('MC-342'), ...by('PB-343')].map(area))
@@ -94,7 +94,7 @@ export function evaluateFeasibility(
       if (seen.has(e.redundantGroup)) ratio = 0
       seen.add(e.redundantGroup)
     }
-    if (e.tagCode.startsWith('GR-33')) ratio = Number(lit)
+    if (e.cropKind || e.tagCode.startsWith('GR-33')) ratio = Number(lit)
     if (e.tagCode === 'PB-343') ratio = Number(lit)
     if (e.o2RateKgPerDay > 0) ratio = oxygenNameplate ? requestedElectroRate / oxygenNameplate : 0
     if (e.tagCode.startsWith('CHP-')) ratio = 0 // Auxiliary input is charged only during dispatch below.
@@ -133,9 +133,9 @@ export function evaluateFeasibility(
       chpWaste += rejection
     }
   }
-  const batteryEnergy = by('BAT-431').length * a.batteryKwh * a.batteryUsable * a.inverterEfficiency
+  const batteryEnergy = sum(units.map(e => e.storageKwh ?? (e.tagCode.startsWith('BAT-431') ? a.batteryKwh : 0))) * a.batteryUsable * a.inverterEfficiency
   const batteryHours = duration(batteryEnergy, essential)
-  const inverterKw = by('BAT-431').length * a.batteryInverterKw
+  const inverterKw = sum(units.map(e => e.inverterKw ?? (e.tagCode.startsWith('BAT-431') ? a.batteryInverterKw : 0)))
   const batteryDraw = batteryEnergy > 0 ? Math.min(needed, inverterKw) : 0
   const inverterLossKw = batteryDraw > 0 ? batteryDraw / a.inverterEfficiency - batteryDraw : 0
   const deficitHours = duration(batteryEnergy, batteryDraw)

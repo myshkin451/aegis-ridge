@@ -365,7 +365,8 @@ export function PhysicalSky() {
   return (
     <>
       <group ref={outer}>
-        <primitive object={sky} />
+        {/* The dome projects to the far plane. Test it against the opaque terrain before shading the sky. */}
+        <primitive object={sky} renderOrder={1} />
         <mesh geometry={ridges} visible={new URLSearchParams(location.search).get('terrain') === 'v1'}>
           <meshBasicMaterial vertexColors side={DoubleSide} />
         </mesh>

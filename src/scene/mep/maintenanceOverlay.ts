@@ -113,5 +113,9 @@ export function maintenanceOverlay(network: MepNetwork, cutLow: Vector3, cutHigh
     material.dispose()
     mesh.dispose()
   }
-  return { mesh, update, dispose }
+  function setNetwork(next: MepNetwork) {
+    edges.clear()
+    for (const edge of next.edges) edges.set(edge.id, edge)
+  }
+  return { mesh, update, dispose, setNetwork }
 }

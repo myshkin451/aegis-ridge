@@ -11,26 +11,48 @@ import {
   Vector2,
   Vector3,
 } from 'three'
-import { defaultBlueprint } from '../../data/defaultBlueprint'
+import { roomTemplates } from '../../data/roomTemplates'
+import type { RoomInstance } from '../../types/shelter'
 import { equipmentSolids } from '../../geometry/equipment'
 import { BoxGeometry, Group } from 'three'
 import { FreightCar } from '../../geometry/freightCar'
 import { doors, doorTints, leafOffset, leafThickness, manualDoorAvailable } from '../../geometry/doors'
 import { floorAt, roomAt } from '../../geometry/viewGeometry'
-import { FLOORS, FLOOR_ORDER } from '../../data/floors'
+import { FLOORS, FLOOR_ORDER, UNDERGROUND } from '../../data/floors'
 import { useShelterStore } from '../../store/useShelterStore'
 import { appendSolids, positionGeometry } from '../utils/solidGeometry'
 import { reduceMotion } from '../utils/Model'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { SurveyRuntime } from './runtime'
-import { surveyRoomRoutes } from './roomRoutes'
+import { surveyRoomFloor, surveyRoomRoutes } from './roomRoutes'
 import { useWalkReveal } from '../mep/lensControl'
 import { WALK, WalkCollision } from './walkCollision'
 
+const variableBays = new Set(roomTemplates.flatMap(t => t.roomIds.concat(t.trialRoomIds)))
+function appendEquipment(rooms: RoomInstance[], mat: ReturnType<typeof pbrMaterial>, vertices: number[]) {
+    const hulls = new Group(), cube = new BoxGeometry(1, 1, 1)
+    for (const room of rooms)
+      for (const unit of room.equipment)
+        for (const { center, size } of equipmentSolids(unit)) {
+          const hull = new Mesh(cube, mat)
+          hull.position.set(...center)
+          hull.position.y += FLOORS[room.floorId].elevation
+          hull.scale.set(...size)
+          hulls.add(hull)
+        }
+    appendSolids(hulls, vertices, () => true)
+    cube.dispose()
+}
+function mountFittings(collision: WalkCollision, rooms: RoomInstance[], mat: ReturnType<typeof pbrMaterial>) {
+  const vertices: number[] = []
+  appendEquipment(rooms.filter(r => variableBays.has(r.id)), mat, vertices)
+  collision.setFittings(positionGeometry(vertices))
+}
 export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
   const gl = useThree((s) => s.gl),
     scene = useThree((s) => s.scene),
     get = useThree((s) => s.get)
+  const rooms = useShelterStore(s => s.installedRooms)
   const active = useShelterStore((s) => s.cameraState === 'walkthrough')
   useWalkReveal(active, rt)
   const player = useRef<WalkCollision | null>(null),
@@ -110,24 +132,41 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
     // Decorated models contain thousands of leaves, fins and books. Reuse their dimensioned
     // installation solids for capsule contact, retaining the gaps between gantry legs and cabin walls.
-    const hulls = new Group()
-    const cube = new BoxGeometry(1, 1, 1)
-    for (const room of defaultBlueprint.rooms)
-      for (const unit of room.equipment)
-        for (const { center, size } of equipmentSolids(unit)) {
-          const hull = new Mesh(cube, mat)
-          hull.position.set(...center)
-          hull.position.y += FLOORS[room.floorId].elevation
-          hull.scale.set(...size)
-          hulls.add(hull)
-        }
-    appendSolids(hulls, vertices, () => true)
-    cube.dispose()
+    const initial = useShelterStore.getState().installedRooms
+    appendEquipment(initial.filter(r => !variableBays.has(r.id)), mat, vertices)
     const collision = new WalkCollision(positionGeometry(vertices), new FreightCar())
+    mountFittings(collision, initial, mat)
     rt.collision = player.current = collision
-    rt.roomRoutes = surveyRoomRoutes(collision)
+    rt.roomRoutes = surveyRoomRoutes(collision, initial)
     gl.domElement.dataset.surveyedAnchors = String(rt.roomRoutes.size)
+    const pending = new Map<string, Generator>()
+    let timer = 0
+    const surveySlice = () => {
+      const until = performance.now() + 4
+      for (const [floor, iterator] of pending) {
+        while (performance.now() < until) {
+          if (iterator.next().done) { pending.delete(floor); break }
+        }
+        if (performance.now() >= until) break
+      }
+      gl.domElement.dataset.surveyedAnchors = String(rt.roomRoutes.size)
+      timer = pending.size ? window.setTimeout(surveySlice, 0) : 0
+    }
+    const stop = useShelterStore.subscribe((s, old) => {
+      if (s.installedRooms === old.installedRooms) return
+      mountFittings(collision, s.installedRooms, mat)
+      for (const floor of UNDERGROUND) {
+        if (!s.installedRooms.some((r, i) => r.floorId === floor && r !== old.installedRooms[i])) continue
+        const iterator = surveyRoomFloor(collision, s.installedRooms, floor, rt.roomRoutes)
+        iterator.next()
+        pending.set(floor, iterator)
+      }
+      if (!timer) timer = window.setTimeout(surveySlice, 0)
+      if (s.cameraState === 'walkthrough') collision.landing(rt.feet)
+    })
     return () => {
+      stop()
+      window.clearTimeout(timer)
       collision.dispose()
       rt.collision = player.current = null
     }
@@ -153,7 +192,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         1 - (2 * (e.clientY - rect.top)) / rect.height,
       )
       tools.ray.setFromCamera(tools.uv, get().camera)
-      const hit = player.current?.tree.raycastFirst(tools.ray.ray, DoubleSide, 0.06, 45)
+      const hit = player.current?.raycastFirst(tools.ray.ray, DoubleSide, 0.06, 45)
       return hit && Math.abs(hit.face?.normal.y ?? 0) > 0.65 && hit.point.y < get().camera.position.y - 0.12
         ? hit.point
         : null
@@ -378,7 +417,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     cam.updateMatrixWorld()
     cam.getWorldDirection(dir)
     rt.target.copy(cam.position).add(dir)
-    const room = roomAt(rt.floor, rt.feet.x, rt.feet.z)
+    const room = roomAt(rt.floor, rt.feet.x, rt.feet.z, rooms)
     rt.room = room?.name ?? (Math.abs(rt.feet.x) > 16 ? '平硐步道' : '主通道')
     const exposure = rt.floor.startsWith('L') ? 0.98 : room?.id === 'b3_hydroponics' ? 1.09 : 1.2
     gl.toneMappingExposure += (exposure - gl.toneMappingExposure) * (snap ? 1 : 1 - Math.exp(-dt / 1.05))

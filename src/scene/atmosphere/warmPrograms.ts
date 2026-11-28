@@ -8,6 +8,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   OrthographicCamera,
+  PerspectiveCamera,
   DirectionalLight,
   SpotLight,
   Vector2,
@@ -85,8 +86,18 @@ export function precompileSurvey(
   for (const geometry of grouped) geometries.delete(geometry)
   for (const [geometry, { count, minDraw }] of geometries) geometry.drawRange.count = Math.min(minDraw, count)
   pipe.setSize(8, 8, false)
+  // A shared drawing may open with the orthographic camera already active. Always
+  // warm both projection orders so the first return to the site has all its programs.
+  const perspective = camera instanceof OrthographicCamera ? new PerspectiveCamera(24, 1, 0.5, 15000) : camera
+  if (perspective !== camera) {
+    perspective.position.copy(camera.position)
+    perspective.quaternion.copy(camera.quaternion)
+    perspective.updateMatrixWorld()
+    pipe.setMainCamera(perspective)
+    ao.camera = perspective
+  }
   gl.setRenderTarget(pipe.inputBuffer)
-  gl.compile(scene, camera)
+  gl.compile(scene, perspective)
   performance.mark('ars-open-compile')
   gl.setRenderTarget(null)
   depthOfField.enabled = true
@@ -143,12 +154,16 @@ export function precompileSurvey(
       m.transparent = t
       m.needsUpdate = true
     }
-  pipe.setMainCamera(camera)
-  ao.camera = camera
+  pipe.setMainCamera(perspective)
+  ao.camera = perspective
   // postprocessing deletes/reinserts PERSPECTIVE_CAMERA after the orthographic pass.
   // Three also keys programs on define insertion order. Exercise the restored variants.
   depthOfField.render(gl, pipe.inputBuffer, pipe.outputBuffer, 0, false)
   warmLinearOutput()
+  if (perspective !== camera) {
+    pipe.setMainCamera(camera)
+    ao.camera = camera
+  }
   gl.setRenderTarget(null)
   pipe.setSize(size.x, size.y, false)
   for (const light of lights) light.shadow.needsUpdate = light instanceof DirectionalLight

@@ -60,6 +60,7 @@ interface Stamp {
   matrix: Matrix4
   color: Color
   tag?: string
+  cutLabel?: string
 }
 interface Batch {
   shape: Shape
@@ -108,6 +109,7 @@ export class ModelBuilder {
     centre: Point3,
     size: Point3,
     rotation?: Point3 | Quaternion,
+    cutLabel?: string,
   ) {
     const key = shape + '/' + finish
     let batch = this.batches.get(key)
@@ -123,11 +125,12 @@ export class ModelBuilder {
       matrix: new Matrix4().compose(new Vector3(...this.placed(centre)), q, new Vector3(...size)),
       color: new Color(tint),
       tag: this.placement?.tag,
+      cutLabel,
     })
   }
 
-  box(tint: Tint, centre: Point3, size: Point3, finish: Finish = 'stone', rotation?: Point3) {
-    this.part('box', finish, tint, centre, size, rotation)
+  box(tint: Tint, centre: Point3, size: Point3, finish: Finish = 'stone', rotation?: Point3, cutLabel?: string) {
+    this.part('box', finish, tint, centre, size, rotation, cutLabel)
   }
 
   beam(a: Point3, b: Point3, width: number, depth: number, tint: Tint, finish: Finish = 'steel') {
@@ -293,6 +296,8 @@ export class ModelBuilder {
       mesh.userData.closedSolid = !crop
       mesh.userData.finish = finish
       mesh.userData.shape = shape
+      if (stamps.some(stamp => stamp.cutLabel))
+        mesh.userData.cutLabels = stamps.map(stamp => stamp.cutLabel)
       mesh.castShadow = finish !== 'glass' && finish !== 'lamp'
       mesh.receiveShadow = finish !== 'glass'
       mesh.computeBoundingSphere()

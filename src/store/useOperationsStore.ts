@@ -1,3 +1,6 @@
+import { configuredNetwork } from '../data/mepNetwork'
+import { defaultBlueprint } from '../data/defaultBlueprint'
+import { resolveRooms, validateRoomChanges, type RoomChanges } from '../data/roomTemplates'
 import { create } from 'zustand'
 import { evaluateOperations } from '../engine/operations'
 import { useShelterStore } from './useShelterStore'
@@ -11,10 +14,13 @@ export const scenarioNames = {
 export type Scenario = keyof typeof scenarioNames
 export type OperationsReport = ReturnType<typeof evaluateOperations>
 export type Diagnostic = OperationsReport['rows'][number]
-export type Panel = 'health' | 'maintenance'
+export type Panel = 'health' | 'maintenance' | 'blueprint'
 export type Location = Pick<Diagnostic, 'roomId' | 'equipmentTag' | 'edgeId'>
 
 interface OperationsState {
+  rooms: typeof defaultBlueprint.rooms
+  roomChanges: RoomChanges
+  setRoomChanges: (value: RoomChanges) => void
   scenario: Scenario
   people: number
   isolatedId: string | null
@@ -42,8 +48,8 @@ export function lockdownElapsed(state: Clock, now = performance.now()) {
     ? state.lockdownSeconds
     : Math.min(30, Math.max(0, (now - state.lockdownStartedAt) / 1000))
 }
-function calculate(s: Pick<OperationsState, 'scenario' | 'people' | 'isolatedId' | 'lockdownSeconds'>) {
-  const { time, mepNetwork } = useShelterStore.getState()
+function calculate(s: Pick<OperationsState, 'scenario' | 'people' | 'isolatedId' | 'lockdownSeconds' | 'rooms'>, network = useShelterStore.getState().mepNetwork) {
+  const { time } = useShelterStore.getState()
   const [hour, minute] = time.split(':').map(Number)
   return evaluateOperations(
     {
@@ -53,12 +59,26 @@ function calculate(s: Pick<OperationsState, 'scenario' | 'people' | 'isolatedId'
       sealed: requiresLockdown(s.scenario) && s.lockdownSeconds === 30,
       isolatedId: s.isolatedId,
     },
-    mepNetwork,
+    network, s.rooms,
   )
 }
-const initial = { scenario: 'normal' as const, people: 10, isolatedId: null, lockdownSeconds: 0 }
-export const useOperationsStore = create<OperationsState>((set) => ({
+const initial = { roomChanges: {}, rooms: defaultBlueprint.rooms, scenario: 'normal' as const, people: 10, isolatedId: null, lockdownSeconds: 0 }
+export const useOperationsStore = create<OperationsState>((set, get) => ({
   ...initial,
+  setRoomChanges: (value) => {
+    const roomChanges = validateRoomChanges(value), previous = get()
+    if (Object.keys(roomChanges).length === Object.keys(previous.roomChanges).length &&
+        Object.entries(roomChanges).every(([key, id]) => previous.roomChanges[key] === id)) return
+    const rooms = resolveRooms(roomChanges), view = useShelterStore.getState()
+    const network = view.mepNetwork && configuredNetwork(view.mepNetwork, rooms)
+    const isInstalled = (id: string) => rooms.some(r => r.equipment.some(e => e.tagCode === id))
+    const isolatedId = previous.isolatedId && (isInstalled(previous.isolatedId) || network?.edges.some(e => e.id === previous.isolatedId)) ? previous.isolatedId : null
+    set({ roomChanges, rooms, isolatedId, location: null, report: calculate({ ...previous, rooms, isolatedId }, network) })
+    useShelterStore.setState({ installedRooms: rooms, mepNetwork: network, waterTrace: null, hoveredValve: null,
+      ...(view.roomId && rooms.find(r => r.id === view.roomId) !== previous.rooms.find(r => r.id === view.roomId) ? {anchorIndex: 0} : {}),
+      ...(view.equipmentTag && !isInstalled(view.equipmentTag) ? {equipmentTag: null} : {}),
+    })
+  },
   location: null,
   panel: null,
   lockdownStartedAt: null,
@@ -124,7 +144,7 @@ useShelterStore.subscribe((s, previous) => {
       return
     }
   }
-  if (s.time !== previous.time || s.mepNetwork !== previous.mepNetwork) operations.refresh()
+  if (s.time !== previous.time || (s.mepNetwork !== previous.mepNetwork && s.installedRooms === previous.installedRooms)) operations.refresh()
 })
 
 export function inspectLocation(location: Location) {

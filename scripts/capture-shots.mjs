@@ -7,6 +7,7 @@ if (process.argv[2] === 'v3') {
   process.exit(0)
 }
 
+import { reviewM6 } from './review-m6.mjs'
 import { chromium } from 'playwright'
 import { preview } from 'vite'
 import { createHash } from 'node:crypto'
@@ -17,7 +18,8 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm5-v1lite'
+const milestone = process.argv[2] ?? 'm6'
+const m6 = milestone === 'm6'
 const m5 = milestone === 'm5-v1lite' || milestone === 'wave1'
 if (!m5 && !/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
@@ -67,12 +69,12 @@ try {
   }
   server = await preview({ root, preview: { host: '127.0.0.1', port: 0, open: false }, logLevel: 'error' })
   const executablePath = process.env.CHROME_PATH
-  const channel = m5 ? 'chrome' : existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
+  const channel = m5 || m6 ? 'chrome' : existsSync(chromium.executablePath()) ? 'chromium' : 'chrome'
   browser = await chromium.launch({
     executablePath,
     channel: executablePath ? undefined : channel,
     headless: true,
-    args: m5 ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'],
+    args: m5 || m6 ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'],
   })
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },
@@ -107,8 +109,8 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
   async function openStage(stage, extra = '') {
-    const legacy = !m5 ? '&veg=v2' : ''
-    await page.goto(base + '/?quality=' + (m5 ? 3 : 2) + legacy + '&pilot=' + stage + extra, {
+    const legacy = !m5 && !m6 ? '&veg=v2' : ''
+    await page.goto(base + '/?quality=' + (m5 || m6 ? 3 : 2) + legacy + '&pilot=' + stage + extra, {
       waitUntil: 'networkidle',
     })
     await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
@@ -176,7 +178,7 @@ try {
         throw Error(id + ' 与其他档位的实际相机矩阵、投影或曝光不一致')
       cameraSettings.set(id, settings)
     }
-    if (operationsStudy) {
+    if (operationsStudy || m6) {
       // M4 changes the scenario field in the title block and adds two actions to the tool row.
       // Keep the full-frame difference for review; apply the existing visual tolerance to the model.
       controlRects.set(
@@ -252,7 +254,11 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('canvas[data-rendered=true][data-tour=idle][data-ready=settled]')
   }
-  for (const stage of m5 ? [] : materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
+  if (m6) await reviewM6(page, async name => {
+    await page.screenshot({ path: join(staging, name) })
+    captures.push(name)
+  })
+  for (const stage of m5 || m6 ? [] : materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
     if (stage !== 'r3') await openStage(stage)
     for (const [name, time, feet] of pilots)
       await capture(
@@ -318,7 +324,7 @@ try {
     await page.getByLabel('固定摄影机位').selectOption('pilot-bath')
     await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
   }
-  if (!materialStudy && !m5) {
+  if (!materialStudy && !m5 && !m6) {
     const cdp = await page.context().newCDPSession(page)
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
     await page.setViewportSize({ width: 390, height: 844 })
@@ -372,19 +378,24 @@ try {
     const before = join(
       root,
       'docs/shots',
-      m5 ? 'm4' : materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
+      m6 ? 'wave1' : m5 ? 'm4' : materialStudy ? 'm2.5b' : operationsStudy ? 'm3' : 'm2.5c',
       id + '.png',
     )
     const after = join(staging, id + '.png')
     const full = await comparePhotographs(review, before, after)
-    const result = operationsStudy
-      ? await comparePhotographs(review, before, after, controlRects.get(id))
+    const result = operationsStudy || m6
+      ? await comparePhotographs(review, before, after, controlRects.get(id), m6)
       : full
     console.log(id, '全幅较签收图', full, '模型画面', result)
+    if (m6) {
+      // Unchanged Wave 1 recaptures vary with exposure and moving crops (SSIM 0.963–1).
+      if (result.mean > 4 || result.ssim < 0.94) throw Error(id + ' 的模型结构或曝光偏离 Wave 1')
+      continue
+    }
     if (m5) continue // Sky brightness, room light and the controls intentionally change these views.
     if (operationsStudy && id === 'shot-03') {
       if (result.changed < 1) throw Error('极寒实拍缺少工况色彩与天气变化')
-    } else if (!materialStudy && !operationsStudy && id === 'shot-04') {
+    } else if (!m6 && !materialStudy && !operationsStudy && id === 'shot-04') {
       if (result.changed < 0.3) throw Error('X 光夜景未呈现新管网')
     } else if (result.mean > (materialStudy && id === 'shot-05' ? 10 : 1.5)) {
       throw Error(id + ' 超过签收画面色差范围')
@@ -412,7 +423,7 @@ try {
       console.log(name, '同机位室内反射差异', delta)
       if (!delta.changed) throw Error(name + ' 的反射未改变任何可辨像素')
     }
-  } else {
+  } else if (!m6) {
     for (const [name] of pilots) {
       const file = 'pilot/r3-' + name + '.png'
       const result = await comparePhotographs(

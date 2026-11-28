@@ -1,9 +1,12 @@
 import { crew } from '../src/data/crew'
 import { inspectionPath } from '../src/scene/camera/inspectionRoute'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { Vector3 } from 'three'
+import { Box3, DoubleSide, InstancedMesh, PerspectiveCamera, Raycaster, Vector2, Vector3 } from 'three'
 import { FLOORS, UNDERGROUND } from '../src/data/floors'
-import { roomsOn } from '../src/data/defaultBlueprint'
+import { roomTemplates, resolveRooms } from '../src/data/roomTemplates'
+import { drawEquipment } from '../src/scene/rooms/roomModels'
+import type { UndergroundId } from '../src/types/shelter'
+import { defaultBlueprint, roomsOn } from '../src/data/defaultBlueprint'
 import { adits, eastTransfer } from '../src/data/siteFacilities'
 import { equipmentSolids } from '../src/geometry/equipment'
 import { footprint, shaftPlans } from '../src/geometry/coords'
@@ -17,14 +20,14 @@ import {
   quietHall,
   westVestibule,
 } from '../src/geometry/residentialPlan'
-import { routeKey, routeToWalkPosition, surveyRoomRoutes } from '../src/scene/camera/roomRoutes'
+import { routeKey, routeToWalkPosition, surveyRoomFloor, surveyRoomRoutes } from '../src/scene/camera/roomRoutes'
 import { WalkCollision, WALK } from '../src/scene/camera/walkCollision'
 import { enclosure, structure, verticalCore } from '../src/scene/FloorSliceGroup'
 import { eastBore } from '../src/scene/terrain/SiteFacilities'
 import { ModelBuilder } from '../src/scene/utils/modelBuilder'
 import { appendSolids, positionGeometry } from '../src/scene/utils/solidGeometry'
 
-function undergroundWorld() {
+function undergroundWorld(rooms = defaultBlueprint.rooms, floors: readonly UndergroundId[] = UNDERGROUND) {
   const vertices: number[] = []
   function append(builder: ModelBuilder, elevation = 0) {
     const model = builder.build()
@@ -32,11 +35,11 @@ function undergroundWorld() {
     appendSolids(model.object, vertices, (mesh) => mesh.userData.finish !== 'lamp')
     model.dispose()
   }
-  for (const id of UNDERGROUND) {
+  for (const id of floors) {
     for (const builder of [structure(id), verticalCore(id), enclosure(id, 'rear'), enclosure(id, 'front')])
       append(builder, FLOORS[id].elevation)
     const equipment = new ModelBuilder()
-    for (const room of roomsOn(id))
+    for (const room of rooms.filter(r => r.floorId === id))
       for (const unit of room.equipment)
         for (const solid of equipmentSolids(unit)) equipment.box('#999999', solid.center, solid.size)
     append(equipment, FLOORS[id].elevation)
@@ -257,3 +260,41 @@ it.each(crew)('walks every stop on $name’s morning route through the actual ro
     }
   }
 })
+
+for (const template of roomTemplates) for (const host of template.roomIds.concat(template.trialRoomIds)) {
+  it(`${host} · ${template.name}机位可达且实际设备进入视野`, () => {
+    const rooms = resolveRooms({ [host]: template.id })
+    const room = rooms.find(r => r.id === host)!, floor = room.floorId as UndergroundId
+    const world = undergroundWorld(rooms, [floor])
+    const routes = new Map<string, Vector3[]>()
+    const model = new ModelBuilder()
+    for (const unit of room.equipment) drawEquipment(model, floor, unit)
+    const built = model.build()
+    try {
+      for (const _ of surveyRoomFloor(world, rooms, floor, routes)) { /* complete this floor survey */ }
+      const y = FLOORS[floor].elevation, a = room.cameraAnchors[0]
+      expect(routes.has(floor + routeKey(a.position[0], a.position[2]))).toBe(true)
+      const camera = new PerspectiveCamera(60, 1.55, 0.12, 50)
+      camera.position.set(...a.position).y += y
+      camera.lookAt(new Vector3(...a.target).add(new Vector3(0, y, 0)))
+      camera.updateMatrixWorld()
+      built.object.position.y = y
+      built.object.updateMatrixWorld(true)
+      const ray = new Raycaster(), seen = new Set<string>()
+      const inventory = new Map(room.equipment.map(unit => [unit.tagCode, new Box3().setFromCenterAndSize(
+        new Vector3(...unit.position).add(new Vector3(0, y + unit.moduleSizeM[1] / 2, 0)), new Vector3(...unit.moduleSizeM),
+      ).expandByScalar(0.06)]))
+      for (const u of [-0.86, -0.66, -0.45, -0.22, 0, 0.22, 0.45, 0.66, 0.86]) for (const v of [-0.83, -0.62, -0.41, -0.21, 0, 0.22]) {
+        ray.setFromCamera(new Vector2(u, v), camera)
+        const wall = world.raycastFirst(ray.ray, DoubleSide, 0.12, 50)
+        if (!u && !v) expect(wall?.distance ?? 50).toBeGreaterThan(1.8)
+        const hit = ray.intersectObject(built.object, true)[0]
+        if (!hit || hit.instanceId === undefined || !(hit.object instanceof InstancedMesh)) continue
+        const tag = hit.object.userData.equipmentTags?.[hit.instanceId]
+        if (wall && inventory.get(tag)?.containsPoint(wall.point)) seen.add(tag)
+      }
+      expect([...seen].some(tag => tag.includes(host.toUpperCase().replace('_', '-')))).toBe(true)
+      if (room.equipment.length > 1 && host !== 'b1_tactical') expect(seen.size).toBeGreaterThanOrEqual(2)
+    } finally { built.dispose(); world.dispose() }
+  })
+}

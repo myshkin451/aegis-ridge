@@ -3,6 +3,7 @@ import { useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { Vector3 } from 'three'
 import { useShelterStore } from '../../store/useShelterStore'
+import { useMeasurements } from '../../store/useMeasurements'
 import type { BoxFace } from '../../types/shelter'
 import type { SurveyRuntime } from './runtime'
 
@@ -30,7 +31,7 @@ export function SectionBoxTool({ rt }: { rt: SurveyRuntime }) {
     return new Float32Array(pts)
   }, [west, east, bottom, top, north, south])
   function drag(e: ThreeEvent<PointerEvent>, face: BoxFace, axis: number, position: Vector3) {
-    if (!active) return
+    if (!active || useMeasurements.getState().enabled) return
     e.stopPropagation()
     cleanup.current?.()
     rt.controls?.stop()

@@ -7,10 +7,12 @@ import { upperVisuals } from './upper'
 import { bedroomNumbers, residentialVisuals } from './residential'
 import { plantVisuals } from './plant'
 
+import { moduleVisuals } from './moduleVisuals'
+
 type EquipmentDraw = (builder: ModelBuilder, equipment: EquipmentUnit) => void
 type Visual = { type: 'procedural'; draw: EquipmentDraw } | { type: 'glb'; shape: 'dining-chair' }
 const registry: Record<string, Visual> = Object.fromEntries(
-  Object.entries({ ...upperVisuals, ...residentialVisuals, ...plantVisuals }).map(([kind, draw]) => [
+  Object.entries({ ...upperVisuals, ...residentialVisuals, ...plantVisuals, ...moduleVisuals }).map(([kind, draw]) => [
     kind,
     { type: 'procedural', draw },
   ]),
@@ -51,9 +53,9 @@ export function drawEquipment(builder: ModelBuilder, _floor: FloorId, unit: Equi
 }
 
 /** One batch per primitive and finish across the entire floor, including all dining chairs. */
-export function roomModels(floor: FloorId) {
+export function roomModels(floor: FloorId, rooms = roomsOn(floor)) {
   const builder = new ModelBuilder()
-  for (const room of roomsOn(floor)) for (const unit of room.equipment) drawEquipment(builder, floor, unit)
+  for (const room of rooms) for (const unit of room.equipment) drawEquipment(builder, floor, unit)
   if (floor === 'B2') bedroomNumbers(builder)
   return builder
 }

@@ -206,7 +206,7 @@ export function hasChpDucts(net: MepNetwork, unit: EquipmentUnit) {
   )
 }
 
-function batterySmoke(rooms: RoomInstance[], net: MepNetwork): Diagnostic {
+export function batterySmoke(rooms: RoomInstance[], net: MepNetwork): Diagnostic {
   const units = rooms
     .flatMap((r) => r.equipment)
     .filter(
@@ -221,7 +221,7 @@ function batterySmoke(rooms: RoomInstance[], net: MepNetwork): Diagnostic {
   return {
     id: 'battery-exhaust',
     label: '储能事故独立排烟',
-    roomId: 'b4_switchgear',
+    roomId: rooms.find(r => failed && r.equipment.includes(failed))?.id ?? 'b4_switchgear',
     status: failed ? 'FAIL' : units.length ? 'PASS' : 'WARN',
     equipmentTag: failed?.tagCode,
     value: failed ? failed.tagCode : units.length ? units.length + ' 列独立排烟' : '未配置储能',

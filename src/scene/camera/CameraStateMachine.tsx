@@ -23,6 +23,7 @@ import { footprint, shaftPlans } from '../../geometry/coords'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
 import type { CameraStateId } from '../../types/shelter'
 import { useShelterStore } from '../../store/useShelterStore'
+import { bindCameraReader, takeRestoredPose } from '../../store/sharedCamera'
 import { reduceMotion } from '../utils/Model'
 import type { SurveyRuntime } from './runtime'
 import { morphProjection } from './projection'
@@ -76,7 +77,7 @@ function desired(atlas: TerrainAtlas, aspect: number) {
     bearing = view === 'plan' ? v(0, 1, 0.00001) : v(-0.42, 1, 0.99)
     height = 36
     lens = 35
-    const room = defaultBlueprint.rooms.find((item) => item.id === s.roomId)
+    const room = s.installedRooms.find((item) => item.id === s.roomId)
     if (room) {
       const bounds = footprint(room.bounds)
       target.set(bounds.x, level + 0.62, bounds.z)
@@ -271,10 +272,17 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       old = active.current,
       oldView = previous.current
     const restored = resume.current?.revision === revision ? resume.current : null
+    const saved = takeRestoredPose(revision)
     resume.current = null
     if (restored) {
       goal.eye.copy(restored.eye)
       goal.look.copy(restored.look)
+    }
+    if (saved) {
+      goal.eye.set(...saved.eye)
+      goal.look.set(...saved.target)
+      if (saved.projection === 'perspective') goal.fov = saved.fov
+      else goal.height = saved.height
     }
     const exterior = view === 'site' && state.mode === 'exterior'
     if (exterior) constrainSite(atlas, goal.eye, goal.eye, goal.eye)
@@ -304,7 +312,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     previous.current = view
     cam.near = view === 'walkthrough' ? 0.12 : exterior ? 0.5 : 0.18
     cam.far = view === 'walkthrough' ? 350 : 15000
-    cam.zoom = 1
+    cam.zoom = saved?.zoom ?? 1
     if (cam instanceof PerspectiveCamera) {
       cam.fov = goal.fov
       cam.aspect = aspect
@@ -351,6 +359,14 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     window.addEventListener('pointerup', onCanvasPointerUp, true)
     gl.domElement.addEventListener('wheel', onCanvasWheel, { capture: true, passive: true })
     const canvas = gl.domElement
+    const unbindReader = bindCameraReader(() => {
+      if (rt.moving || useShelterStore.getState().cameraRevision !== revision)
+        throw new Error('相机正在转场，请在画面落稳后复制视角。')
+      const eye = cam.position.toArray(), target = rt.target.toArray(), zoom = cam.zoom
+      return cam instanceof PerspectiveCamera
+        ? { eye, target, zoom, projection: 'perspective', fov: cam.fov }
+        : { eye, target, zoom, projection: 'orthographic', height: cam.top - cam.bottom }
+    })
     canvas.dataset.view = view
     canvas.dataset.projection = goal.perspective ? 'perspective' : 'orthographic'
     canvas.dataset.ready = 'moving'
@@ -470,7 +486,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       }
     })
     const weight = legs.reduce((sum, l) => sum + l.weight, 0)
-    if (!old || reduceMotion() || sameView || restored || !verifiedPath) end()
+    if (!old || reduceMotion() || sameView || restored || saved || !verifiedPath) end()
     else {
       rt.moving = true
       rt.garageTransfer = dive || rise
@@ -557,6 +573,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
       window.addEventListener(event, skip, true)
     return () => {
+      unbindReader()
       gl.domElement.removeEventListener('pointerdown', onCanvasPointerDown, true)
       window.removeEventListener('pointerup', onCanvasPointerUp, true)
       gl.domElement.removeEventListener('wheel', onCanvasWheel, true)

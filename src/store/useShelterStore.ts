@@ -32,6 +32,7 @@ interface ShelterView {
   plenum: boolean
   walkCeiling: boolean
   layers: Record<SystemId, boolean>
+  installedRooms: typeof defaultBlueprint.rooms
   mepNetwork: MepNetwork | null
   waterTrace: string | null
   hoveredValve: string | null
@@ -123,6 +124,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   plenum: true,
   walkCeiling: true,
   layers: allLayers,
+  installedRooms: defaultBlueprint.rooms,
   mepNetwork: null,
   waterTrace: null,
   hoveredValve: null,
@@ -194,7 +196,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
     ),
   inspect: (roomId, equipmentTag, edgeId) =>
     set((s) => {
-      const room = defaultBlueprint.rooms.find((r) => r.id === roomId)
+      const room = s.installedRooms.find((r) => r.id === roomId)
       const unit = room?.equipment.find((u) => u.tagCode === equipmentTag)
       const edge = s.mepNetwork?.edges.find((e) => e.id === edgeId)
       const floor = edge?.floor ?? room?.floorId
@@ -223,7 +225,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   selectAnchor: (anchorIndex) => set({ anchorIndex }),
   enterRoom: () =>
     set((s) => {
-      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+      const room = s.installedRooms.find((r) => r.id === s.roomId)
       const anchor = room?.cameraAnchors[s.anchorIndex]
       if (!room || !anchor) return s
       const y = FLOORS[room.floorId].elevation
@@ -237,7 +239,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
     }),
   refocus: () =>
     set((s) => {
-      const room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+      const room = s.installedRooms.find((r) => r.id === s.roomId)
       if (!room) return { cameraRevision: s.cameraRevision + 1 }
       return {
         ...viewFields(s, s.cameraState === 'plan' ? 'plan' : 'floorOrbit'),

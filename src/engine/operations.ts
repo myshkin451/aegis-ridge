@@ -7,8 +7,7 @@ import { simulateMaintenance } from './maintenance'
 import { design, type OperatingPoint } from './model'
 
 export type { Diagnostic, MaintenanceResult, OperatingPoint, Scenario, Status } from './model'
-export function evaluateOperations(point: OperatingPoint, network: MepNetwork | null) {
-  const rooms = defaultBlueprint.rooms
+export function evaluateOperations(point: OperatingPoint, network: MepNetwork | null, rooms = defaultBlueprint.rooms) {
   const maintenance =
     point.isolatedId && network ? simulateMaintenance(point.isolatedId, network, rooms) : null
   const offline = [...(maintenance?.offlineTags ?? [])]

@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useMemo } from 'react'
 import { crew, responsibilityEdges } from '../../data/crew'
 import { useCrewTour } from '../../store/useCrewTour'
-import { buildMepNetwork } from '../../data/mepNetwork'
+import { buildMepNetwork, configuredNetwork } from '../../data/mepNetwork'
 import { FLOOR_ORDER } from '../../data/floors'
 import { getFloorElevation } from '../../geometry/coords'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
@@ -17,13 +17,32 @@ import { reduceMotion } from '../utils/Model'
 export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyRuntime }) {
   const gl = useThree((s) => s.gl),
     get = useThree((s) => s.get)
-  const network = useMemo(() => buildMepNetwork(atlas), [atlas])
-  const model = useMemo(() => buildMep(network), [network])
+  const rooms = useOperationsStore(s => s.rooms)
+  const base = useMemo(() => buildMepNetwork(atlas), [atlas])
+  const network = useMemo(() => configuredNetwork(base, rooms), [base, rooms])
+  const model = useMemo(() => buildMep(base), [base])
+  const addition = useMemo(() => {
+    if (base === network) return null
+    const branch = buildMep({ ...network, edges: network.edges.slice(base.edges.length), nodes: network.nodes.slice(base.nodes.length) }, [])
+    // Share the live clipping, routing and display uniforms; each batch keeps its own ID mask and label atlas.
+    const shared = ['uPlenum', 'uNight', 'uFloor', 'uLayer', 'uLow', 'uHigh', 'uFlow'] as const
+    for (const key of shared) Object.assign(branch.uniforms, { [key]: model.uniforms[key] })
+    return branch
+  }, [base, network, model])
+  const work = useMemo(() => maintenanceOverlay(base, model.uniforms.uLow.value, model.uniforms.uHigh.value), [base, model])
+  useLayoutEffect(() => {
+    model.root.add(work.mesh)
+    return () => { model.root.remove(work.mesh); work.dispose(); model.dispose() }
+  }, [model, work])
   useLayoutEffect(() => {
     const canvas = gl.domElement
-    const work = maintenanceOverlay(network, model.uniforms.uLow.value, model.uniforms.uHigh.value)
-    model.root.add(work.mesh)
-    const pass = surveyPicker(model, rt, canvas, () => get().camera, get().scene)
+    work.setNetwork(network)
+    if (addition) {
+      model.drawing.add(addition.drawing)
+      model.physical.add(addition.physical)
+    }
+    const picking = addition ? { ...model, spans: model.spans.concat(addition.spans), serviceSpans: model.serviceSpans.concat(addition.serviceSpans) } : model
+    const pass = surveyPicker(picking, rt, canvas, () => get().camera, get().scene)
     const assignments = new Map(crew.map(member => [member.id, { rooms: member.roomIds, edges: responsibilityEdges(member, network) }]))
     function layers() {
       const s = useShelterStore.getState(),
@@ -59,7 +78,9 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
         ops.location?.roomId ?? maintenance?.roomId,
         Boolean(maintenance),
         useCrewTour.getState().panel ? assignments.get(useCrewTour.getState().selected ?? '') : undefined,
+        network,
       )
+      addition?.mark(s.waterTrace, s.hoveredValve, undefined, Boolean(maintenance), useCrewTour.getState().panel ? assignments.get(useCrewTour.getState().selected ?? '') : undefined, network)
       if (s.routeOverview) model.affected.visible = false
       canvas.dataset.routeOverview = String(s.routeOverview)
       canvas.dataset.maintenanceSegments = String(work.mesh.count)
@@ -106,13 +127,16 @@ export function MepNetworkScene({ atlas, rt }: { atlas: TerrainAtlas; rt: Survey
       stop()
       stopWork()
       stopCrew()
-      model.root.remove(work.mesh)
-      work.dispose()
       pass.dispose()
-      model.dispose()
-      useShelterStore.getState().setMepNetwork(null)
+      if (addition) {
+        model.drawing.remove(addition.drawing)
+        model.physical.remove(addition.physical)
+        addition.root.add(addition.drawing, addition.physical)
+        addition.dispose()
+      }
+
     }
-  }, [network, model, rt, gl, get])
+  }, [network, model, addition, work, rt, gl, get])
   useFrame(({ camera }, dt) => {
     const s = useShelterStore.getState()
     if (model.root.visible && !s.routeOverview) {

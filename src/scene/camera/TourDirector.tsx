@@ -4,6 +4,7 @@ import { Vector3 } from 'three'
 import { crewById } from '../../data/crew'
 import { FLOORS } from '../../data/floors'
 import { useCrewTour, startTour, stopTour } from '../../store/useCrewTour'
+import { viewParameter } from '../../data/blueprintDocument'
 import { useOperationsStore } from '../../store/useOperationsStore'
 import { useShelterStore } from '../../store/useShelterStore'
 import { walkRevealUniforms } from '../mep/lens'
@@ -89,6 +90,7 @@ export function TourDirector({ rt }: { rt: SurveyRuntime }) {
       }
     }
     const first = () => {
+      if (new URLSearchParams(location.search).has(viewParameter)) return
       try {
         if (localStorage.getItem('ars-opening-seen') || matchMedia('(prefers-reduced-motion: reduce)').matches) return
         localStorage.setItem('ars-opening-seen', '1')

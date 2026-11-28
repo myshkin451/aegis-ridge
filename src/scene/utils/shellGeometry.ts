@@ -124,7 +124,8 @@ export function partition(
     thickness: number,
     tint: string,
     finish: 'stone' | 'steel' | 'glass' = 'stone',
-  ) => m.box(tint, p(at, y), axis === 'x' ? [length, height, thickness] : [thickness, height, length], finish)
+    cutLabel = finish === 'glass' ? '观察窗玻璃' : finish === 'stone' ? '实墙面' : '隔墙钢构件',
+  ) => m.box(tint, p(at, y), axis === 'x' ? [length, height, thickness] : [thickness, height, length], finish, undefined, cutLabel)
   // The duct penetrates a packed sleeve above door heads. Build the continuous
   // masonry crown around that opening so the reveal and the walk BVH agree.
   const sleeves =
@@ -187,8 +188,8 @@ export function partition(
       right = at + d.width / 2
     solid(cursor, left)
     box(at, (h + d.height) / 2, d.width, h - d.height, 0.15, stone)
-    for (const jamb of [left, right]) box(jamb, d.height / 2, 0.08, d.height, 0.21, steel, 'steel')
-    box(at, d.height, d.width + 0.08, 0.1, 0.21, steel, 'steel')
+    for (const jamb of [left, right]) box(jamb, d.height / 2, 0.08, d.height, 0.21, steel, 'steel', '门框')
+    box(at, d.height, d.width + 0.08, 0.1, 0.21, steel, 'steel', '门框')
     cursor = right
   }
   solid(cursor, end)

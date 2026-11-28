@@ -86,7 +86,7 @@ function makePool() {
 
 export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
   const pool = useMemo(makePool, [])
-  const previous = useMemo(() => ({ room: '', time: '', emergency: false, door: -1 }), [])
+  const previous = useMemo(() => ({ room: '', time: '', emergency: false, door: -1, rooms: useShelterStore.getState().installedRooms }), [])
   useLayoutEffect(() => () => pool.spots.forEach((spot) => spot.dispose()), [pool])
   useFrame(({ camera, gl }) => {
     const s = useShelterStore.getState()
@@ -104,9 +104,11 @@ export function InteriorLightPool({ rt }: { rt: SurveyRuntime }) {
       previous.room = room
       previous.time = s.time
     }
+    const installationChanged = previous.rooms !== s.installedRooms
+    previous.rooms = s.installedRooms
     previous.emergency = emergency
     previous.door = rt.doorRevision
-    if (room && (moved || doorChanged || circuitChanged || coneChanged)) {
+    if (room && (moved || doorChanged || circuitChanged || coneChanged || installationChanged)) {
       pool.spots.forEach((spot) => { spot.shadow.needsUpdate = true })
       gl.shadowMap.needsUpdate = true
     }

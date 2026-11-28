@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { crew, crewById, type CrewMember } from '../data/crew'
-import { defaultBlueprint } from '../data/defaultBlueprint'
 import { siteFacilities } from '../data/siteFacilities'
 import { bedrooms } from '../geometry/residentialPlan'
 import { closeCrew, selectMember, startTour, toggleCrew, useCrewTour } from '../store/useCrewTour'
@@ -8,8 +7,6 @@ import { useOperationsStore } from '../store/useOperationsStore'
 import { useShelterStore } from '../store/useShelterStore'
 import '../styles/crew.css'
 
-const names = new Map(defaultBlueprint.rooms.map(r => [r.id, r.name]))
-const roomName = (id: string) => names.get(id) ?? id
 const networkNames = {
   power: '强电桥架', data: '通信桥架', supply: '给水', drain: '重力排水', vacuum: '真空排污',
   airSupply: '送风', airReturn: '回排风', exhaust: '专用排气', hydrogen: '氢气', heat: '热媒水',
@@ -33,6 +30,8 @@ export function CrewButton({ onToggle }: { onToggle?: () => void }) {
 
 export function CrewSheet() {
   const panel = useCrewTour(s => s.panel)
+  const rooms = useOperationsStore(s => s.rooms)
+  const roomName = (id: string) => rooms.find(r => r.id === id)?.name ?? id
   const selected = useCrewTour(s => s.selected)
   const member = selected ? crewById.get(selected) : undefined
   useEffect(() => {
@@ -52,7 +51,7 @@ export function CrewSheet() {
   if (!panel || !member) return null
   const cabin = bedrooms.find(b => b.id === member.bedroomId)!
   function locateRoom(id: string) {
-    const room = defaultBlueprint.rooms.find(r => r.id === id)!
+    const room = rooms.find(r => r.id === id)!
     useShelterStore.getState().setView('plan')
     useShelterStore.getState().selectFloor(room.floorId)
   }

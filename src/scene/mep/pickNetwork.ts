@@ -125,7 +125,7 @@ export function surveyPicker(
     if (e.button !== 0 || !pressed) return
     const dragged = Math.hypot(e.clientX - pressed[0], e.clientY - pressed[1]) > 4
     pressed = null
-    if (dragged) return
+    if (dragged || e.defaultPrevented) return
     position(e)
     const point = document.pointerLockElement === canvas ? centre : uv
     const repairing = useOperationsStore.getState().panel === 'maintenance'

@@ -148,11 +148,13 @@ function edgeIsolation(edge: MepEdge, net: MepNetwork, rooms: RoomInstance[]) {
     let endpoint = n.id
     if (!intact.has(endpoint) && edge.kind === 'power' && /^[AB]-[bl]/.test(n.id))
       endpoint = (n.id.startsWith('A-') ? 'B-' : 'A-') + n.roomId
+    const branchUnit = rooms.find(r => r.id === n.roomId)?.equipment.find(e => n.id === e.tagCode + '-feed' || n.id === e.tagCode + '-tap')
     if (intact.has(endpoint)) {
       collectPath(intact, endpoint, backup)
     } else {
       affected.add(n.roomId!)
-      if (edge.kind === 'power')
+      if (branchUnit) offline.add(branchUnit.tagCode)
+      else if (edge.kind === 'power')
         rooms.find((r) => r.id === n.roomId)?.equipment.forEach((e) => offline.add(e.tagCode))
     }
   }
@@ -180,6 +182,10 @@ function edgeIsolation(edge: MepEdge, net: MepNetwork, rooms: RoomInstance[]) {
   for (const tag of ['TK-301A', 'TK-301B']) if (edge.from === tag) offline.add(tag)
   if (edge.kind === 'supply' && affected.has('b2_bath_laundry')) offline.add('bath-supply')
   if (edge.kind === 'supply' && affected.has('b4_cbrn_hvac')) offline.add('OX-452')
+  for (const room of rooms) for (const unit of room.equipment) {
+    if (unit.cropKind && (edge.kind === 'supply' || edge.kind === 'drain') && affected.has(room.id) && dependent.has(unit.tagCode + '-tap')) offline.add(unit.tagCode)
+    if (unit.storageKwh && unit.servicePorts?.some(p => edge.id === p.id + '-branch' || edge.id === p.id + '-riser')) offline.add(unit.tagCode)
+  }
   if (edge.kind === 'supply' && affected.has('b3_hydroponics')) {
     rooms.find((r) => r.id === 'b3_hydroponics')?.equipment.forEach((e) => offline.add(e.tagCode))
   }

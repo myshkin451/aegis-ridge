@@ -1,12 +1,14 @@
 import { buffer, footprint, shaftPlans, undergroundPlan } from '../geometry/coords'
 import { groundAt, type TerrainAtlas } from '../geometry/siteElevations'
-import { roomsOn } from './defaultBlueprint'
+import { defaultBlueprint, roomsOn } from './defaultBlueprint'
 import { BRANCH_CORRIDOR, CORRIDOR, UNDERGROUND } from './floors'
 import { adits, eastTransfer, refuge, refugeJunction, siteFacilities } from './siteFacilities'
 import { buildDistribution } from './mepNetworkDistribution'
 import { local, NetworkBuilder, portPoint, type MepKind, type MepNode } from './mepNetworkSchema'
 import { buildWater } from './mepNetworkWater'
 import { doors } from '../geometry/doors'
+import { connectModuleBranches } from './moduleBranches'
+import type { MepNetwork } from './mepNetworkSchema'
 import type { Point3 } from '../types/shelter'
 
 export type { MepNode, MepEdge, MepSystem, MepKind, MepNetwork } from './mepNetworkSchema'
@@ -279,12 +281,26 @@ function freightAndStructure(b: NetworkBuilder) {
   }
 }
 
-export function buildMepNetwork(atlas: TerrainAtlas) {
+type Survey = { atlas: TerrainAtlas; base: MepNetwork; variants: WeakMap<typeof defaultBlueprint.rooms, MepNetwork> }
+const surveys = new WeakMap<MepNetwork, Survey>()
+export function configuredNetwork(network: MepNetwork, rooms: typeof defaultBlueprint.rooms) {
+  const survey = surveys.get(network)
+  if (!survey || rooms === defaultBlueprint.rooms) return survey?.base ?? network
+  const cached = survey.variants.get(rooms)
+  if (cached) return cached
+  const result = connectModuleBranches(survey.base, survey.atlas, rooms)
+  surveys.set(result, survey)
+  survey.variants.set(rooms, result)
+  return result
+}
+export function buildMepNetwork(atlas: TerrainAtlas, rooms = defaultBlueprint.rooms) {
   const b = new NetworkBuilder(atlas)
   buildWater(b)
   buildDistribution(b)
   equipmentBranches(b)
   freightAndStructure(b)
   zoneBoundaries(b)
-  return b.finish()
+  const base = b.finish()
+  surveys.set(base, { base, atlas, variants: new WeakMap() })
+  return configuredNetwork(base, rooms)
 }

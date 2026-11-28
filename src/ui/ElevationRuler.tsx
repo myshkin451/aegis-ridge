@@ -30,7 +30,7 @@ export function ElevationRuler() {
       </div>
       <div className="rail" ref={rail}>
         <i className="band granite" style={segment(buffer.interfaceY, buffer.bottom)} />
-        <i className="band cap" style={segment(0, buffer.interfaceY)} />
+        <i className="band cap" style={segment(buffer.top, buffer.interfaceY)} />
         <span className="rock-label" style={segment(0, buffer.bottom)}>
           6.0 m
         </span>
@@ -70,7 +70,10 @@ export function ElevationRuler() {
           aria-valuemax={FLOORS[current].pitch - 0.02}
           aria-valuenow={s.cutHeight}
           aria-valuetext={current + ' FL+' + s.cutHeight.toFixed(3) + ' m'}
-          style={{ '--start': rulerFraction(base + s.cutHeight) * 100 + '%' } as CSSProperties}
+          style={{
+            '--start': rulerFraction(base + s.cutHeight) * 100 + '%',
+            '--label-shift': -rulerFraction(base + s.cutHeight) * 100 + '%',
+          } as CSSProperties}
           onPointerDown={(e) => {
             if (s.cameraState !== 'plan' && s.cameraState !== 'floorOrbit') s.setView('plan')
             drag.current = true
@@ -84,7 +87,7 @@ export function ElevationRuler() {
             if (['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'].includes(e.key)) {
               e.preventDefault()
               if (s.cameraState !== 'floorOrbit' && s.cameraState !== 'plan') s.setView('plan')
-              s.setCutHeight(s.cutHeight + (['ArrowUp', 'ArrowRight'].includes(e.key) ? 0.05 : -0.05))
+              s.setCutHeight(s.cutHeight + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? 0.05 : -0.05))
             }
           }}
         >

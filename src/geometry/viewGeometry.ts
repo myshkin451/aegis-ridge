@@ -7,8 +7,8 @@ export const rulerTop = floorSection('L2').cap
 export const rulerBottom = floorSection('B4').slabBottom
 export const rulerFraction = (y: number) => (rulerTop - y) / (rulerTop - rulerBottom)
 export const floorAt = (y: number) => FLOOR_ORDER.find((id) => y >= FLOORS[id].elevation - 0.02) ?? 'B4'
-export function roomAt(floor: FloorId, x: number, z: number) {
-  return defaultBlueprint.rooms.find((room) => {
+export function roomAt(floor: FloorId, x: number, z: number, rooms = defaultBlueprint.rooms) {
+  return rooms.find((room) => {
     if (room.floorId !== floor) return false
     const r = footprint(room.bounds)
     return x >= r.x0 && x < r.x1 && z >= r.z0 && z < r.z1

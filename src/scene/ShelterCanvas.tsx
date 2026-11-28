@@ -28,6 +28,7 @@ import { SceneReadouts } from './camera/SceneReadouts'
 import { surveyRuntime } from './camera/runtime'
 import { DrawingMarks } from './DrawingMarks'
 import { MepNetworkScene } from './mep/MepNetworkScene'
+import { MeasurementScene } from './measurement/MeasurementScene'
 
 function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const { atlas, surface } = useTerrainSurvey()
@@ -65,6 +66,7 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <TourDirector rt={rt} />
         <Soundscape />
         <SceneReadouts rt={rt} />
+        <MeasurementScene rt={rt} />
         <SunShadows rt={rt} />
         <RenderPipeline />
       </QualityControl>}

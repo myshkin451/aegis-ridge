@@ -6,6 +6,7 @@ import { AtlasLoader } from './loadAtlas'
 import { terrainV2 } from './terrainVersion'
 import { makeSurveyTextures } from './surveyTextures'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
+import { initializeBlueprintSession } from '../../store/blueprintSession'
 
 export type TerrainSurface = { scans: DataArrayTexture; survey: ReturnType<typeof makeSurveyTextures> }
 type Loaded = { atlas: TerrainAtlas; surface: TerrainSurface | null }
@@ -16,6 +17,7 @@ export function useTerrainSurvey() {
   const [failure, setFailure] = useState<Error>()
   useEffect(() => {
     let active = true
+    let closeSession: (() => void) | undefined
     let surface: TerrainSurface | null = null
     // Fetch both branches alongside the interior preload. Mount the whole survey
     // together so the existing CSM registration sees all three terrain materials.
@@ -37,6 +39,7 @@ export function useTerrainSurvey() {
         gl.initTexture(surface.survey.horizons)
       }
       gl.domElement.dataset.terrain = surface ? 'v2' : 'v1'
+      closeSession = initializeBlueprintSession(field.value)
       setLoaded({ atlas: field.value, surface })
     }
     prepare().catch((error) => {
@@ -44,6 +47,7 @@ export function useTerrainSurvey() {
     })
     return () => {
       active = false
+      closeSession?.()
       surface?.scans.dispose()
       surface?.survey.dispose()
     }

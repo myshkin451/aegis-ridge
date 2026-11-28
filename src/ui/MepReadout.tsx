@@ -1,11 +1,10 @@
-import { defaultBlueprint } from '../data/defaultBlueprint'
 import { useShelterStore } from '../store/useShelterStore'
 
 import { openMaintenance } from './OperationsSheet'
 
-const roomNames = new Map(defaultBlueprint.rooms.map((room) => [room.id, room.name]))
 
 export function MepReadout() {
+  const installed = useShelterStore(s => s.installedRooms)
   const network = useShelterStore((s) => s.mepNetwork)
   const hovered = useShelterStore((s) => s.hoveredValve)
   const selected = useShelterStore((s) => s.waterTrace)
@@ -30,7 +29,7 @@ export function MepReadout() {
           </div>
           <div>
             <dt>受影响房间</dt>
-            <dd>{rooms.map((id) => roomNames.get(id) ?? id).join('、') || '无下游房间'}</dd>
+            <dd>{rooms.map((id) => installed.find(r => r.id === id)?.name ?? id).join('、') || '无下游房间'}</dd>
           </div>
         </dl>
       </section>

@@ -2,7 +2,7 @@ import { CrewButton, CrewSheet, TourCaption } from './CrewSheet'
 import { PhotoButton, PhotoFrame } from './PhotoMode'
 import { useClockPlayback } from './ShiftClock'
 import { useEffect, useRef, useState } from 'react'
-import { defaultBlueprint, roomsOn } from '../data/defaultBlueprint'
+import { roomsOn } from '../data/defaultBlueprint'
 import { FLOORS, FLOOR_ORDER } from '../data/floors'
 import { photo, photographs } from '../data/photographs'
 import type { ShotId } from '../data/photographs'
@@ -14,7 +14,9 @@ import { systems, useShelterStore } from '../store/useShelterStore'
 import { ElevationRuler } from './ElevationRuler'
 import { ConditionField, OperationsSheet, openMaintenance } from './OperationsSheet'
 import { useOperationsStore } from '../store/useOperationsStore'
+import { useMeasurements } from '../store/useMeasurements'
 import { MepReadout } from './MepReadout'
+import { BlueprintSheet, BlueprintNotice } from './BlueprintSheet'
 
 const names: Record<CameraStateId, string> = {
   site: '现场',
@@ -58,8 +60,9 @@ const boxNames: Record<BoxFace, string> = {
 }
 const views: CameraStateId[] = ['site', 'section', 'sectionBox', 'plan', 'floorOrbit', 'walkthrough']
 function Sheet({ close }: { close: () => void }) {
+  const rooms = useOperationsStore((o) => o.rooms)
   const s = useShelterStore(),
-    room = defaultBlueprint.rooms.find((r) => r.id === s.roomId)
+    room = rooms.find((r) => r.id === s.roomId)
   if (!room) return null
   const f = FLOORS[room.floorId],
     p = footprint(room.bounds),
@@ -219,7 +222,9 @@ function WalkHud() {
 }
 export function Instruments() {
   useClockPlayback()
+  const rooms = useOperationsStore((o) => o.rooms)
   const panel = useOperationsStore((s) => s.panel)
+  const measuring = useMeasurements((s) => s.enabled)
   const scenario = useOperationsStore((s) => s.scenario)
   const people = useOperationsStore((s) => s.people)
   const isolatedId = useOperationsStore((s) => s.isolatedId)
@@ -273,6 +278,11 @@ export function Instruments() {
       const v = useShelterStore.getState(),
         k = e.key.toLowerCase()
       if (k === 'escape') {
+        if (useMeasurements.getState().enabled) {
+          useMeasurements.getState().toggle()
+          e.preventDefault()
+          return
+        }
         if (open) {
           setOpen(null)
           return
@@ -372,16 +382,20 @@ export function Instruments() {
         <div className="tool-row">
           <CrewButton onToggle={() => setOpen(null)} />
           <PhotoButton />
-          {(['health', 'maintenance'] as const).map((kind) => (
+          {(['health', 'maintenance', 'blueprint'] as const).map((kind) => (
             <button
               key={kind}
               aria-pressed={panel === kind}
               onClick={() => {
                 setOpen(null)
+                if (kind === 'blueprint' && measuring && panel !== kind) {
+                  useMeasurements.getState().toggle()
+                  return
+                }
                 useOperationsStore.getState().open(panel === kind ? null : kind)
               }}
             >
-              {kind === 'health' ? '工程体检' : '模拟隔离检修'}
+              {{ health: '工程体检', maintenance: '模拟隔离检修', blueprint: measuring && panel !== kind ? '结束测距' : '蓝图工具' }[kind]}
             </button>
           ))}
           <button aria-expanded={open === 'views'} onClick={() => setOpen(open === 'views' ? null : 'views')}>
@@ -452,7 +466,7 @@ export function Instruments() {
                 <option value="">选择房间</option>
                 {FLOOR_ORDER.map((id) => (
                   <optgroup key={id} label={id}>
-                    {roomsOn(id).map((r) => (
+                    {rooms.filter((r) => r.floorId === id).map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
                       </option>
@@ -620,7 +634,8 @@ export function Instruments() {
       <CrewSheet />
       <TourCaption />
       <PhotoFrame />
-      {panel ? (
+      <BlueprintNotice />
+      {panel === 'blueprint' ? <BlueprintSheet /> : panel ? (
         <OperationsSheet key={panel} />
       ) : (
         <>

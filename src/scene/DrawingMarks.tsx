@@ -1,7 +1,6 @@
 import { useLayoutEffect, useMemo } from 'react'
 import { BufferGeometry, Float32BufferAttribute } from 'three'
 import { FLOORS, FLOOR_ORDER, GRID, UNDERGROUND } from '../data/floors'
-import { roomsOn } from '../data/defaultBlueprint'
 import { footprint, gridToWorld, undergroundPlan } from '../geometry/coords'
 import { useShelterStore } from '../store/useShelterStore'
 import { Inscription } from './rooms/Inscription'
@@ -49,6 +48,7 @@ const compactRoom: Record<string, string> = {
   b4_cbrn_hvac: '三防新风',
 }
 function Marks({ floor, plan }: { floor: keyof typeof FLOORS; plan: boolean }) {
+  const rooms = useShelterStore(s => s.installedRooms)
   const h = useShelterStore((s) => s.cutHeight),
     z = useShelterStore((s) => s.sectionZ)
   const y = FLOORS[floor].elevation + h + 0.04
@@ -75,12 +75,12 @@ function Marks({ floor, plan }: { floor: keyof typeof FLOORS; plan: boolean }) {
     <>
       <Rules points={pts} color="#484e4c" />
       {plan
-        ? roomsOn(floor).map((r, i) => {
+        ? rooms.filter(r => r.floorId === floor).map((r, i) => {
             const p = footprint(r.bounds)
             return (
               <Inscription
                 key={r.id}
-                text={floor + '-' + String(i + 1).padStart(2, '0') + '　' + compactRoom[r.id]}
+                text={floor + '-' + String(i + 1).padStart(2, '0') + '　' + (r.templateId === r.id ? compactRoom[r.id] : r.name)}
                 width={Math.min(p.w - 0.75, 7.2)}
                 height={0.87}
                 position={[p.x, y, p.z]}

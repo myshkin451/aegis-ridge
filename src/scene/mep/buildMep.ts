@@ -108,8 +108,7 @@ export interface PickSpan {
   plenum: boolean
 }
 
-export function buildMep(network: MepNetwork) {
-  const rooms = defaultBlueprint.rooms
+export function buildMep(network: MepNetwork, rooms = defaultBlueprint.rooms) {
   const valves = network.nodes.filter((n) => n.role === 'valve')
   const grades = network.edges
     .filter((e) => e.kind === 'drain')
@@ -407,15 +406,15 @@ export function buildMep(network: MepNetwork) {
   root.name = '六系统工程管网'
   root.userData.skipWalk = true
   root.add(drawing, physical, affected)
-  function mark(trace: string | null, valve: string | null, inspectionRoom?: string, inspectingRepair = false, duty?: { rooms: string[]; edges: string[] }) {
+  function mark(trace: string | null, valve: string | null, inspectionRoom?: string, inspectingRepair = false, duty?: { rooms: string[]; edges: string[] }, installed = network) {
     palette.mask.fill(0)
-    const chain = trace ? network.traceWater(trace) : new Set<string>()
+    const chain = trace ? installed.traceWater(trace) : new Set<string>()
     for (const id of duty?.edges ?? []) chain.add(id)
     for (const id of chain) {
       const index = edges.get(id)
       if (index !== undefined) palette.mask[index * 4] = 255
     }
-    const downstream = (valve ? network.affectedRooms(valve) : []).filter((id) => roomIndex.has(id))
+    const downstream = (valve ? installed.affectedRooms(valve) : []).filter((id) => roomIndex.has(id))
     for (const id of duty?.rooms ?? []) if (roomIndex.has(id) && !downstream.includes(id)) downstream.push(id)
     if (inspectionRoom && roomIndex.has(inspectionRoom) && !downstream.includes(inspectionRoom))
       downstream.push(inspectionRoom)

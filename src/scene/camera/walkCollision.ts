@@ -22,6 +22,16 @@ export function doorBlocks(door: Doorway, px: number, pz: number, opening: numbe
 
 export class WalkCollision {
   readonly tree: MeshBVH
+  private fittings?: MeshBVH
+  setFittings(geometry: BufferGeometry) {
+    this.fittings?.geometry.dispose()
+    this.fittings = new MeshBVH(geometry, { maxLeafTris: 12 })
+  }
+  raycastFirst(ray: Ray, side: typeof DoubleSide, near: number, far: number) {
+    const shell = this.tree.raycastFirst(ray, side, near, far)
+    const equipment = this.fittings?.raycastFirst(ray, side, near, shell?.distance ?? far)
+    return equipment ?? shell
+  }
   private ray = new Ray()
   private bounds = new Box3()
   private capsule = new Line3()
@@ -40,7 +50,7 @@ export class WalkCollision {
     if (car && Math.abs(y - car.elevation) <= WALK.step && car.deckAt(x, z)) return car.elevation
     this.ray.origin.set(x, y + WALK.step + 0.015, z)
     this.ray.direction.copy(down)
-    const hit = this.tree.raycastFirst(this.ray, DoubleSide, 0, 2 * WALK.step + 0.05)
+    const hit = this.raycastFirst(this.ray, DoubleSide, 0, 2 * WALK.step + 0.05)
     return hit && Math.abs(hit.face?.normal.y ?? 0) > 0.65 ? hit.point.y : undefined
   }
   stands(x: number, y: number, z: number, clearance = 0) {
@@ -58,13 +68,14 @@ export class WalkCollision {
     // The capsule can otherwise be wholly inside a broad cabinet and never touch a side triangle.
     this.ray.origin.set(x, floor + 0.025, z)
     this.ray.direction.set(0, 1, 0)
-    if (this.tree.raycastFirst(this.ray, DoubleSide, 0.001, WALK.height - 0.025)) return false
-    return !this.tree.shapecast({
+    if (this.raycastFirst(this.ray, DoubleSide, 0.001, WALK.height - 0.025)) return false
+    const contact: Parameters<MeshBVH['shapecast']>[0] = {
       intersectsBounds: (box) => box.intersectsBox(this.bounds),
       intersectsTriangle: (tri) =>
         Math.max(tri.a.y, tri.b.y, tri.c.y) > floor + WALK.step &&
         tri.closestPointToSegment(segment) < WALK.radius + clearance - 0.001,
-    })
+    }
+    return !(this.tree.shapecast(contact) || this.fittings?.shapecast(contact))
   }
   landing(feet: Vector3) {
     if (this.stands(feet.x, feet.y, feet.z)) return true
@@ -105,7 +116,7 @@ export class WalkCollision {
         .expandByPoint(segment.start)
         .expandByPoint(segment.end)
         .expandByScalar(WALK.radius + 0.01)
-      this.tree.shapecast({
+      const slide: Parameters<MeshBVH['shapecast']>[0] = {
         intersectsBounds: (box) => box.intersectsBox(this.bounds),
         intersectsTriangle: (tri) => {
           if (Math.max(tri.a.y, tri.b.y, tri.c.y) <= y + WALK.step + 0.002) return false
@@ -125,7 +136,9 @@ export class WalkCollision {
           p.add(n)
           return false
         },
-      })
+      }
+      this.tree.shapecast(slide)
+      this.fittings?.shapecast(slide)
       if (this.freightCar?.hitsSide(p.x, p.y, p.z, WALK.radius, WALK.height)) {
         // Slide along the side of the car, matching the capsule response along a static shaft wall.
         if (!this.freightCar.hitsSide(feet.x, p.y, p.z, WALK.radius, WALK.height)) p.x = feet.x
@@ -146,5 +159,6 @@ export class WalkCollision {
   }
   dispose() {
     this.geometry.dispose()
+    this.fittings?.geometry.dispose()
   }
 }

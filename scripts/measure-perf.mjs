@@ -1,3 +1,4 @@
+import { measureM6 } from './perf-m6.mjs'
 import { chromium } from 'playwright'
 import { preview } from 'vite'
 import { installTextureAudit } from './texture-storage-audit.mjs'
@@ -114,7 +115,8 @@ try {
       if (perf.ready && c) perf.minDpr = Math.min(perf.minDpr, c.width / c.clientWidth)
       if (perf.running && c) {
         const data = c.dataset
-        perf.frames.push([t - perf.prev, c.width, data.eye, Number(data.calls), Number(data.triangles)])
+        perf.frames.push([t - perf.prev, c.width, data.eye, Number(data.calls), Number(data.triangles),
+          data.tour === 'opening' ? data.tourCue : undefined])
       }
       perf.prev = t
       requestAnimationFrame(frame)
@@ -133,6 +135,19 @@ try {
     })
   page.setDefaultTimeout(30000)
   const origin = 'http://127.0.0.1:' + server.httpServer.address().port
+  // Start tracing before navigation so profiler startup does not interrupt the ready scene.
+  const cdp = await page.context().newCDPSession(page)
+  cdp.on('Tracing.dataCollected', ({ value }) => {
+    for (const e of value) if (e.name === 'thread_name' || e.name.endsWith('RunTask') || e.name.startsWith('ars-') || e.dur >= 10000) events.push(e)
+  })
+  await cdp.send('Tracing.start', {
+    // All top-level renderer tasks and User Timing boundaries remain in both modes.
+    // Request nested DevTools events only when diagnosing the work inside a long task.
+    categories: process.argv.includes('--diagnose')
+      ? 'toplevel,disabled-by-default-devtools.timeline,devtools.timeline,blink.user_timing'
+      : 'toplevel,blink.user_timing',
+    transferMode: 'ReportEvents',
+  })
   await page.goto(origin, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('canvas[data-rendered=true][data-ready=settled]')
   const env = await page.evaluate(() => {
@@ -160,6 +175,7 @@ try {
   if (!/ANGLE.*Metal.*Apple M1 Pro/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
     throw Error('实测需要 Apple M1 Pro / Chrome ANGLE Metal')
   if (!(env.ready <= 10000)) failures.push('首屏 GPU 交互就绪超过 10 s')
+  if (env.assetState.aoOutput !== 'composer') failures.push('环境遮蔽合成未写入 HDR 输出目标')
   const textureBytes = Number(env.assetState.pilotTextureBytes)
   const environmentBytes = Number(env.assetState.interiorEnvironmentBytes)
   if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 1_000_000_000))
@@ -171,14 +187,6 @@ try {
     env.assetState.pilotDomestic !== '7'
   )
     failures.push('首屏资源虽已请求，但未完整安装')
-  const cdp = await page.context().newCDPSession(page)
-  cdp.on('Tracing.dataCollected', ({ value }) => {
-    for (const e of value) if (e.name === 'thread_name' || e.name.endsWith('RunTask') || e.name.startsWith('ars-')) events.push(e)
-  })
-  await cdp.send('Tracing.start', {
-    categories: 'toplevel,disabled-by-default-devtools.timeline,devtools.timeline,blink.user_timing',
-    transferMode: 'ReportEvents',
-  })
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
   const cycle = () =>
     page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
@@ -208,6 +216,17 @@ try {
     const frames = result.frames,
       ms = frames.map((x) => x[0]).sort((a, b) => a - b)
     if (!frames.length) throw Error(label + ' 无有效动画帧')
+    if (label === 'M5 开场全程') {
+      const cues = new Map()
+      for (const [dt, , , , , cue] of frames) {
+        if (cue == null) continue
+        const sample = cues.get(cue) ?? { frames: 0, ms: 0 }
+        sample.frames++
+        sample.ms += dt
+        cues.set(cue, sample)
+      }
+      console.log('开场分镜 FPS', [...cues].map(([cue, s]) => cue + '=' + (1000 * s.frames / s.ms).toFixed(1)).join(' '))
+    }
     const widths = [...new Set(frames.map((f) => f[1]))],
       eyes = frames.map((f) => f[2]?.split(',').map(Number)).filter(Boolean)
     const row = {
@@ -737,6 +756,7 @@ try {
     await page.keyboard.press('w')
     await page.waitForSelector('canvas[data-tour=idle]')
   })
+  await measureM6(page, measure)
   async function checkDpr() {
     const min = await page.evaluate(() => window.surveyPerf.minDpr)
     console.log('自动画质最低 DPR', min, '目标', deviceScaleFactor)
@@ -786,7 +806,13 @@ try {
       (row.fps < 59.4 || row.p95 > 18)
     )
       failures.push(row.label + ' 未达到稳态帧率预算')
-    if (row.task > 50) failures.push(row.label + ' 主线程 ' + row.task.toFixed(2) + ' ms')
+    if (row.task > 50) {
+      const detail = events.filter(e => e !== longest && e.pid === longest.pid && e.tid === longest.tid &&
+        e.dur >= 10000 && e.ts >= longest.ts && e.ts + e.dur <= longest.ts + longest.dur)
+        .sort((a, b) => b.dur - a.dur).slice(0, 6)
+        .map(e => e.name + ' ' + (e.dur / 1000).toFixed(1) + ' ms').join(', ')
+      failures.push(row.label + ' 主线程 ' + row.task.toFixed(2) + ' ms' + (detail ? '（' + detail + '）' : ''))
+    }
     console.log(
       [
         row.label,
@@ -802,6 +828,7 @@ try {
     )
   }
   const peak = Math.max(...reports.map((r) => r.draws))
+  if (peak > 400) failures.push('M6 绘制调用峰值超过 400：' + peak)
   const download = env.assets.reduce((sum, a) => sum + a.bytes, 0)
   console.log('首屏资源总传输 B', env.transferred, '内容纹理 B', textureBytes, '环境图 B', environmentBytes)
   console.log(

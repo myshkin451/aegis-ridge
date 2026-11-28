@@ -175,7 +175,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
         kit.plane.setComponents(0, 1, 0, -(FLOORS[s.lastFloor].elevation + s.cutHeight))
         rt.hit = !!kit.ray.ray.intersectPlane(kit.plane, rt.readout)
       } else if (walking && rt.collision) {
-        const hit = rt.collision.tree.raycastFirst(kit.ray.ray, DoubleSide, 0.12, 350)
+        const hit = rt.collision.raycastFirst(kit.ray.ray, DoubleSide, 0.12, 350)
         rt.hit = !!hit
         if (hit) rt.readout.copy(hit.point)
       } else {

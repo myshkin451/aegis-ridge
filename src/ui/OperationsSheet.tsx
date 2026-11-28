@@ -1,7 +1,6 @@
 import { ShiftClock } from './ShiftClock'
 import { memo, useEffect, useState } from 'react'
 import { useLockdownTour } from '../store/useLockdownTour'
-import { defaultBlueprint } from '../data/defaultBlueprint'
 import { FLOOR_ORDER } from '../data/floors'
 import type { MepNetwork } from '../data/mepNetwork'
 import { useShelterStore } from '../store/useShelterStore'
@@ -16,7 +15,6 @@ import {
 } from '../store/useOperationsStore'
 import '../styles/operations.css'
 
-const rooms = new Map(defaultBlueprint.rooms.map((r) => [r.id, r]))
 
 function LockdownTourControl() {
   const active = useLockdownTour((s) => s.run !== null)
@@ -73,11 +71,12 @@ export function ConditionField() {
 }
 
 const TargetOptions = memo(function TargetOptions({ network }: { network: MepNetwork | null }) {
+  const rooms = useOperationsStore(s => s.rooms)
   return (
     <>
       {FLOOR_ORDER.map((floor) => (
         <optgroup label={floor + ' · 设备'} key={floor}>
-          {defaultBlueprint.rooms
+          {rooms
             .filter((r) => r.floorId === floor)
             .flatMap((r) =>
               r.equipment.map((unit) => (
@@ -117,7 +116,7 @@ export function OperationsSheet() {
     state.isolatedId ||
     selectedEdge ||
     selectedEquipment ||
-    defaultBlueprint.rooms[0].equipment[0].tagCode
+    state.rooms[0].equipment[0].tagCode
   const diagnostic = rows.find((r) => r.id === detail)
   const maintenanceMode = state.panel === 'maintenance'
   useEffect(() => {
@@ -205,7 +204,7 @@ export function OperationsSheet() {
                 {[
                   [
                     '受影响房间',
-                    maintenance.affectedRoomIds.map((id) => rooms.get(id)?.name ?? id).join('、') || '无',
+                    maintenance.affectedRoomIds.map((id) => state.rooms.find(r => r.id === id)?.name ?? id).join('、') || '无',
                   ],
                   ['隔离管段', maintenance.isolatedEdgeIds.join('、') || '无'],
                   ['备用管段', maintenance.backupEdgeIds.join('、') || '无'],
@@ -214,7 +213,7 @@ export function OperationsSheet() {
                   [
                     '搬运路径',
                     maintenance.route.length
-                      ? 'B1 仓库 → ' + (rooms.get(maintenance.roomId)?.name ?? maintenance.roomId)
+                      ? 'B1 仓库 → ' + (state.rooms.find(r => r.id === maintenance.roomId)?.name ?? maintenance.roomId)
                       : '无可用搬运路径',
                   ],
                 ].map(([key, value]) => (
@@ -273,7 +272,7 @@ export function OperationsSheet() {
                   <p className="diagnostic-detail">
                     {diagnostic.detail}
                     <br />
-                    {rooms.get(row.roomId)?.name}　{row.equipmentTag ?? row.edgeId}
+                    {state.rooms.find(r => r.id === row.roomId)?.name}　{row.equipmentTag ?? row.edgeId}
                   </p>
                 )}
               </div>

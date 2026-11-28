@@ -5,10 +5,10 @@ async function pngURL(path) {
   return 'data:image/png;base64,' + (await readFile(path)).toString('base64')
 }
 
-export async function comparePhotographs(page, before, after, excludedRects = []) {
+export async function comparePhotographs(page, before, after, excludedRects = [], compareStructure = false) {
   const urls = await Promise.all([pngURL(before), pngURL(after)])
   return page.evaluate(
-    async ({ urls, excludedRects }) => {
+    async ({ urls, excludedRects, compareStructure }) => {
       const canvas = document.createElement('canvas')
       canvas.width = 1440
       canvas.height = 900
@@ -25,6 +25,10 @@ export async function comparePhotographs(page, before, after, excludedRects = []
       let changed = 0,
         total = 0,
         count = 0
+      // Compare local luminance, contrast and structure over 8 × 8 image patches.
+      // Live snowfall and exposure adaptation can alter RGB values at an identical camera pose.
+      const columns = Math.ceil(canvas.width / 8)
+      const moments = compareStructure ? new Float64Array(columns * Math.ceil(canvas.height / 8) * 6) : null
       for (let i = 0; i < pixels[0].length; i += 4) {
         const x = (i / 4) % canvas.width,
           y = Math.floor(i / (4 * canvas.width))
@@ -38,10 +42,35 @@ export async function comparePhotographs(page, before, after, excludedRects = []
         const b = Math.abs(pixels[0][i + 2] - pixels[1][i + 2])
         total += r + g + b
         if (Math.max(r, g, b) >= 5) changed++
+        if (moments) {
+          const offset = (Math.floor(y / 8) * columns + Math.floor(x / 8)) * 6
+          const y0 = .299 * pixels[0][i] + .587 * pixels[0][i+1] + .114 * pixels[0][i+2]
+          const y1 = .299 * pixels[1][i] + .587 * pixels[1][i+1] + .114 * pixels[1][i+2]
+          moments[offset]++
+          moments[offset + 1] += y0
+          moments[offset + 2] += y1
+          moments[offset + 3] += y0*y0
+          moments[offset + 4] += y1*y1
+          moments[offset + 5] += y0*y1
+        }
       }
-      return { mean: +(total / (3 * count)).toFixed(4), changed: +((100 * changed) / count).toFixed(3) }
+      const result = { mean: +(total / (3 * count)).toFixed(4), changed: +((100 * changed) / count).toFixed(3) }
+      if (moments) {
+        let weighted = 0
+        for (let i = 0; i < moments.length; i += 6) {
+          const n = moments[i]
+          if (!n) continue
+          const a = moments[i+1]/n, b = moments[i+2]/n
+          const varianceSum = (moments[i+3]+moments[i+4])/n - a*a - b*b
+          const covariance = moments[i+5]/n - a*b
+          weighted += n * (2*a*b + 6.5025) / (a*a + b*b + 6.5025) *
+            (2*covariance + 58.5225) / (varianceSum + 58.5225)
+        }
+        result.ssim = +(weighted / count).toFixed(5)
+      }
+      return result
     },
-    { urls, excludedRects },
+    { urls, excludedRects, compareStructure },
   )
 }
 

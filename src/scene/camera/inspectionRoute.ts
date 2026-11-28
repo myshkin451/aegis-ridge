@@ -1,6 +1,6 @@
 import { Vector3 } from 'three'
 import { FLOORS, UNDERGROUND } from '../../data/floors'
-import { defaultBlueprint } from '../../data/defaultBlueprint'
+import { useShelterStore } from '../../store/useShelterStore'
 import { doors } from '../../geometry/doors'
 import { stairRun } from '../../geometry/stairs'
 import type { FloorId } from '../../types/shelter'
@@ -9,10 +9,9 @@ import { routeKey } from './roomRoutes'
 import { WALK } from './walkCollision'
 
 type Stop = CrewMember['route'][number]
-const roomMap = new Map(defaultBlueprint.rooms.map(r => [r.id, r]))
 export function inspectionStop(stop: Stop) {
-  const room = roomMap.get(stop.roomId)!
-  const anchor = room.cameraAnchors[stop.anchor ?? 0]
+  const room = useShelterStore.getState().installedRooms.find(r => r.id === stop.roomId)!
+  const anchor = room.cameraAnchors[stop.anchor ?? 0] ?? room.cameraAnchors[0]
   return { room, anchor, floor: room.floorId }
 }
 

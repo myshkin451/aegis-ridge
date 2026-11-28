@@ -2,7 +2,7 @@ import type { MepNetwork } from '../data/mepNetwork'
 import { doors } from '../geometry/doors'
 import type { RoomInstance } from '../types/shelter'
 import type { evaluateFeasibility } from './feasibility'
-import { checkGeometry } from './geometryChecks'
+import { batterySmoke, checkGeometry } from './geometryChecks'
 import { fitsFreight, hoistReachable, transportRoute } from './maintenance'
 import type { Diagnostic } from './model'
 
@@ -66,7 +66,12 @@ export function evaluateCompliance(
       cache.set(rooms, rows)
     }
   }
-  if (network && network.edges.some((e) => e.id === isolatedId && e.kind === 'freight'))
+  const isolated = network?.edges.find(edge => edge.id === isolatedId)
+  if (network && isolated?.kind === 'exhaust') {
+    const connected = { ...network, edges: network.edges.filter(edge => edge !== isolated) }
+    rows = rows.map(row => row.id === 'battery-exhaust' ? batterySmoke(rooms, connected) : row)
+  }
+  if (network && isolated?.kind === 'freight')
     rows = [
       ...rows.filter((r) => !r.id.startsWith('freight-')),
       ...inspectFreight(rooms, network, isolatedId),

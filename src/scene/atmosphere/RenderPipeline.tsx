@@ -16,6 +16,7 @@ import {
   Matrix4,
   Mesh,
   MeshStandardMaterial,
+  type Object3D,
   Quaternion,
   ShaderChunk,
   Vector3,
@@ -32,7 +33,7 @@ import {
   ToneMappingEffect,
   ToneMappingMode,
 } from 'postprocessing'
-import { N8AOPostPass } from 'n8ao'
+import { SurveyAmbientOcclusion } from './SurveyAmbientOcclusion'
 import { useShelterStore } from '../../store/useShelterStore'
 import { emergencyCircuit } from '../materials/pbrLibrary'
 import { shadowUniforms } from './shadowUniforms'
@@ -43,6 +44,22 @@ import { sunAt } from './PhysicalSky'
 // Glow contains only the soft halo of selected fixtures. Their hard edges, depth,
 // room reflections and the final image still use the full drawing buffer.
 class FixtureBloom extends SelectiveBloomEffect {
+  collectFixtures(scene: Object3D) {
+    this.selection.clear()
+    scene.traverse(object => {
+      if (object.userData.finish === 'lamp' || object.userData.emits) this.selection.add(object)
+    })
+  }
+
+  hasVisibleFixture() {
+    for (const fixture of this.selection) {
+      let ancestor: Object3D | null = fixture
+      while (ancestor?.visible) ancestor = ancestor.parent
+      if (!ancestor) return true
+    }
+    return false
+  }
+
   override setSize(width: number, height: number) {
     super.setSize(Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)))
   }
@@ -293,15 +310,18 @@ export function RenderPipeline() {
     tier = useQuality()
   const pipeline = useRef<{
     pipe: EffectComposer
-    ao: N8AOPostPass
+    ao: SurveyAmbientOcclusion
     camera: Camera
     grade: ScenarioGrade
+    bloom: FixtureBloom
+    glow: EffectPass
     depthOfField: EffectPass
     depth: PhotographicDepth
     exposure: ReturnType<typeof exposureProcessor>
     shadows: ReturnType<typeof shadowPasses>
   } | null>(null)
   const lens = useMemo(shiftLens, [])
+  const installedRooms = useShelterStore(s => s.installedRooms)
   const startup = useRef(0),
     fence = useRef<WebGLSync | null>(null)
   useLayoutEffect(() => {
@@ -312,10 +332,14 @@ export function RenderPipeline() {
       depthBuffer: true,
       stencilBuffer: true,
     })
+    // Only the scene pass writes depth and section-cap stencil, always to inputBuffer.
+    // The second HDR target holds fullscreen colour results, including the photo export.
+    pipe.outputBuffer.depthBuffer = false
+    pipe.outputBuffer.stencilBuffer = false
     const render = new RenderPass(scene, camera)
     render.clearPass.setClearFlags(true, true, true)
     pipe.addPass(render)
-    const ao = new N8AOPostPass(scene, camera, Math.max(2, canvas.width), Math.max(2, canvas.height))
+    const ao = new SurveyAmbientOcclusion(scene, camera, pipe)
     ao.autoDetectTransparency = false
     ao.configuration.gammaCorrection = false
     ao.configuration.halfRes = true
@@ -330,10 +354,8 @@ export function RenderPipeline() {
       levels: 4,
     })
     bloom.ignoreBackground = true
-    scene.traverse((o) => {
-      if (o.userData.finish === 'lamp' || o.userData.emits) bloom.selection.add(o)
-    })
-    pipe.addPass(new EffectPass(camera, bloom))
+    const glow = new EffectPass(camera, bloom)
+    pipe.addPass(glow)
     const depth = new PhotographicDepth()
     const depthOfField = new EffectPass(camera, depth)
     pipe.addPass(depthOfField)
@@ -349,7 +371,7 @@ export function RenderPipeline() {
     )
     const exposure = exposureProcessor()
     const abort = new AbortController()
-    pipeline.current = { pipe, ao, camera, grade, depthOfField, depth, exposure, shadows: shadowPasses(scene) }
+    pipeline.current = { pipe, ao, camera, grade, bloom, glow, depthOfField, depth, exposure, shadows: shadowPasses(scene) }
     let capturing = false
     async function exportPhoto() {
       if (capturing) return
@@ -412,6 +434,9 @@ export function RenderPipeline() {
     }
   }, [gl, scene, get, tier, lens])
   useLayoutEffect(() => {
+    pipeline.current?.bloom.collectFixtures(scene)
+  }, [scene, installedRooms])
+  useLayoutEffect(() => {
     if (!usePhotoMode.getState().exporting) pipeline.current?.pipe.setSize(size.width, size.height)
   }, [size, dpr])
   useFrame(({ camera }, dt) => {
@@ -439,6 +464,8 @@ export function RenderPipeline() {
     ao.configuration.aoRadius = closeInterior ? 0.36 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
     ao.configuration.intensity = closeInterior ? 2.15 : 1.6
     const photo = usePhotoMode.getState()
+    // With the background masked out, hidden emitters contribute exactly zero bloom.
+    p.glow.enabled = p.bloom.hasVisibleFixture()
     p.depthOfField.enabled = photo.active
     p.depth.focus.value = state.cameraState === 'walkthrough' ? 3.5 : state.cameraState === 'site' ? 85 : 22
     canvas.dataset.photoMode = photo.active ? 'on' : 'off'

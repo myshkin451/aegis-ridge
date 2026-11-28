@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/shallow'
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Group } from 'three'
@@ -14,7 +15,7 @@ import { floorLight } from '../materials/pbrLibrary'
 import { useShelterStore } from '../../store/useShelterStore'
 import { Inscription } from './Inscription'
 import { CommandScreens } from './CommandScreens'
-import { roomModels } from './roomModels'
+import { drawEquipment, roomModels } from './roomModels'
 import { FloorSigns } from './FloorSigns'
 import type { SurveyRuntime } from '../camera/runtime'
 import { addLivingCoves, residentialFinishes } from './residentialFinishes'
@@ -47,10 +48,26 @@ const commons = footprint(roomsOn('B2').find((r) => r.id === 'b2_commons')!.boun
 const mainCorridor = footprint(CORRIDOR)
 const library = footprint(roomsOn('B2').find((r) => r.id === 'b2_library')!.bounds)
 export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
+  const rooms = useOperationsStore(useShallow(s => s.rooms.filter(r => r.floorId === id)))
   const build = useMemo(() => () => roomModels(id), [id])
+  const changes = useMemo(() => {
+    const base = roomsOn(id), added: (typeof rooms)[number]['equipment'] = [], hidden = new Set<string>()
+    for (const room of rooms.filter(r => r.templateId !== r.id)) {
+      const original = base.find(r => r.id === room.id)!
+      for (const unit of original.equipment) if (!room.equipment.includes(unit)) hidden.add(unit.tagCode)
+      added.push(...room.equipment.filter(e => !original.equipment.includes(e)))
+    }
+    const install = () => {
+      const model = new ModelBuilder()
+      for (const unit of added) drawEquipment(model, id, unit)
+      return model
+    }
+    return { hidden, build: added.length ? install : null }
+  }, [id, rooms])
   const root = useRef<Group>(null)
   const floor = FLOORS[id]
   const archive = useRef<Group>(null)
+  const hasArchive = rooms.some(r => r.id === 'b2_library' && r.templateId === r.id)
   const walkingFloor = useShelterStore((s) => s.cameraState === 'walkthrough' && s.lastFloor === id)
   useFrame(({ camera }) => {
     if (!root.current) return
@@ -72,12 +89,13 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
       visible = state.lastFloor === id || throughAtrium || besideShaft
     if (archive.current)
       archive.current.visible =
-        walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
+        hasArchive && walkingFloor && p.x >= library.x0 && p.x <= library.x1 && p.z >= library.z0 && p.z <= library.z1
     root.current.visible = visible && state.mode !== 'xray'
   })
   return (
     <group ref={root} name={'室内-' + id} userData={{ skipWalk: true }}>
-      <Model build={build} interior />
+      <Model build={build} interior hiddenEquipment={changes.hidden} />
+      {changes.build && <Model build={changes.build} interior />}
       {id === 'B2' && <CommandScreens />}
       {id === 'B2' && (
         <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
@@ -89,7 +107,7 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
         </group>
       )}
       {(id === 'B1' || id === 'B3') && (
-        <group visible={walkingFloor}>
+        <group visible={walkingFloor && (id === 'B3' || rooms.some(r => r.id === 'b1_gym' && r.templateId === r.id))}>
           <Model walkSurface="wall" build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
         </group>
       )}

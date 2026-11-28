@@ -1,6 +1,6 @@
 import { DoubleSide, Ray, Vector3 } from 'three'
 import { roomAt } from '../../geometry/viewGeometry'
-import { roomsOn } from '../../data/defaultBlueprint'
+import { defaultBlueprint, roomsOn } from '../../data/defaultBlueprint'
 import { BRANCH_CORRIDOR, CORRIDOR, FLOORS, SERVICE_NICHE, UNDERGROUND } from '../../data/floors'
 import { footprint, shaftPlans } from '../../geometry/coords'
 import { doors } from '../../geometry/doors'
@@ -12,7 +12,7 @@ import {
   westVestibule,
   type PlanRect,
 } from '../../geometry/residentialPlan'
-import type { FloorId } from '../../types/shelter'
+import type { FloorId, RoomInstance, UndergroundId } from '../../types/shelter'
 import { doorBlocks, WALK, type WalkCollision } from './walkCollision'
 
 const freight = shaftPlans.find((s) => s.id === 'freight')!
@@ -58,7 +58,7 @@ export function pathToOpenCeiling(world: WalkCollision, floor: FloorId, eye: Vec
     for (const x of [-0.1, 0.1])
       for (const z of [-0.1, 0.1]) {
         ray.origin.set(p.x + x, p.y, p.z + z)
-        if (world.tree.raycastFirst(ray, DoubleSide, 0, distance)) return false
+        if (world.raycastFirst(ray, DoubleSide, 0, distance)) return false
       }
     return true
   }
@@ -81,11 +81,18 @@ export function pathToOpenCeiling(world: WalkCollision, floor: FloorId, eye: Vec
 }
 
 /** Survey each underground floor once on the same collision BVH used by the human capsule. */
-export function surveyRoomRoutes(world: WalkCollision) {
+export function surveyRoomRoutes(world: WalkCollision, rooms = defaultBlueprint.rooms) {
   const routes = new Map<string, Vector3[]>()
-  const surveys = new Map<FloorId, FloorSurvey>()
-  floorSurveys.set(world, surveys)
-  for (const floor of UNDERGROUND) {
+  for (const floor of UNDERGROUND) for (const _ of surveyRoomFloor(world, rooms, floor, routes)) { /* initial survey */ }
+  return routes
+}
+
+/** Re-survey only edited floors in short slices, keeping the capsule collision live throughout. */
+export function* surveyRoomFloor(world: WalkCollision, rooms: RoomInstance[], floor: UndergroundId, routes: Map<string, Vector3[]>) {
+    const surveys = floorSurveys.get(world) ?? new Map<FloorId, FloorSurvey>()
+    floorSurveys.set(world, surveys)
+    surveys.delete(floor)
+    for (const key of routes.keys()) if (key.startsWith(floor)) routes.delete(key)
     const zoneAt = circulationZones(floor)
     const installedDoors = doors.filter((d) => d.floor === floor)
     const y = FLOORS[floor].elevation,
@@ -123,6 +130,7 @@ export function surveyRoomRoutes(world: WalkCollision) {
     parent[start] = start
     const queue = [start]
     for (let j = 0; j < queue.length; j++) {
+      if ((j & 31) === 0) yield
       const id = queue[j],
         col = id % nx
       const from = point(id)
@@ -186,12 +194,11 @@ export function surveyRoomRoutes(world: WalkCollision) {
       return corners
     }
     surveys.set(floor, survey)
-    for (const room of roomsOn(floor))
+    for (const room of rooms.filter(r => r.floorId === floor))
       for (const anchor of room.cameraAnchors) {
+        yield
         const [x, , z] = anchor.position,
           path = survey(x, z, true)
         if (path) routes.set(floor + routeKey(x, z), path)
       }
-  }
-  return routes
 }

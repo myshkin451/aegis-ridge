@@ -77,6 +77,9 @@ export interface EquipmentUnit {
   thermalEfficiency: number | null
   heatRejectionKw: number
   requiresExternalExhaust?: boolean
+  cropKind?: 'staple'
+  storageKwh?: number
+  inverterKw?: number
   hasRunawayVent?: boolean
   inputPowerKw: number
   generatedPowerKw: number
