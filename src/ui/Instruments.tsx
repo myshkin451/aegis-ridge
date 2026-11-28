@@ -9,6 +9,7 @@ import { boxLimits } from '../geometry/viewGeometry'
 import type { BoxFace, CameraStateId } from '../types/shelter'
 import { systems, useShelterStore } from '../store/useShelterStore'
 import { ElevationRuler } from './ElevationRuler'
+import { MepReadout } from './MepReadout'
 
 const names: Record<CameraStateId, string> = {
   site: '现场',
@@ -211,7 +212,8 @@ function WalkHud() {
 export function Instruments() {
   const s = useShelterStore(),
     [open, setOpen] = useState<'views' | 'help' | null>(null),
-    [legend, setLegend] = useState(false),
+    [legend, setLegend] = useState<boolean | null>(null),
+    [compact, setCompact] = useState(() => matchMedia('(max-width: 740px)').matches),
     [face, setFace] = useState<BoxFace>('east')
   const menu = useRef<HTMLDivElement>(null),
     [hint, setHint] = useState(() => {
@@ -223,7 +225,14 @@ export function Instruments() {
     })
   const walk = s.cameraState === 'walkthrough',
     xray = s.mode === 'xray',
-    context = (s.cameraState !== 'site' && !walk) || xray
+    context = s.cameraState !== 'site' || xray,
+    showLayers = legend ?? (!walk && !compact)
+  useEffect(() => {
+    const query = matchMedia('(max-width: 740px)')
+    const resize = () => setCompact(query.matches)
+    query.addEventListener('change', resize)
+    return () => query.removeEventListener('change', resize)
+  }, [])
   useEffect(() => {
     const t = setTimeout(() => {
       setHint(false)
@@ -252,6 +261,10 @@ export function Instruments() {
           setOpen(null)
           return
         }
+        if (v.waterTrace) {
+          v.setWaterTrace(null)
+          return
+        }
         if (v.roomId) {
           v.focusRoom(null)
           return
@@ -261,7 +274,7 @@ export function Instruments() {
         return
       }
       if (
-        (e.target as HTMLElement)?.matches('input,select,textarea,[role=slider]') &&
+        (e.target as HTMLElement)?.matches('input:not([type=checkbox]),select,textarea,[role=slider]') &&
         !['h', '?'].includes(k)
       )
         return
@@ -273,10 +286,7 @@ export function Instruments() {
       else if (k === '3') v.setView('plan')
       else if (k === '4') v.setMode('xray')
       else if (k === 'v') v.setView(views[(views.indexOf(v.cameraState) + 1) % views.length])
-      else if (k === 'm') {
-        if (v.cameraState === 'walkthrough' && v.lastFloor === 'B2') v.toggleWalkCeiling()
-        else v.togglePlenum()
-      }
+      else if (k === 'm') v.togglePlenum()
       else if (k === 'x') v.setMode(v.mode === 'xray' ? 'exterior' : 'xray')
       else if (k === '5') {
         if (v.roomId) v.enterRoom()
@@ -367,7 +377,7 @@ export function Instruments() {
             </div>
             {walk && s.lastFloor === 'B2' && (
               <button aria-pressed={s.walkCeiling} onClick={s.toggleWalkCeiling}>
-                {s.walkCeiling ? '收起' : '显示'} B2 吊顶与灯槽　<kbd>M</kbd>
+                {s.walkCeiling ? '收起' : '显示'} B2 吊顶与灯槽
               </button>
             )}
             <label>
@@ -448,6 +458,8 @@ export function Instruments() {
                 ['Q / E', '透视视角下降 / 上升'],
                 ['点地 / 拖动', '移动 / 转头，双击锁定鼠标'],
                 ['长按 E', '气闸平压开门'],
+                ['按住 Alt', '透视墙面与吊顶。走廊仰视超过 30° 可看夹层'],
+                ['点管 / 悬停阀门', '追踪水路 / 查看下游房间'],
               ].map(([k, t]) => (
                 <div key={k}>
                   <dt>{k}</dt>
@@ -460,22 +472,17 @@ export function Instruments() {
       </div>
       {!walk && <ElevationRuler />}
       {context && (
-        <aside className={'legend' + (legend ? ' open' : '')}>
-          <button className="legend-title" aria-expanded={legend} onClick={() => setLegend(!legend)}>
-            线型图例 <span>{legend ? '−' : '＋'}</span>
+        <aside className={'legend' + (walk ? ' walk-legend' : '') + (showLayers ? ' open' : '')}>
+          <button className="legend-title" aria-expanded={showLayers} onClick={() => setLegend(!showLayers)}>
+            线型图例 <span>{showLayers ? '−' : '＋'}</span>
           </button>
-          <div className="legend-items">
+          <div className="legend-items" hidden={!showLayers}>
             {systems.map((id) => (
               <label key={id}>
                 <input
-                  checked={s.layers[id] && s.mode === 'xray'}
+                  checked={s.layers[id]}
                   type="checkbox"
-                  onChange={() => {
-                    if (s.mode !== 'xray') {
-                      s.setMode('xray')
-                      if (!s.layers[id]) s.toggleLayer(id)
-                    } else s.toggleLayer(id)
-                  }}
+                  onChange={() => s.toggleLayer(id)}
                 />
                 <i className={'swatch ' + id} />
                 {labels[id]}
@@ -570,7 +577,8 @@ export function Instruments() {
         </div>
       </div>
       {walk && <WalkHud />}
-      {s.roomId && <Sheet close={() => s.focusRoom(null)} />}
+      {s.roomId && !s.hoveredValve && <Sheet close={() => s.focusRoom(null)} />}
+      <MepReadout />
     </div>
   )
 }

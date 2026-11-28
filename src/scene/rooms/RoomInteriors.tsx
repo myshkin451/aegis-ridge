@@ -77,8 +77,8 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
       <Model build={build} interior />
       {id === 'B2' && (
         <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
-          <Model build={residentialFinishes} interior opaqueOrder={-4} />
-          {pilotVariant === 'r3' && <Model build={roomArtwork} interior opaqueOrder={-3} />}
+          <Model walkSurface="wall" build={residentialFinishes} interior opaqueOrder={-4} />
+          {pilotVariant === 'r3' && <Model walkSurface="wall" build={roomArtwork} interior opaqueOrder={-3} />}
           <group ref={archive} visible={false}>
             <Model build={archiveSpines} interior />
           </group>
@@ -86,7 +86,7 @@ export function RoomInteriors({ id, rt }: { id: FloorId; rt: SurveyRuntime }) {
       )}
       {(id === 'B1' || id === 'B3') && (
         <group visible={walkingFloor}>
-          <Model build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
+          <Model walkSurface="wall" build={id === 'B1' ? gymFloor : cleanRoomPanels} interior opaqueOrder={-4} />
         </group>
       )}
       <FloorSigns id={id} />
@@ -99,7 +99,7 @@ export function CorridorFixtures({ id }: { id: UndergroundId }) {
   const view = useShelterStore((s) => s.cameraState)
   return (
     <>
-      <Model build={build} />
+      <Model walkSurface="ceiling" build={build} />
       <group visible={view === 'walkthrough'}>
         <Inscription
           text={id}
@@ -173,7 +173,7 @@ export function WalkCeiling({ id }: { id: UndergroundId }) {
   const walkB2 = useShelterStore((s) => id === 'B2' && s.lastFloor === id && s.cameraState === 'walkthrough')
   return (
     <group name={id + ' 吊顶与灯槽'} visible={id !== 'B2' || showCeiling}>
-      <Model build={build} opaqueOrder={walkB2 ? -3 : 0} />
+      <Model walkSurface="ceiling" build={build} opaqueOrder={walkB2 ? -3 : 0} />
     </group>
   )
 }

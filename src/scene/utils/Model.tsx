@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Group, Mesh } from 'three'
 import { attachCut, useBuildingCut } from '../BuildingSection'
+import type { WalkSurface } from '../mep/lens'
 import type { CutMaterial } from '../materials/sectionShader'
 import type { BuiltModel, ModelBuilder } from './modelBuilder'
 
@@ -47,12 +48,14 @@ export function Model({
   cutMaterial = 'structure',
   interior = false,
   opaqueOrder = 0,
+  walkSurface,
 }: {
   build: () => ModelBuilder
   opacity?: number
   delayMs?: number
   interior?: boolean
   opaqueOrder?: number
+  walkSurface?: WalkSurface
   cutMaterial?: CutMaterial
 }) {
   const cut = useBuildingCut()
@@ -66,6 +69,8 @@ export function Model({
   useLayoutEffect(() => {
     const built = build().build()
     const parent = mount.current!
+    if (walkSurface)
+      for (const { material } of built.materials) material.userData.walkSurface = walkSurface
     if (interior) {
       built.object.userData.fitout = true
       for (const caster of built.shadowCasters) {
@@ -85,7 +90,7 @@ export function Model({
       model.current = null
       gl.shadowMap.needsUpdate = true
     }
-  }, [build, invalidate, gl, interior])
+  }, [build, invalidate, gl, interior, walkSurface])
   useLayoutEffect(() => {
     if (cut && model.current) return attachCut(model.current, cut, cutMaterial)
   }, [cut, cutMaterial, build])

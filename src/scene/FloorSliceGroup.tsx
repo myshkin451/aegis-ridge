@@ -123,7 +123,6 @@ function plenumFrame(id: UndergroundId) {
     low = s.ceiling - s.floor,
     high = s.plenumTop - s.floor
   const corridor = footprint(CORRIDOR)
-  iBeam(m, corridor.x, low + 0.18, corridor.z, corridor.w, true, 0.26)
   for (const z of [plan.z0 + 0.18, plan.z1 - 0.18]) {
     iBeam(m, 0, high - 0.14, z, plan.w, true, 0.24)
     const edgeLow = id === 'B2' ? 3.6 : low
@@ -216,20 +215,20 @@ export function FloorSliceGroup({ id, rt }: { id: UndergroundId; rt: SurveyRunti
         <Model build={builders.leaves} interior />
       </group>
       <Model
-        build={builders.frame}
+        walkSurface="wall" build={builders.frame}
         delayMs={delayMs}
         opacity={seen ? (mode === 'xray' ? 0.065 : 1) : 0}
         opaqueOrder={shellOrder}
       />
-      <Model build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
+      <Model walkSurface="wall" build={builders.core} delayMs={delayMs} opacity={seen ? (mode === 'xray' ? 0.43 : 1) : 0} />
       <Model
-        build={builders.rear}
+        walkSurface="wall" build={builders.rear}
         delayMs={delayMs}
         opacity={Number(seen && mode !== 'xray')}
         opaqueOrder={shellOrder}
       />
       <Model
-        build={builders.front}
+        walkSurface="wall" build={builders.front}
         delayMs={delayMs}
         opacity={Number(seen && closed)}
         opaqueOrder={shellOrder}

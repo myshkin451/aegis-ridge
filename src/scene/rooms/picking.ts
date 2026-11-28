@@ -23,7 +23,12 @@ const inventory = defaultBlueprint.rooms.flatMap((room) =>
   }),
 )
 export const taggedEquipment = new Map(inventory.map((entry) => [entry.unit.tagCode, entry]))
-export function visibleHit(scene: Scene, ray: Raycaster, inspect: boolean): Intersection | undefined {
+export function visibleHit(
+  scene: Scene,
+  ray: Raycaster,
+  inspect: boolean,
+  accepts?: (hit: Intersection) => boolean,
+): Intersection | undefined {
   const candidates = inspect
     ? new Set(inventory.filter((e) => ray.ray.intersectsBox(e.box)).map((e) => e.unit.tagCode))
     : null
@@ -43,7 +48,11 @@ export function visibleHit(scene: Scene, ray: Raycaster, inspect: boolean): Inte
   })
   return ray.intersectObjects(meshes, false).find((hit) => {
     const material = (hit.object as Mesh).material
-    return !Array.isArray(material) && !material.clippingPlanes?.some((p) => p.distanceToPoint(hit.point) < 0)
+    return (
+      !Array.isArray(material) &&
+      !material.clippingPlanes?.some((p) => p.distanceToPoint(hit.point) < 0) &&
+      (!accepts || accepts(hit))
+    )
   })
 }
 

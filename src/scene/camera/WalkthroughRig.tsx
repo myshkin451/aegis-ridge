@@ -24,6 +24,7 @@ import { reduceMotion } from '../utils/Model'
 import { pbrMaterial } from '../materials/pbrLibrary'
 import type { SurveyRuntime } from './runtime'
 import { surveyRoomRoutes } from './roomRoutes'
+import { useWalkReveal } from '../mep/lensControl'
 import { WALK, WalkCollision } from './walkCollision'
 
 function hiss(ctx: AudioContext) {
@@ -53,6 +54,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     scene = useThree((s) => s.scene),
     get = useThree((s) => s.get)
   const active = useShelterStore((s) => s.cameraState === 'walkthrough')
+  useWalkReveal(active, rt)
   const player = useRef<WalkCollision | null>(null),
     doorGroup = useRef<Group>(null),
     leaves = useRef<InstancedMesh>(null),
@@ -106,7 +108,11 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       }
     }
   }, [])
-  const mat = useMemo(() => pbrMaterial('steel', true), [])
+  const mat = useMemo(() => {
+    const material = pbrMaterial('steel', true)
+    material.userData.walkSurface = 'wall'
+    return material
+  }, [])
   useLayoutEffect(() => {
     const vertices: number[] = []
     for (const name of [
@@ -226,7 +232,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
     }
     const up = (e: PointerEvent) => {
       if (start?.id !== e.pointerId) return
-      if (!start.moved && !document.pointerLockElement) {
+      if (!e.defaultPrevented && !start.moved && !document.pointerLockElement) {
         const point = ground(e)
         // Selection runs on the same pointer release. A picked device must not also move the visitor.
         queueMicrotask(() => {
@@ -235,10 +241,13 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
       }
       start = null
     }
+    // Option/Alt can produce a different character for the same physical movement key.
+    const walkKey = (event: KeyboardEvent) =>
+      event.altKey && /^Key[WASDE]$/.test(event.code) ? event.code.slice(3).toLowerCase() : event.key.toLowerCase()
     const keydown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.matches('input,select,textarea') || e.ctrlKey || e.metaKey || e.altKey)
+      if ((e.target as HTMLElement)?.matches('input,select,textarea') || e.ctrlKey || e.metaKey)
         return
-      const key = e.key.toLowerCase()
+      const key = walkKey(e)
       if (
         ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift', 'e'].includes(key)
       ) {
@@ -248,7 +257,7 @@ export function WalkthroughRig({ rt }: { rt: SurveyRuntime }) {
         if (key !== 'e') input.goal = null
       }
     }
-    const keyup = (e: KeyboardEvent) => input.keys.delete(e.key.toLowerCase())
+    const keyup = (e: KeyboardEvent) => input.keys.delete(walkKey(e))
     const lock = () => {
       if (!rt.moving) canvas.requestPointerLock()?.catch(() => {})
     }

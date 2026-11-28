@@ -21,7 +21,7 @@ import { SectionBoxTool } from './camera/SectionBoxTool'
 import { SceneReadouts } from './camera/SceneReadouts'
 import { surveyRuntime } from './camera/runtime'
 import { DrawingMarks } from './DrawingMarks'
-import { CoreTraces } from './CoreTraces'
+import { MepNetworkScene } from './mep/MepNetworkScene'
 
 function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
   const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
@@ -41,9 +41,7 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
           </BuildingSection>
         </group>
         <SiteFacilities atlas={atlas} />
-        <group visible={xray}>
-          <CoreTraces />
-        </group>
+        <MepNetworkScene atlas={atlas} rt={rt} />
         <group visible={!xray}>
           <DrawingMarks />
         </group>

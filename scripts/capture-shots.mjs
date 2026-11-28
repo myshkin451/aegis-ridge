@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const milestone = process.argv[2] ?? 'm2.5c'
+const milestone = process.argv[2] ?? 'm3'
 if (!/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -35,7 +35,8 @@ const pilots = [
   ['bath', '19:30', [-3.04, -14.4, 4.3], 'c006b2fe93030a82b90a6f18de173654af23ffcb12f18ceaa18791aba1014587'],
 ]
 const baseline = join(root, 'docs/shots/m2.5b/pilot')
-await mkdir(join(directory, 'pilot'), { recursive: true })
+const materialStudy = ['m2.5b', 'm2.5c'].includes(milestone)
+await mkdir(materialStudy ? join(directory, 'pilot') : directory, { recursive: true })
 const staging = await mkdtemp(join(directory, '.capture-'))
 let server
 let browser
@@ -43,7 +44,7 @@ try {
   const captures = []
   const cameraSettings = new Map()
   await mkdir(join(staging, 'pilot'))
-  for (const [name, , , expected] of pilots) {
+  for (const [name, , , expected] of materialStudy ? pilots : []) {
     const file = 'pilot/r0-' + name + '.png'
     const bytes = await readFile(join(baseline, 'r0-' + name + '.png'))
     if (createHash('sha256').update(bytes).digest('hex') !== expected) throw Error('ebbe617 基线失配 ' + name)
@@ -167,17 +168,19 @@ try {
   }
   await openStage('r3')
   for (const [id, view, projection, time] of shots) await capture(id, view, projection, time, id + '.png')
-  await mkdir(join(staging, 'details'))
-  await mkdir(join(directory, 'details'), { recursive: true })
-  await capture(
-    'detail-sanitary',
-    'walkthrough',
-    'perspective',
-    '19:30',
-    'details/public-sanitary.png',
-    [-4, -14.4, 0.05],
-  )
-  for (const stage of ['r3', 'r2', 'r1']) {
+  if (materialStudy) {
+    await mkdir(join(staging, 'details'))
+    await mkdir(join(directory, 'details'), { recursive: true })
+    await capture(
+      'detail-sanitary',
+      'walkthrough',
+      'perspective',
+      '19:30',
+      'details/public-sanitary.png',
+      [-4, -14.4, 0.05],
+    )
+  }
+  for (const stage of materialStudy ? ['r3', 'r2', 'r1'] : ['r3']) {
     if (stage !== 'r3') await openStage(stage)
     for (const [name, time, feet] of pilots)
       await capture(
@@ -189,35 +192,82 @@ try {
         feet,
       )
   }
+  if (!materialStudy) {
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    const legend = page.locator('.walk-legend')
+    await legend.getByRole('button', { name: /线型图例/ }).click()
+    const water = legend.getByRole('checkbox', { name: '给排水' })
+    await water.uncheck()
+    await water.check()
+    const fits = await legend.evaluate((element) => {
+      const panel = element.getBoundingClientRect()
+      const controls = ['.walk-map', '.joystick'].map((selector) =>
+        document.querySelector(selector).getBoundingClientRect(),
+      )
+      return (
+        panel.left >= 0 &&
+        panel.right <= innerWidth &&
+        document.documentElement.scrollWidth === innerWidth &&
+        controls.every(
+          (rect) =>
+            !rect.width ||
+            panel.left >= rect.right ||
+            panel.bottom <= rect.top ||
+            panel.right <= rect.left ||
+            panel.top >= rect.bottom,
+        )
+      )
+    })
+    if (!fits) throw Error('手机漫游图例溢出或遮住小地图、摇杆')
+  }
   if (errors.length) throw Error(errors.join('\n').slice(0, 4000))
   await page.close()
   const review = await browser.newPage()
   for (const [id] of shots) {
     const result = await comparePhotographs(
       review,
-      join(root, 'docs/shots/m2.5b', id + '.png'),
+      join(root, 'docs/shots', materialStudy ? 'm2.5b' : 'm2.5c', id + '.png'),
       join(staging, id + '.png'),
     )
     console.log(id, '较签收图', result)
-    // The first four show the survey; the fifth also sees the new cleanroom surfaces and reflections.
-    if (result.mean > (id === 'shot-05' ? 10 : 1.5)) throw Error(id + ' 超过签收画面色差范围')
-  }
-  for (const [name] of pilots) {
-    for (const [before, after] of [
-      ['r1', 'r2'],
-      ['r2', 'r3'],
-    ]) {
-      const file = (stage) => join(staging, 'pilot', stage + '-' + name + '.png')
-      const result = await comparePhotographs(review, file(before), file(after))
-      console.log(name, before, '→', after, result)
-      if (result.changed < 0.1) throw Error(name + ' 截图没有出现对应资产的可见变化')
+    if (!materialStudy && id === 'shot-04') {
+      if (result.changed < 0.3) throw Error('X 光夜景未呈现新管网')
+    } else if (result.mean > (materialStudy && id === 'shot-05' ? 10 : 1.5)) {
+      throw Error(id + ' 超过签收画面色差范围')
     }
   }
-  const board = 'pilot/comparison.webp'
-  await makeContactSheet(review, join(staging, 'pilot'), pilots, join(staging, board))
-  captures.push(board)
-  for (const file of captures) await rename(join(staging, file), join(directory, file))
-  console.log('五个固定机位、洁具近看、十二张样板及对照总图已保存至 docs/shots/' + milestone + '/。')
+  if (materialStudy) {
+    for (const [name] of pilots) {
+      for (const [before, after] of [
+        ['r1', 'r2'],
+        ['r2', 'r3'],
+      ]) {
+        const file = (stage) => join(staging, 'pilot', stage + '-' + name + '.png')
+        const result = await comparePhotographs(review, file(before), file(after))
+        console.log(name, before, '→', after, result)
+        if (result.changed < 0.1) throw Error(name + ' 截图没有出现对应资产的可见变化')
+      }
+    }
+    const board = 'pilot/comparison.webp'
+    await makeContactSheet(review, join(staging, 'pilot'), pilots, join(staging, board))
+    captures.push(board)
+  } else {
+    for (const [name] of pilots) {
+      const file = 'pilot/r3-' + name + '.png'
+      const result = await comparePhotographs(
+        review,
+        join(root, 'docs/shots/m2.5c', file),
+        join(staging, file),
+      )
+      console.log(name, '较 M2.5c 签收样板', result)
+      if (result.mean > 1.5) throw Error(name + ' 室内画面偏离签收基线')
+    }
+  }
+  for (const file of captures)
+    if (materialStudy || file.startsWith('shot-')) await rename(join(staging, file), join(directory, file))
+  console.log('摄影验收通过，结果保存至 docs/shots/' + milestone + '/。')
 } finally {
   await browser?.close()
   if (server) await new Promise((resolve) => server.httpServer.close(resolve))

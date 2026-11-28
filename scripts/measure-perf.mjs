@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-const signed = { ready: 2723.1, peak: 358, bytes: 582854 }
+const signed = { ready: 2955.7, peak: 364, bytes: 2528888 }
 // Enumerate deployed assets independently of the loader. A silently missing fetch is a failure.
 async function publishedAssets(directory, url = '/assets/') {
   const files = []
@@ -152,7 +152,7 @@ try {
   if (!/ANGLE.*Metal/i.test(env.gpu) || /SwiftShader|llvmpipe|software/i.test(env.gpu))
     throw Error('实测需要硬件 ANGLE Metal')
   if (!(env.ready <= 8000 && env.paint <= 3000)) failures.push('首屏描线/材质时间超限')
-  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M2.5b 增加超过 500 ms')
+  if (env.ready - signed.ready > 500) failures.push('GPU 就绪较 M2.5c 增加超过 500 ms')
   const textureBytes = Number(env.assetState.pilotTextureBytes)
   const environmentBytes = Number(env.assetState.interiorEnvironmentBytes)
   if (!(textureBytes > 0 && environmentBytes > 0 && textureBytes + environmentBytes <= 64000000))
@@ -462,6 +462,100 @@ try {
         failures.push('静止时重复刷新室内阴影 ' + name)
     }
   })
+  await view('3', ['plan', 'cutaway'])()
+  const valveTable = page.getByRole('region', { name: '阀门数据表' })
+  const traceTable = page.getByRole('region', { name: '水路追踪' })
+  await measure('M3 图例与夹层', async () => {
+    const legend = page.locator('.legend')
+    for (const [system, label] of [
+      ['power', '强电'],
+      ['data', '弱电与智控'],
+      ['water', '给排水'],
+      ['air', '三防新风'],
+      ['freight', '重载物流'],
+      ['structure', '结构与防护'],
+    ]) {
+      const check = legend.getByRole('checkbox', { name: label, exact: true })
+      for (const enabled of [false, true]) {
+        await check.setChecked(enabled)
+        await page.waitForFunction(
+          ([id, on]) => {
+            const d = document.querySelector('canvas').dataset
+            return d.view === 'plan' && d.mode === 'cutaway' && d.mepLayers?.split(',').includes(id) === on
+          },
+          [system, enabled],
+        )
+      }
+    }
+    const plenum = legend.getByRole('checkbox', { name: /机电夹层/ })
+    await plenum.uncheck()
+    await page.waitForSelector('canvas[data-mep-plenum=off]')
+    await plenum.check()
+    await page.waitForSelector('canvas[data-mep-plenum=on]')
+  })
+  // Move focus out of the form using the actual view control.
+  await page.getByRole('button', { name: /^漫游\s*5$/ }).click()
+  await page.waitForSelector('canvas[data-view=walkthrough][data-ready=settled]')
+  await measure('M3 漫游 Alt 透镜', async () => {
+    await page.mouse.move(1030, 610)
+    await page.keyboard.down('Alt')
+    await page.waitForSelector('canvas[data-mep-lens=on]')
+    const ring = page.locator('#mep-lens-ring')
+    const bounds = await ring.boundingBox()
+    if (!bounds || Math.hypot(bounds.x + bounds.width / 2 - 1030, bounds.y + bounds.height / 2 - 610) > 2)
+      throw Error('透镜准环未对准画布中的鼠标')
+    await wait(2200)
+    await page.keyboard.up('Alt')
+    await ring.waitFor({ state: 'hidden' })
+    await page.waitForSelector('canvas[data-mep-lens=off]')
+  })
+  await measure('M3 走廊仰视夹层', async () => {
+    await drag(0, -285)
+    await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) > 0.7)
+    await wait(2200)
+    await drag(0, 285)
+    await page.waitForFunction(() => Number(document.querySelector('canvas').dataset.plenumReveal) < 0.02)
+  })
+  await page.getByRole('button', { name: '机位与图幅' }).click()
+  await page.getByRole('combobox', { name: '固定摄影机位' }).selectOption('shot-04')
+  await page.waitForSelector('canvas[data-view=site][data-mode=xray][data-ready=settled]')
+  // Ask only for projected hit locations. Selection and highlighting must result from actual mouse input.
+  const targets = await page.locator('canvas').evaluate((canvas) => {
+    let found = []
+    canvas.dispatchEvent(
+      new CustomEvent('ars-mep-targets', {
+        detail: {
+          callback: (items) => {
+            found = items
+          },
+        },
+      }),
+    )
+    return found.filter(({ x, y }) => document.elementFromPoint(x, y) === canvas)
+  })
+  for (const kind of ['pipe', 'valve'])
+    if (!targets.some((t) => t.kind === kind)) throw Error('X 光视口未找到可拾取的 ' + kind)
+  await measure('M3 点水管追踪', async () => {
+    const hit = targets.find((t) => t.kind === 'pipe')
+    await page.mouse.click(hit.x, hit.y)
+    await page.mouse.move(centre[0], 100)
+    await traceTable.waitFor()
+    if ((await traceTable.getAttribute('data-edge')) !== hit.id || Number(await read('mep-trace-count')) < 2)
+      throw Error('点击的管段和实际高亮不符')
+    await wait(400)
+  })
+  await measure('M3 悬停阀门', async () => {
+    const hit = targets.find((t) => t.kind === 'valve')
+    await page.mouse.move(hit.x, hit.y)
+    await valveTable.waitFor()
+    if ((await valveTable.getAttribute('data-valve')) !== hit.id || !(await read('mep-affected-rooms')))
+      throw Error('阀牌或下游房间描红缺失')
+    await wait(400)
+    await page.mouse.move(centre[0], 100)
+    await valveTable.waitFor({ state: 'hidden' })
+  })
+  await view('1', site)()
+  if (await read('mep-layers')) failures.push('现场室外仍绘制地下管网')
   const total = await page.evaluate(() => window.surveyPerf.links - window.surveyPerf.coldLinks)
   console.log('就绪后全程链接', total)
   if (total !== 0) failures.push('就绪后全程链接 ' + total)
@@ -496,7 +590,7 @@ try {
       )
     const longest = tasks.reduce((a, b) => (a.dur > b.dur ? a : b))
     row.task = longest.dur / 1000
-    if (row.draws > 370 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
+    if (row.draws > 385 || row.triangles > 4000000) failures.push(row.label + ' 超出几何绘制预算')
     if (
       (['现场静止 8 s', '步行 4 s', '连续环绕'].includes(row.label) || row.label.startsWith('样板稳态')) &&
       (row.fps < 58 || row.p95 > 20)
@@ -523,7 +617,7 @@ try {
   console.log(
     '全程峰值绘制',
     peak,
-    '较 M2.5b 增量',
+    '较 M2.5c 增量',
     peak - signed.peak,
     '首屏 GPU 就绪变化 ms',
     (env.ready - signed.ready).toFixed(1),

@@ -3,6 +3,7 @@ import { defaultBox, moveFace } from '../geometry/viewGeometry'
 import type { SectionBounds } from '../geometry/viewGeometry'
 import { defaultBlueprint } from '../data/defaultBlueprint'
 import { FLOORS } from '../data/floors'
+import type { MepNetwork } from '../data/mepNetwork'
 import { photo } from '../data/photographs'
 import type { ShotId } from '../data/photographs'
 import type {
@@ -31,6 +32,12 @@ interface ShelterView {
   plenum: boolean
   walkCeiling: boolean
   layers: Record<SystemId, boolean>
+  mepNetwork: MepNetwork | null
+  waterTrace: string | null
+  hoveredValve: string | null
+  setMepNetwork: (network: MepNetwork | null) => void
+  setWaterTrace: (edgeId: string | null) => void
+  setHoveredValve: (valveId: string | null) => void
   preset: CameraPreset
   facilityId: number | null
   equipmentTag: string | null
@@ -71,6 +78,8 @@ function viewFields(s: ShelterView, view: CameraStateId) {
     floor: whole ? ('ALL' as const) : s.lastFloor,
     orbitCut: false,
     shot: null,
+    waterTrace: null,
+    hoveredValve: null,
     roomId: null,
     equipmentTag: null,
     anchorIndex: 0,
@@ -95,6 +104,12 @@ export const useShelterStore = create<ShelterView>((set) => ({
   plenum: true,
   walkCeiling: true,
   layers: allLayers,
+  mepNetwork: null,
+  waterTrace: null,
+  hoveredValve: null,
+  setMepNetwork: (mepNetwork) => set({ mepNetwork, waterTrace: null, hoveredValve: null }),
+  setWaterTrace: (waterTrace) => set({ waterTrace, roomId: null, equipmentTag: null }),
+  setHoveredValve: (hoveredValve) => set((s) => (hoveredValve === s.hoveredValve ? s : { hoveredValve })),
   facilityId: null,
   roomId: null,
   equipmentTag: null,
@@ -141,6 +156,7 @@ export const useShelterStore = create<ShelterView>((set) => ({
   focusRoom: (roomId, equipmentTag) =>
     set((s) => ({
       roomId,
+      waterTrace: null,
       equipmentTag: equipmentTag ?? null,
       anchorIndex: s.roomId === roomId ? s.anchorIndex : 0,
     })),
@@ -203,6 +219,11 @@ export const useShelterStore = create<ShelterView>((set) => ({
     set((s) => ({ sectionPerspective: !s.sectionPerspective, cameraRevision: s.cameraRevision + 1 })),
   togglePlenum: () => set((s) => ({ plenum: !s.plenum })),
   toggleWalkCeiling: () => set((s) => ({ walkCeiling: !s.walkCeiling })),
-  toggleLayer: (id) => set((s) => ({ layers: { ...s.layers, [id]: !s.layers[id] } })),
+  toggleLayer: (id) =>
+    set((s) => ({
+      layers: { ...s.layers, [id]: !s.layers[id] },
+      hoveredValve: null,
+      waterTrace: id === 'water' ? null : s.waterTrace,
+    })),
   toggleHud: () => set((s) => ({ hud: !s.hud })),
 }))

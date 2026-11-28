@@ -12,6 +12,7 @@ import type { MeshStandardMaterialParameters } from 'three'
 import { materialAtlas, materialScanMask, fieldPrintMask, walkingMaterials } from '../assets/pilotAssets'
 import { fieldPrints, finishScans, normalLayerOffset, printLayerOffset } from '../assets/finishScans'
 import { shadowUniforms } from '../atmosphere/shadowUniforms'
+import { walkRevealFragment, walkRevealPars, walkRevealUniforms } from '../mep/lens'
 import { FLOORS } from '../../data/floors'
 
 export type Finish =
@@ -244,6 +245,7 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
   if (kind === 'shotcrete' || kind === 'foliage') mat.side = DoubleSide
   mat.name = kind
   const family = kind === 'terrain' || kind === 'glass' ? kind : 'solid'
+  const walkFamily = family !== 'terrain'
   mat.customProgramCacheKey = () => 'ars-' + family
   mat.forceSinglePass = true
   mat.addEventListener('dispose', () => {
@@ -255,6 +257,11 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
   const pattern = family === 'solid' ? solidPatterns : glsl[family]
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, shadowUniforms)
+    if (walkFamily) {
+      const walkSurface = mat.userData.walkSurface
+      Object.assign(shader.uniforms, walkRevealUniforms)
+      shader.uniforms.arsWalkSurface = { value: walkSurface === 'ceiling' ? 2 : Number(walkSurface === 'wall') }
+    }
     shader.uniforms.finishIndex = { value: finishOrder.indexOf(kind) }
     shader.uniforms.boxEdges = { value: box }
     shader.uniforms.frosted = { value: ['terrain', 'stone', 'solar', 'wood', 'steel'].includes(kind) }
@@ -346,6 +353,14 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
           totalEmissiveRadiance+=diffuseColor.rgb*wash*pool*washStrength;
         }`,
       )
+    if (walkFamily) {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 arsProjected;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\narsProjected = gl_Position.xyw;')
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\n' + walkRevealPars)
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + walkRevealFragment)
+    }
     if (kind === 'terrain')
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <fog_fragment>',

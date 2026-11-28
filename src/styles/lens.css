@@ -1,0 +1,8 @@
+#mep-lens-ring {
+  position: fixed;
+  box-sizing: border-box;
+  border: 1px solid rgba(236, 233, 225, 0.88);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}

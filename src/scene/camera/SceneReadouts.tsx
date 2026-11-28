@@ -65,7 +65,7 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       startY = e.clientY
     }
     const click = (e: PointerEvent) => {
-      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 4 || rt.moving) return
+      if (e.defaultPrevented || Math.hypot(e.clientX - startX, e.clientY - startY) > 4 || rt.moving) return
       const s = useShelterStore.getState()
       if (s.mode === 'xray' || e.button !== 0) return
       coords(e)

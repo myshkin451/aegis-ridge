@@ -347,6 +347,15 @@ select option {
   gap: 4px 14px;
   margin-top: 6px;
 }
+.walk-legend {
+  left: calc(var(--margin) + 132px);
+}
+.walk-legend .legend-title span {
+  display: inline;
+}
+.valve-sheet {
+  pointer-events: none;
+}
 .legend label {
   pointer-events: auto;
   cursor: pointer;
@@ -826,11 +835,24 @@ input[type='checkbox']:checked::after {
   .walk-map svg {
     width: 88px;
   }
+  .walk-legend {
+    left: calc(var(--margin) + 126px);
+    bottom: var(--margin);
+  }
+  .walk-legend.open {
+    bottom: calc(var(--margin) + 102px);
+    left: var(--margin);
+  }
   .walk-map + .joystick {
     bottom: 130px;
   }
   .hud:has(.crosshair) .readouts {
     bottom: var(--margin);
+  }
+}
+@media (max-width: 740px) and (pointer: coarse) {
+  .walk-legend.open {
+    bottom: 212px;
   }
 }
 @media (max-height: 590px) and (min-width: 741px) {

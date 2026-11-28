@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect } from 'react'
+import './styles/lens.css'
 import { Instruments } from './ui/Instruments'
 import { useShelterStore } from './store/useShelterStore'
 const ShelterCanvas = lazy(async () => ({ default: (await import('./scene/ShelterCanvas')).ShelterCanvas }))
@@ -25,6 +26,7 @@ export default function App() {
       </div>
       <div aria-hidden="true" className="drawing-intro" />
       <DrawingTransition />
+      <div id="mep-lens-ring" hidden aria-hidden="true" />
       <div inert={!ready}>
         <Instruments />
       </div>

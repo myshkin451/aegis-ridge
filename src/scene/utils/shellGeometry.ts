@@ -100,6 +100,11 @@ export function shaftFrames(m: ModelBuilder, bottom: number, top: number, arriva
   }
 }
 
+const bedroomSleeves = roomsOn('B2')
+  .flatMap((room) => room.servicePorts ?? [])
+  .filter((port) => port.system === 'acoustic-sleeve')
+  .sort((a, b) => a.position[0] - b.position[0])
+
 export function partition(
   m: ModelBuilder,
   floor: FloorId,
@@ -120,6 +125,44 @@ export function partition(
     tint: string,
     finish: 'stone' | 'steel' | 'glass' = 'stone',
   ) => m.box(tint, p(at, y), axis === 'x' ? [length, height, thickness] : [thickness, height, length], finish)
+  // The duct penetrates a packed sleeve above door heads. Build the continuous
+  // masonry crown around that opening so the reveal and the walk BVH agree.
+  const sleeves =
+    floor === 'B2' && axis === 'x'
+      ? bedroomSleeves.filter(({ position: [x, , z] }) => z === fixed && x > begin && x < end)
+      : []
+  if (sleeves.length) {
+    const bore = 0.21,
+      packing = 0.012,
+      jacket = 0.008
+    const outer = bore + 2 * (packing + jacket)
+    const crown = Math.min(...sleeves.map((p) => p.position[1])) - outer / 2
+    let cursor = begin
+    for (const {
+      position: [x, y],
+    } of sleeves) {
+      const left = x - outer / 2,
+        right = x + outer / 2
+      if (left > cursor) box((left + cursor) / 2, (h + crown) / 2, left - cursor, h - crown, 0.15, stone)
+      const low = y - outer / 2,
+        high = y + outer / 2
+      if (low > crown) box(x, (low + crown) / 2, outer, low - crown, 0.15, stone)
+      box(x, (high + h) / 2, outer, h - high, 0.15, stone)
+      // Duct, acoustic seal and galvanized liner meet without an open air path.
+      for (const [inside, wall, depth, tint] of [
+        [bore, packing, 0.17, '#555959'],
+        [bore + 2 * packing, jacket, 0.2, trim],
+      ] as const) {
+        for (const sign of [-1, 1]) {
+          box(x, y + (sign * (inside + wall)) / 2, inside + 2 * wall, wall, depth, tint, 'steel')
+          box(x + (sign * (inside + wall)) / 2, y, wall, inside, depth, tint, 'steel')
+        }
+      }
+      cursor = right
+    }
+    if (cursor < end) box((end + cursor) / 2, (h + crown) / 2, end - cursor, h - crown, 0.15, stone)
+    h = crown
+  }
   const openings = openingsAlong(floor, axis, fixed, begin, end)
   const along = axis === 'x' ? 0 : 2
   function solid(a: number, b: number) {

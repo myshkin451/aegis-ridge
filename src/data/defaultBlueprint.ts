@@ -47,7 +47,7 @@ function dutySanitary(floor: 'B1' | 'B3' | 'B4'): ServicePort[] {
       system: 'duty-sanitary',
       floor,
       position: [-8.2, 0.25, -3.65],
-      connectsTo: { floor, shaft: 'wet', position: [-7.7, 0.25, -3.65] },
+      connectsTo: { floor, shaft: 'wet', position: [-7.7, 0.24, -3.65] },
     },
   ]
 }
@@ -103,7 +103,7 @@ export const defaultBlueprint = {
           system: 'greywater',
           floor: 'B2',
           position: [-5.8, 0.1, 1.55],
-          plenumEntry: { floor: 'B3', position: [-5.8, 3.28, 1.55] },
+          plenumEntry: { floor: 'B3', position: [-5.8, 3.36, 1.55] },
           connectsTo: { floor: 'B3', shaft: 'wet', position: [-7.52, 3.28, -3.45] },
         },
       ],
