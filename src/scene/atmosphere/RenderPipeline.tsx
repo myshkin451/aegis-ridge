@@ -68,7 +68,7 @@ const tiers = [
   { dpr: 0.75, shadow: 512, ao: false, trees: 125 },
   { dpr: 1, shadow: 768, ao: true, trees: 220 },
   { dpr: 1.25, shadow: 1024, ao: true, trees: 340 },
-  { dpr: 1.5, shadow: 1024, ao: true, trees: 380 },
+  { dpr: 1.5, shadow: 2048, ao: true, trees: 380 },
 ]
 const Quality = createContext(tiers[3])
 export const useQuality = () => useContext(Quality)
@@ -341,12 +341,12 @@ export function RenderPipeline() {
     const ao = new SurveyAmbientOcclusion(scene, camera, pipe)
     ao.autoDetectTransparency = false
     ao.configuration.gammaCorrection = false
-    ao.configuration.halfRes = true
-    ao.setQualityMode('Low')
-    // Ignore sub-centimetre surface noise; keep the half-resolution depth-aware blur on real edges.
-    ao.configuration.biasOffset = 0.008
-    ao.configuration.biasMultiplier = 0.25
-    ao.configuration.intensity = 1.45
+    ao.configuration.halfRes = false
+    ao.setQualityMode('Medium')
+    // Full-resolution depth-aware denoising prevents half-res crawling shimmer during camera drag.
+    ao.configuration.biasOffset = 0.012
+    ao.configuration.biasMultiplier = 0.28
+    ao.configuration.intensity = 1.25
     pipe.addPass(ao)
     const bloom = new FixtureBloom(scene, camera, {
       luminanceThreshold: 0.66,
@@ -366,7 +366,7 @@ export function RenderPipeline() {
     pipe.addPass(
       new EffectPass(
         camera,
-        new SMAAEffect({ preset: SMAAPreset.LOW }),
+        new SMAAEffect({ preset: SMAAPreset.HIGH }),
         new ToneMappingEffect({ mode: ToneMappingMode.AGX }),
         grade,
       ),
@@ -463,8 +463,8 @@ export function RenderPipeline() {
     p.grade.transition(scenario === 'normal' && state.cold ? 'cryo' : scenario, dt)
     ao.enabled = tier.ao && state.mode !== 'xray'
     const closeInterior = state.cameraState === 'walkthrough' && camera.position.y < -6
-    ao.configuration.aoRadius = closeInterior ? 0.32 : state.cameraState === 'walkthrough' ? 0.55 : 1.8
-    ao.configuration.intensity = closeInterior ? 1.75 : 1.45
+    ao.configuration.aoRadius = closeInterior ? 0.35 : state.cameraState === 'walkthrough' ? 0.58 : 1.8
+    ao.configuration.intensity = closeInterior ? 1.5 : 1.25
     const photo = usePhotoMode.getState()
     // With the background masked out, hidden emitters contribute exactly zero bloom.
     p.glow.enabled = p.bloom.hasVisibleFixture()

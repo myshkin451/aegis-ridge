@@ -266,6 +266,9 @@ void main() {
   ${finishFragment}
 
   vec3 normal=normalize((viewMatrix*vec4(terrainNormal,0.)).xyz);
+  vec3 tDndu=dFdx(normal), tDndv=dFdy(normal);
+  float tSpecVar=0.25*(dot(tDndu,tDndu)+dot(tDndv,tDndv));
+  surfaceRoughness=clamp(sqrt(surfaceRoughness*surfaceRoughness+min(2.0*tSpecVar,0.36)),0.22,1.0);
   vec3 irradiance=ambientLightColor;
   #if NUM_HEMI_LIGHTS > 0
     // Use the sky/ground colours as a low-frequency approximation of the scene environment.

@@ -44,8 +44,8 @@ export function structure(id: UndergroundId) {
   }
   for (const x of [plan.x0 + 0.12, plan.x1 - 0.12])
     for (const [za, zb] of [
-      [plan.z0, route.z0],
-      [route.z1, plan.z1],
+      [plan.z0 + 0.22, route.z0],
+      [route.z1, plan.z1 - 0.22],
     ])
       m.box(steel, [x, 0.022, (za + zb) / 2], [0.16, 0.035, zb - za], 'steel')
   return m
@@ -78,8 +78,9 @@ export function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
   }
   function flank(axisX: number, step: number) {
     const x = axisX + step
-    let cursor = plan.z0
-    for (const opening of openingsAlong(id, 'z', axisX, plan.z0, plan.z1)) {
+    let cursor = plan.z0 + 0.2
+    const zEnd = plan.z1 - 0.2
+    for (const opening of openingsAlong(id, 'z', axisX, cursor, zEnd)) {
       const z = opening.base[2],
         start = z - opening.width / 2,
         end = z + opening.width / 2
@@ -87,7 +88,7 @@ export function enclosure(id: UndergroundId, side: 'rear' | 'front' | 'wire') {
       wall(x, start, x, end, opening.height)
       cursor = end
     }
-    wall(x, cursor, x, plan.z1)
+    wall(x, cursor, x, zEnd)
   }
   if (side !== 'front') {
     wall(plan.x0, plan.z0 + 0.1, plan.x1, plan.z0 + 0.1)

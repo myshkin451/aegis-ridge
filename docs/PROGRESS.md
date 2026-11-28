@@ -20,13 +20,15 @@
 | **M4** | 物理守恒可行性引擎 + 模拟隔离检修 + 30 秒封锁编排 + 4 工况 3D LUT | `DONE` | `f2a4f7c` | 262 项测试、10 张实拍、65 段 Metal 压测全过；用户于 2026-11-28 核验 7 项工程与性能指标后签收 |
 | **M5 + V1-轻 / V2 / V3** | **Wave 1 并行整合**：10 人专家团与晨间巡检 + 24h 节律与开场 + 声景/照片模式 + 真实房间反射 + V2 山体 + V3 植被 + 相机中心与站房外立面修复 | `REVIEW`（冲刺自动推进，待用户总复核） | `aa44599` / `457a04f` / `c73f1dd` + 本节提交 | 310 项测试全绿、21 张 `wave1` 截图、峰值绘制 393、就绪后新增链接 0、控制台零错误警告、DPR 1.5 全程不降档 |
 | **M6** | 受控房间实验、测距、视角链接、蓝图存取与整站复核 | `REVIEW`（待用户总复核） | 本节提交 | 368 项测试、12 张实拍、79 段 Metal 压测通过 |
-| **V3-1** | 私人堡垒界面、抗闪烁、双电梯与漫游 | `REVIEW`（待用户肉眼签收） | 本节提交 | 382 项测试，五个固定机位，13 个实际层门双向通行 |
+| **V3-1** | 私人堡垒界面、深层抗闪烁（Specular AA / 全分辨率 N8AO / 墙角去重面）、真双电梯（货梯扩容至 2.6×3.0 m）与漫游 | `REVIEW`（待肉眼复核） | `a6dcde4` + 本节提交 | 382 项测试全绿，13 个停靠口双向通行；重写 v3.0 `AGENTS.md`、归档 `v2.0-research-station` tag 并落盘 B2 客厅/厨房参考图 |
+| **V3-2** | 卸载旧科研验证器包袱 + 柴油/电池真实状态 + 原装 PBR GLB 管线 +「B2 客厅与开放厨房」样板间冲刺 | `NEXT` | — | 对照 `docs/references/b2-living/` 参考图验收，决定 Web 铺开或加烘焙/转 UE5 |
 
 ---
 
 ## 当前激活目标
 
-V3-1 以 `6376eff` 为基线，进入 6–8 人私人高山堡垒的第一轮体验复核。各层空间重组与全楼导视归 V3-2，农储和机房陈设归 V3-3。[V3 方案](07-v3-private-fortress-redesign.md)
+- **下一步激活里程碑：`V3-2`**（见 [07-v3-private-fortress-redesign.md](07-v3-private-fortress-redesign.md) 与新版 `AGENTS.md`）。旧版 v2.0 科研站完整快照已通过 `v2.0-research-station`（`6376eff`）归档。
+- **V3-1b 补充热修（本节提交）**：针对实测拖动闪烁，补齐 `pbrLibrary.ts` / `terrainMaterial.ts` 法线高光抗走样（Specular AA）与微浮雕高频衰减、切换全分辨率 `N8AO Medium` + `SMAA HIGH` + `2048` 级联阴影、消除 L1/L2 与 B1–B4 全周外墙及女儿墙/挑檐四角共面 Z-fighting；同时将 3t 货梯轿厢由 `1.8 × 1.8 m` 扩大为实用尺度的 **`2.6 × 3.0 × 2.65 m`**（门宽 `2.26 m` / 开口 `1.96 m`）；生成并落盘 B2 客厅与开放厨房两张视觉参考图（[ref-a-living-dining.jpg](references/b2-living/ref-a-living-dining.jpg) · [ref-b-open-kitchen.jpg](references/b2-living/ref-b-open-kitchen.jpg)）。
 
 ## V3-1 · 2026-11-28
 

@@ -117,10 +117,10 @@ const parameters: Partial<Record<Finish, MeshStandardMaterialParameters>> = {
   pvc_clean: { roughness: 0.55 },
   rubber_gym: { roughness: 0.97 },
 }
-const legacyLarch = `float joint=1.-smoothstep(.002,.008+aa,abs(fract(axes.x/.16+.5)-.5)*.16);
-    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2))*(1.-smoothstep(.012,.033,aa)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
+const legacyLarch = `float joint=1.-smoothstep(.002,.008+aa*1.8,abs(fract(axes.x/.16+.5)-.5)*.16);
+    float fibre=sin(95.*axes.x+mottle*5.+sin(axes.y*1.2))*(1.-smoothstep(.010,.028,aa)); float weather=1.-smoothstep(.18,.9,vBoxLocal.y+.5);
     diffuseColor.rgb=mix(diffuseColor.rgb*vec3(1.24,.91,.65),vec3(.37,.36,.33),weather*.6);
-    diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0008*fibre-.004*joint;`
+    diffuseColor.rgb*=1.-.24*joint+.045*fibre; relief+=.0006*fibre-.003*joint;`
 const metricScan = `
       // Metric projection for millwork. Curved meshes blend three planes by their smooth normal.
       #ifdef FLAT_SHADED
@@ -189,10 +189,10 @@ const glsl = {
   snow: `float ripple=sin(axes.x*8.+1.5*sin(axes.y*1.6)+mottle*3.);
     diffuseColor.rgb*=.97+.03*ripple; relief+=ripple*.007; rough-=.19*step(.94,grain.g)*detail;`,
   stone: `vec2 board=abs(fract(axes/vec2(2.4,1.2)+.5)-.5)*vec2(2.4,1.2);
-    float seam=1.-smoothstep(.002,.014+aa,min(board.x,board.y));
+    float seam=1.-smoothstep(.002,.014+aa*1.8,min(board.x,board.y));
     vec2 tie=(fract(axes/vec2(1.2,.6))-.5)*vec2(1.2,.6);
-    float hole=(1.-smoothstep(.014,.027+aa,length(tie)))*(1.-axis.y);
-    diffuseColor.rgb*=1.+(mottle-.5)*.09-.15*seam-.46*hole; relief-=.005*seam+.012*hole;`,
+    float hole=(1.-smoothstep(.014,.027+aa*1.8,length(tie)))*(1.-axis.y);
+    diffuseColor.rgb*=1.+(mottle-.5)*.09-.15*seam-.46*hole; relief-=.004*seam+.009*hole;`,
   shotcrete: `vec2 pin=abs(fract(axes/1.5)-.5)*1.5;
     float plate=1.-smoothstep(.065,.075+aa,max(pin.x,pin.y)); float bolt=1.-smoothstep(.015,.023+aa,length(pin));
     float weephole=1.-smoothstep(.024,.04+aa,length(mod(axes+.2,1.5)-.75));
@@ -212,8 +212,8 @@ const glsl = {
     diffuseColor.rgb*=1.+.065*(mottle-.5)+.043*nearWeave*thread.x*thread.y;
     relief+=.00017*nearWeave*thread.x*thread.y;`,
   tile: `vec2 border=abs(fract(axes/vec2(.60,.30)+.5)-.5)*vec2(.60,.30);
-    float grout=1.-smoothstep(.001,.003+aa,min(border.x,border.y));
-    diffuseColor.rgb*=1.-.24*grout+.03*(mottle-.5); relief-=.002*grout; rough+=.27*grout;`,
+    float grout=1.-smoothstep(.001,.003+aa*1.8,min(border.x,border.y));
+    diffuseColor.rgb*=1.-.24*grout+.03*(mottle-.5); relief-=.0015*grout; rough+=.27*grout;`,
   ceramic: `rough+=.025*(mottle-.5);`,
   pvc_clean: `rough+=.035*(grain.g-.5); diffuseColor.rgb*=1.+.018*(mottle-.5);`,
   rubber_gym: `diffuseColor.rgb*=1.+.13*detail*(grain.r-.5); relief+=.0009*grain.b;`,
@@ -327,15 +327,16 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
           mottle=texture2D(grains,axes*.017).b*.55+texture2D(grains,axes*.048).b*.45;
         float smooRock=1.-smoothstep(.66,.83,axis.y);
         vec3 scanPerturb=vec3(0.);
-        float rough=0., relief=.00055*(grain.g-.5)*detail, edgeDistance=1.;
+        float reliefFade=1.-smoothstep(.004,.032,aa);
+        float rough=0., relief=.00035*(grain.g-.5)*detail*reliefFade, edgeDistance=1.;
         if(boxEdges){vec3 e=(.5-abs(vBoxLocal))*vExtent;
         edgeDistance=max(min(e.x,e.y),min(max(e.x,e.y),e.z));
         float radius=clamp(min(vExtent.x,min(vExtent.y,vExtent.z))*.12,.005,.020);
         float edge=1.-clamp(edgeDistance/radius,0.,1.);
-        relief-=radius*edge*edge*.48; diffuseColor.rgb*=1.+.09*edge;}
+        relief-=radius*edge*edge*.40*reliefFade; diffuseColor.rgb*=1.+.07*edge*reliefFade;}
         ${family === 'solid' ? `if (useScan) { ${metricScan} } else { ${pattern} }` : pattern}
         if(frosted){float frost=snowCover*smoothstep(.25,.89,surfaceNormal.y+.18*mottle)*smoothstep(-.15,.1,vMetric.y);
-        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.003*grain.b;}`,
+        diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.75,.84,.95)*(.93+.07*grain.b),frost*.95); relief+=frost*.002*grain.b*reliefFade;}`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
@@ -346,7 +347,11 @@ export function pbrMaterial(kind: Finish, box = false, vertexColors = false) {
         `#include <normal_fragment_maps>
         vec3 R1=cross(dFdy(-vViewPosition),normal), R2=cross(normal,dFdx(-vViewPosition));
         float det=dot(dFdx(-vViewPosition),R1);
-        normal=normalize(abs(det)*(normal+scanPerturb-normal*dot(normal,scanPerturb))-sign(det)*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);`,
+        float arsReliefGain=reliefFade;
+        normal=normalize(abs(det)*(normal+scanPerturb-normal*dot(normal,scanPerturb))-sign(det)*arsReliefGain*(dFdx(relief)*R1+dFdy(relief)*R2)+normal*1.e-12);
+        vec3 arsDndu=dFdx(normal), arsDndv=dFdy(normal);
+        float arsSpecVar=0.25*(dot(arsDndu,arsDndu)+dot(arsDndv,arsDndv));
+        roughnessFactor=clamp(sqrt(roughnessFactor*roughnessFactor+min(2.0*arsSpecVar,0.38)),0.08,1.0);`,
       )
       .replace(
         '#include <emissivemap_fragment>',

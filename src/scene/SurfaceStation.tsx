@@ -100,10 +100,10 @@ function passengerLobby(m: ModelBuilder, floor: 'L1' | 'L2') {
 function groundFloor() {
   const m = new ModelBuilder()
   addSlab(m, 'L1')
-  for (const x of [garage.x0 + 0.24, garage.x1 - 0.24, vestibule.x1 - 0.24, lobby.x1 - 0.24]) {
-    for (const z of [l1.z0 + 0.24, l1.z1 - 0.24]) {
-      m.box(concreteHi, [x, l1Top / 2, z], [0.38, l1Top, 0.38])
-      m.box(steel, [x, 0.13, z], [0.48, 0.26, 0.48], 'steel')
+  for (const x of [garage.x0 + 0.54, garage.x1 - 0.3, vestibule.x1 - 0.3, lobby.x1 - 0.54]) {
+    for (const z of [l1.z0 + 0.54, l1.z1 - 0.54]) {
+      m.box(concreteHi, [x, (l1Top - 0.004) / 2, z], [0.36, l1Top - 0.004, 0.36])
+      m.box(steel, [x, 0.13, z], [0.46, 0.26, 0.46], 'steel')
     }
   }
   for (const x of [garage.x1, lobby.x0]) {
@@ -119,9 +119,9 @@ function groundFloor() {
   // The east side already shares the garage partition. Close the exposed rear and west side.
   m.box(concrete, [f.x, l1Top / 2, f.rear], [3.92, l1Top, 0.16])
   m.box(concrete, [f.x - 1.92, l1Top / 2, f.z], [0.16, l1Top, 4])
-  for (const x of [f.x - 1.37, f.x + 1.37])
+  for (const x of [f.x - 1.48, f.x + 1.48])
     m.decalBox('#c7a145', [x, 0.017, f.front + 1.13], [0.085, 0.006, 2.06], 'epoxy')
-  m.decalBox('#c7a145', [f.x, 0.017, f.front + 2.12], [2.66, 0.006, 0.08], 'epoxy')
+  m.decalBox('#c7a145', [f.x, 0.017, f.front + 2.12], [2.88, 0.006, 0.08], 'epoxy')
   passengerLobby(m, 'L1')
   elevatorThresholds(m, 'L1')
   shaftFrames(m, 0, FLOORS.L1.pitch, 'L2')
@@ -135,17 +135,19 @@ function groundFacade() {
 
   // North windward wall: full monolithic reinforced concrete sealed flush to L2 slab underside (y = 4.10).
   m.box(concrete, [l1.x, l1Top / 2, l1.z0 + wt / 2], [l1.w, l1Top, wt])
-  m.box(plinth, [l1.x, 0.28, l1.z0 - 0.038], [l1.w + 0.04, 0.56, 0.04])
+  m.box(plinth, [l1.x, 0.28, l1.z0 - 0.038], [l1.w + 0.116, 0.56, 0.04])
   for (const x of [-15.78, -10, -4, 2, 8, 13.78])
     m.box(concreteHi, [x, l1Top / 2, l1.z0 + 0.02], [0.42, l1Top, 0.1])
 
   // West garage wall (x = -16): monolithic bunker plinth with 5 deeply recessed high armored clerestories.
+  // Trimmed to [l1.z0 + wt, l1.z1 - wt] so corner faces never overlap coplanarly with North/South walls.
   const wx = l1.x0 + wt / 2
-  m.box(concrete, [wx, 2.45 / 2, l1.z], [wt, 2.45, l1.d])
-  m.box(plinth, [l1.x0 - 0.038, 0.28, l1.z], [0.04, 0.56, l1.d + 0.04])
-  m.box(concrete, [wx, (3.2 + l1Top) / 2, l1.z], [wt, l1Top - 3.2, l1.d])
-  m.box(concrete, [wx, 2.825, (l1.z0 + -7.96) / 2], [wt, 0.75, -7.96 - l1.z0])
-  m.box(concrete, [wx, 2.825, (5.96 + l1.z1) / 2], [wt, 0.75, l1.z1 - 5.96])
+  const wSpanZ = l1.d - 2 * wt
+  m.box(concrete, [wx, 2.45 / 2, l1.z], [wt, 2.45, wSpanZ])
+  m.box(plinth, [l1.x0 - 0.038, 0.28, l1.z], [0.04, 0.56, l1.d])
+  m.box(concrete, [wx, (3.2 + l1Top) / 2, l1.z], [wt, l1Top - 3.2, wSpanZ])
+  m.box(concrete, [wx, 2.825, (l1.z0 + wt + -7.96) / 2], [wt, 0.75, -7.96 - (l1.z0 + wt)])
+  m.box(concrete, [wx, 2.825, (5.96 + l1.z1 - wt) / 2], [wt, 0.75, l1.z1 - wt - 5.96])
   const slotSpan = 13.2 / 5
   for (let i = 0; i <= 5; i++) m.box(concrete, [wx, 2.825, -7.6 + i * slotSpan], [wt, 0.75, 0.72])
   for (let i = 0; i < 5; i++) {
@@ -235,10 +237,10 @@ function groundFacade() {
 
   // East public lobby wall (x = 14, z = -10..8): solid concrete corners, lower dado, full spandrel & 3 recessed gallery bays.
   const ex = l1.x1 - wt / 2
-  m.box(concrete, [ex, l1Top / 2, (l1.z0 + -7.2) / 2], [wt, l1Top, -7.2 - l1.z0])
-  m.box(concrete, [ex, l1Top / 2, (5.2 + l1.z1) / 2], [wt, l1Top, l1.z1 - 5.2])
+  m.box(concrete, [ex, l1Top / 2, (l1.z0 + wt + -7.2) / 2], [wt, l1Top, -7.2 - (l1.z0 + wt)])
+  m.box(concrete, [ex, l1Top / 2, (5.2 + l1.z1 - wt) / 2], [wt, l1Top, l1.z1 - wt - 5.2])
   m.box(concrete, [ex, 1.18 / 2, -1], [wt, 1.18, 12.4])
-  m.box(plinth, [l1.x1 + 0.038, 0.28, l1.z], [0.04, 0.56, l1.d + 0.04])
+  m.box(plinth, [l1.x1 + 0.038, 0.28, l1.z], [0.04, 0.56, l1.d])
   m.box(concrete, [ex, (2.96 + l1Top) / 2, -1], [wt, l1Top - 2.96, 12.4])
   const eastBays = 3,
     eastStep = 12.4 / eastBays
@@ -297,31 +299,35 @@ function lowerCeiling() {
   ])
     m.box(concrete, [(x0 + x1) / 2, y + SLAB / 2, (z0 + z1) / 2], [x1 - x0, SLAB, z1 - z0])
 
-  // Continuous dark-steel perimeter drip fascia wrapping all 4 edges of the L1/L2 junction (zero gaps).
+  // Continuous dark-steel perimeter drip fascia wrapping all 4 edges of the L1/L2 junction (zero gaps or corner overlap).
   m.box(mullion, [l1.x, y + 0.14, l1.z1 + 0.05], [l1.w + 0.24, 0.42, 0.14], 'steel')
   m.box(mullion, [l1.x, y + 0.14, l1.z0 - 0.05], [l1.w + 0.24, 0.42, 0.14], 'steel')
-  m.box(mullion, [l1.x0 - 0.05, y + 0.14, l1.z], [0.14, 0.42, l1.d + 0.18], 'steel')
-  m.box(mullion, [l1.x1 + 0.05, y + 0.14, l1.z], [0.14, 0.42, l1.d + 0.18], 'steel')
+  m.box(mullion, [l1.x0 - 0.05, y + 0.14, l1.z], [0.14, 0.42, l1.d - 0.04], 'steel')
+  m.box(mullion, [l1.x1 + 0.05, y + 0.14, l1.z], [0.14, 0.42, l1.d - 0.04], 'steel')
 
   // Monolithic concrete parapet walls (0.58 m tall) with corten/dark metal coping on West and East terraces.
   const ph = 0.58,
     pt = 0.28,
     py = top + ph / 2,
     capY = top + ph + 0.03
-  // West terrace parapet (x = -16, returns along north & south to L2 wall at x = -12).
+  // West terrace parapet (x = -16, returns butt cleanly at l1.x0 + pt with zero corner overlap).
+  const wr0 = l1.x0 + pt,
+    wrW = l2.x0 - wr0
   m.box(concreteHi, [l1.x0 + pt / 2, py, l1.z], [pt, ph, l1.d])
-  m.box(concreteHi, [(l1.x0 + l2.x0) / 2, py, l1.z0 + pt / 2], [l2.x0 - l1.x0, ph, pt])
-  m.box(concreteHi, [(l1.x0 + l2.x0) / 2, py, l1.z1 - pt / 2], [l2.x0 - l1.x0, ph, pt])
+  m.box(concreteHi, [wr0 + wrW / 2, py, l1.z0 + pt / 2], [wrW, ph, pt])
+  m.box(concreteHi, [wr0 + wrW / 2, py, l1.z1 - pt / 2], [wrW, ph, pt])
   m.box(mullion, [l1.x0 + pt / 2, capY, l1.z], [pt + 0.08, 0.06, l1.d + 0.08], 'steel')
-  m.box(mullion, [(l1.x0 + l2.x0) / 2, capY, l1.z0 + pt / 2], [l2.x0 - l1.x0 + 0.06, 0.06, pt + 0.08], 'steel')
-  m.box(mullion, [(l1.x0 + l2.x0) / 2, capY, l1.z1 - pt / 2], [l2.x0 - l1.x0 + 0.06, 0.06, pt + 0.08], 'steel')
-  // East terrace parapet (x = 14, returns along north & south to L2 wall at x = 12).
+  m.box(mullion, [(l1.x0 + pt + 0.04 + l2.x0) / 2, capY, l1.z0 + pt / 2], [l2.x0 - (l1.x0 + pt + 0.04), 0.06, pt + 0.08], 'steel')
+  m.box(mullion, [(l1.x0 + pt + 0.04 + l2.x0) / 2, capY, l1.z1 - pt / 2], [l2.x0 - (l1.x0 + pt + 0.04), 0.06, pt + 0.08], 'steel')
+  // East terrace parapet (x = 14, returns butt cleanly at l1.x1 - pt with zero corner overlap).
+  const er1 = l1.x1 - pt,
+    erW = er1 - l2.x1
   m.box(concreteHi, [l1.x1 - pt / 2, py, l1.z], [pt, ph, l1.d])
-  m.box(concreteHi, [(l2.x1 + l1.x1) / 2, py, l1.z0 + pt / 2], [l1.x1 - l2.x1, ph, pt])
-  m.box(concreteHi, [(l2.x1 + l1.x1) / 2, py, l1.z1 - pt / 2], [l1.x1 - l2.x1, ph, pt])
+  m.box(concreteHi, [l2.x1 + erW / 2, py, l1.z0 + pt / 2], [erW, ph, pt])
+  m.box(concreteHi, [l2.x1 + erW / 2, py, l1.z1 - pt / 2], [erW, ph, pt])
   m.box(mullion, [l1.x1 - pt / 2, capY, l1.z], [pt + 0.08, 0.06, l1.d + 0.08], 'steel')
-  m.box(mullion, [(l2.x1 + l1.x1) / 2, capY, l1.z0 + pt / 2], [l1.x1 - l2.x1 + 0.06, 0.06, pt + 0.08], 'steel')
-  m.box(mullion, [(l2.x1 + l1.x1) / 2, capY, l1.z1 - pt / 2], [l1.x1 - l2.x1 + 0.06, 0.06, pt + 0.08], 'steel')
+  m.box(mullion, [(l2.x1 + l1.x1 - pt - 0.04) / 2, capY, l1.z0 + pt / 2], [l1.x1 - pt - 0.04 - l2.x1, 0.06, pt + 0.08], 'steel')
+  m.box(mullion, [(l2.x1 + l1.x1 - pt - 0.04) / 2, capY, l1.z1 - pt / 2], [l1.x1 - pt - 0.04 - l2.x1, 0.06, pt + 0.08], 'steel')
 
   // South cedar terrace decking & solid-curbed balustrade joining cleanly into the west/east parapets.
   for (const z of [l2.z1 + 0.08, l1.z1 - 0.14]) m.box(cedar, [l2.x, top + 0.025, z], [l2.w, 0.05, 0.16], 'wood')
@@ -425,9 +431,9 @@ function upperFacade() {
 
   // --- L2 OBSERVATORY WEST WINDWARD WALL (x = -12, z = -10..6) ---
   const wx = l2.x0 + wt / 2
-  // Solid insulated corner shear piers: NW (-10..-5.6) and SW (3.4..6.0), full height to y = 4.10.
-  m.box(concrete, [wx, l2Top / 2, (-10 + -5.6) / 2], [wt, l2Top, 4.4])
-  m.box(concrete, [wx, l2Top / 2, (3.4 + 6) / 2], [wt, l2Top, 2.6])
+  // Solid insulated corner shear piers trimmed to [l2.z0 + wt, l2.z1 - wt] to prevent corner Z-fighting.
+  m.box(concrete, [wx, l2Top / 2, (l2.z0 + wt + -5.6) / 2], [wt, l2Top, -5.6 - (l2.z0 + wt)])
+  m.box(concrete, [wx, l2Top / 2, (3.4 + l2.z1 - wt) / 2], [wt, l2Top, l2.z1 - wt - 3.4])
   // Vertical weathered-larch timber rainscreen accent on the NW & SW windward piers.
   for (let z = -9.6; z <= -5.85; z += 0.36) m.box(warm, [l2.x0 - 0.05, 2.05, z], [0.06, 3.85, 0.16], 'wood')
   for (let z = 3.65; z <= 5.75; z += 0.36) m.box(warm, [l2.x0 - 0.05, 2.05, z], [0.06, 3.85, 0.16], 'wood')
@@ -475,12 +481,12 @@ function upperFacade() {
 
   // --- L2 ALPINE GREENHOUSE SOUTH (z = 6, x = 2..12) & EAST (x = 12, z = -10..6) WALLS ---
   const gwt = 0.32
-  // Solid insulated concrete knee wall (0..1.05) + solid SE & NE structural anchor piers.
+  // Solid insulated concrete knee wall (0..1.05) + solid SE & NE structural anchor piers (no corner overlap).
   m.box(concrete, [(2 + 10.8) / 2, 1.05 / 2, l2.z1 - gwt / 2], [8.8, 1.05, gwt])
   m.box(concrete, [l2.x1 - gwt / 2, 1.05 / 2, -1.8], [gwt, 1.05, 13.2])
-  m.box(concrete, [(10.8 + garden.x1) / 2, 3.66 / 2, l2.z1 - gwt / 2], [1.2, 3.66, gwt])
-  m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (4.8 + l2.z1) / 2], [gwt, 3.66, 1.2])
-  m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (l2.z0 + -8.4) / 2], [gwt, 3.66, 1.6])
+  m.box(concrete, [(10.8 + garden.x1 - gwt) / 2, 3.66 / 2, l2.z1 - gwt / 2], [garden.x1 - gwt - 10.8, 3.66, gwt])
+  m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (4.8 + l2.z1) / 2], [gwt, 3.66, l2.z1 - 4.8])
+  m.box(concrete, [l2.x1 - gwt / 2, 3.66 / 2, (l2.z0 + wt + -8.4) / 2], [gwt, 3.66, -8.4 - (l2.z0 + wt)])
   // Steel sills & heavy eave header box beams sealing cleanly to the twin pitched rafters.
   m.box(mullion, [(2 + 10.8) / 2, 1.07, l2.z1 - 0.14], [8.84, 0.065, 0.36], 'steel')
   m.box(mullion, [l2.x1 - 0.14, 1.07, (-8.4 + 4.8) / 2], [0.36, 0.065, 13.24], 'steel')

@@ -15,8 +15,8 @@ export const elevatorSpecs = {
     stops: FLOOR_ORDER, initial: 'B2' as FloorId, speed: 2.8,
   },
   freight: {
-    x: freight.x, z: freight.z, width: 1.8, depth: 1.8, height: 2.55,
-    front: freight.z1, rear: freight.z0, doorWidth: 1.98, cabinOpening: 1.32, rearStops: ['B1', 'B4'] as FloorId[],
+    x: freight.x, z: freight.z, width: 2.6, depth: 3.0, height: 2.65,
+    front: freight.z1, rear: freight.z0, doorWidth: 2.26, cabinOpening: 1.96, rearStops: ['B1', 'B4'] as FloorId[],
     stops: FLOOR_ORDER.filter((id): boolean => id !== 'L2'), initial: 'B4' as FloorId, speed: 2.1,
   },
 }
