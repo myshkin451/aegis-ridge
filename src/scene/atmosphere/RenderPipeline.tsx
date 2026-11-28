@@ -52,7 +52,7 @@ const tiers = [
   { dpr: 0.75, shadow: 512, ao: false, trees: 125 },
   { dpr: 1, shadow: 768, ao: true, trees: 220 },
   { dpr: 1.25, shadow: 1024, ao: true, trees: 340 },
-  { dpr: 1.5, shadow: 1536, ao: true, trees: 420 },
+  { dpr: 1.5, shadow: 1024, ao: true, trees: 380 },
 ]
 const Quality = createContext(tiers[3])
 export const useQuality = () => useContext(Quality)

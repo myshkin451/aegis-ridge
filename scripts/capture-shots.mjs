@@ -226,6 +226,7 @@ try {
     )
   }
   if (m5) {
+    await capture('station-low', 'site', 'perspective', '07:40', 'station-low.png')
     for (const state of ['on', 'off']) {
       if (state === 'off') await openStage('r3', '&roomReflections=off')
       for (const [name, time, feet] of pilots)

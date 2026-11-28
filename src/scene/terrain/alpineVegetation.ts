@@ -201,7 +201,7 @@ export function buildAlpineVegetation(
   const last = new Vector3(Infinity, Infinity, Infinity)
   function update(eye: Vector3, seconds: number) {
     time.value = seconds
-    if (last.distanceToSquared(eye) < 36) return
+    if (last.distanceToSquared(eye) < 576) return
     last.copy(eye)
     for (const mesh of batches) mesh.count = 0
     const distance2 = (p: Stamp) => (eye.x - p.x) ** 2 + (eye.y - p.y) ** 2 + (eye.z - p.z) ** 2
@@ -217,7 +217,7 @@ export function buildAlpineVegetation(
       const d = distance2(p)
       if (d < 720 ** 2) emit(stones[d < 65 ** 2 ? 0 : d < 176 ** 2 ? 1 : 2], p)
     }
-    for (const p of tufts) if (distance2(p) < 121 ** 2) emit(p.kind === 'grass' ? grasses : shrubs, p)
+    for (const p of tufts) if (distance2(p) < 140 ** 2) emit(p.kind === 'grass' ? grasses : shrubs, p)
     for (const mesh of batches) {
       if (!mesh.count) continue
       mesh.instanceMatrix.clearUpdateRanges()

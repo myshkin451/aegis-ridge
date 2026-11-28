@@ -150,12 +150,14 @@ export function SceneReadouts({ rt }: { rt: SurveyRuntime }) {
       if (e && e.textContent !== value) e.textContent = value
     }
     const walking = s.cameraState === 'walkthrough'
+    const dragging = !walking && Boolean(rt.controls?.currentAction)
     if (
-      dirty.current ||
-      walking ||
-      rt.controls?.active ||
-      rt.moving ||
-      gl.domElement.dataset.instrumentRevision !== String(s.cameraRevision)
+      !dragging &&
+      (dirty.current ||
+        walking ||
+        rt.controls?.active ||
+        rt.moving ||
+        gl.domElement.dataset.instrumentRevision !== String(s.cameraRevision))
     ) {
       dirty.current = false
       gl.domElement.dataset.instrumentRevision = String(s.cameraRevision)

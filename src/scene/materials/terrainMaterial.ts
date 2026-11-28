@@ -54,8 +54,8 @@ FinishSample emptyFinish() {
 void scanPlane(inout FinishSample result, float weight, vec2 uv, vec2 dx, vec2 dy,
                vec3 tangent, vec3 bitangent, float slot, float phase) {
   float cell = floor(phase), blend = smoothstep(.30,.70,fract(phase));
-  int patches = blend > .002 && blend < .998 ? 2 : 1;
-  if (blend >= .998) cell += 1.;
+  int patches = blend > .03 && blend < .97 ? 2 : 1;
+  if (blend >= .97) cell += 1.;
   for (int i=0; i<patches; ++i) {
     float w = patches == 1 ? weight : weight*(i==0 ? 1.-blend : blend);
     vec3 random = landHash(vec2(cell+float(i),17.*slot));
@@ -81,16 +81,24 @@ FinishSample projectFinish(int index, vec3 p, vec3 dx, vec3 dy, vec3 n, float ph
   vec3 a = abs(n); a *= a; a *= a; a *= a;
   a /= max(dot(a, vec3(1.)), .0001);
   // Flat ground uses one projection. Cliffs use the same sample path on up to three planes.
-  int planes = max(a.x,a.z) > .008 ? 3 : 1;
+  int planes = max(a.x,a.z) > .06 ? 3 : 1;
+  float sumW = 0.;
   for (int axis=0; axis<planes; ++axis) {
     float weight = axis==0 ? a.y : axis==1 ? a.x : a.z;
-    if (weight < .008) continue;
+    if (weight < .06) continue;
+    sumW += weight;
     vec3 tangent = axis==0 ? vec3(1,0,0) : axis==1 ? vec3(0.,0.,-sign(n.x)) : vec3(sign(n.z),0.,0.);
     vec3 bitangent = axis==0 ? vec3(0,0,-1) : vec3(0,1,0);
     vec2 uv = vec2(dot(p,tangent),dot(p,bitangent));
     vec2 gx = vec2(dot(dx,tangent),dot(dx,bitangent));
     vec2 gy = vec2(dot(dy,tangent),dot(dy,bitangent));
     scanPlane(s,weight,uv,gx,gy,tangent,bitangent,slot,phase+float(axis)*2.7);
+  }
+  if (sumW > 0.) {
+    float invW = 1. / sumW;
+    s.colorHeight *= invW;
+    s.normalSlope *= invW;
+    s.roughness *= invW;
   }
   s.colorHeight.rgb = sRGBTransferEOTF(s.colorHeight).rgb;
   return s;
@@ -128,7 +136,7 @@ vec3 p = vSurveyPosition;
 vec3 slopeNormal = normalize(inverseTransformDirection(normalize(vNormal), viewMatrix));
 vec3 dpdx = dFdx(p), dpdy = dFdy(p);
 float range = length(vViewPosition);
-float macroFraction = smoothstep(300., 495., range);
+float macroFraction = smoothstep(300., 400., range);
 vec2 macroXZ = texture(macroNormal, surveyUv(p.xz, 10000., 1000.)).rg*2.-1.;
 vec3 mappedNormal = vec3(macroXZ.x, sqrt(max(.001, 1.-dot(macroXZ,macroXZ))), macroXZ.y);
 slopeNormal = normalize(mix(slopeNormal, mappedNormal, macroFraction));
@@ -174,7 +182,7 @@ vec3 pigment=broad/total, microSlope=vec3(0.);
 float surfaceRoughness=.85;
 if (macroFraction < 1.) {
   float phase = (fleck + .18*region)*18.;
-  int strataCount=second>.055 ? 2 : 1;
+  int strataCount=second>.11 ? 2 : 1;
   vec3 detailColor=vec3(0.), detailSlope=vec3(0.);
   float detailRough=0., detailWeight=0.;
   for (int layer=0; layer<strataCount; ++layer) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Vector3 } from 'three'
-import { constrainSite, flightSpeed } from '../src/scene/camera/siteNavigation'
+import { constrainOrbitPose, constrainSite, flightSpeed, focusAlongRay } from '../src/scene/camera/siteNavigation'
 import { groundAt, type TerrainAtlas } from '../src/geometry/siteElevations'
 import { doors } from '../src/geometry/doors'
 
@@ -36,6 +36,34 @@ describe('现场相机', () => {
     expect(flightSpeed(1)).toBe(6)
     expect(flightSpeed(120)).toBeGreaterThan(40)
     expect(flightSpeed(1000)).toBeLessThanOrEqual(80)
+  })
+  it('keeps the orbit target anchored when grazing terrain or walls during orbit', () => {
+    const atlas = terrain(0.3),
+      eyeOut = new Vector3(),
+      targetOut = new Vector3()
+    const pivot = new Vector3(0, 9, 0)
+    const clamped = constrainOrbitPose(
+      atlas,
+      new Vector3(10, 12, 20),
+      new Vector3(30, 2, 20),
+      pivot,
+      false,
+      eyeOut,
+      targetOut,
+    )
+    expect(clamped).toBe(true)
+    expect(eyeOut.y - groundAt(atlas, eyeOut.x, eyeOut.z).height).toBeGreaterThanOrEqual(0.8)
+    expect(targetOut).toEqual(pivot)
+  })
+  it('re-anchors the orbit pivot strictly along the camera optical axis without moving the camera', () => {
+    const eye = new Vector3(-20, 12, 30)
+    const forward = new Vector3(0.6, -0.2, -0.8).normalize()
+    const target = focusAlongRay(eye, forward, 24, 120, 0)
+    expect(target.distanceTo(eye)).toBeCloseTo(24, 5)
+    expect(target.clone().sub(eye).normalize().dot(forward)).toBeCloseTo(1, 6)
+    const skyFallback = focusAlongRay(eye, new Vector3(0, 0.4, -1).normalize(), null, 500, 0)
+    expect(skyFallback.distanceTo(eye)).toBeLessThanOrEqual(80)
+    expect(skyFallback.clone().sub(eye).normalize().dot(new Vector3(0, 0.4, -1).normalize())).toBeCloseTo(1, 6)
   })
   it('keeps B2 sliding leaves on the room side of the jamb throughout their travel', () => {
     const panels = doors.filter((d) => d.floor === 'B2' && d.trackOffset !== undefined)

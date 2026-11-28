@@ -49,6 +49,57 @@ export function constrainSite(atlas: TerrainAtlas, from: Vector3, to: Vector3, r
     result.set(nx, Math.max(ny, siteGround(atlas, nx, nz) + clearance + 0.001), nz)
   }
 }
+export function constrainOrbitPose(
+  atlas: TerrainAtlas,
+  from: Vector3,
+  eye: Vector3,
+  target: Vector3,
+  translating: boolean,
+  outEye: Vector3,
+  outTarget: Vector3,
+) {
+  constrainSite(atlas, from, eye, outEye)
+  outTarget.copy(target)
+  if (translating) {
+    // Preserve view direction while sliding along terrain or walls during free-flight.
+    outTarget.x += outEye.x - eye.x
+    outTarget.y += outEye.y - eye.y
+    outTarget.z += outEye.z - eye.z
+    return outEye.distanceToSquared(eye) > 1e-12
+  }
+  // During orbit or dolly, keep the orbit pivot anchored instead of lifting it into the sky.
+  const separation = outEye.distanceTo(outTarget)
+  if (separation < 0.25) {
+    const dx = target.x - eye.x,
+      dy = target.y - eye.y,
+      dz = target.z - eye.z
+    const len = Math.hypot(dx, dy, dz) || 1
+    outTarget.set(outEye.x + (dx / len) * 0.25, outEye.y + (dy / len) * 0.25, outEye.z + (dz / len) * 0.25)
+  }
+  return outEye.distanceToSquared(eye) > 1e-12
+}
+export function focusAlongRay(
+  eye: Vector3,
+  forward: Vector3,
+  hitDistance: number | null,
+  currentDistance: number,
+  referenceY: number,
+  minDistance = 2,
+  out = new Vector3(),
+) {
+  const height = Math.max(0, Math.abs(eye.y - referenceY))
+  const maxLocal = Math.max(240, height * 10)
+  let distance: number
+  if (hitDistance !== null && Number.isFinite(hitDistance) && hitDistance > 0) {
+    distance = MathUtils.clamp(hitDistance, minDistance, maxLocal)
+  } else if (forward.y < -0.05 && eye.y > referenceY) {
+    const planeDist = (referenceY - eye.y) / forward.y
+    distance = MathUtils.clamp(planeDist, minDistance, maxLocal)
+  } else {
+    distance = MathUtils.clamp(currentDistance, Math.max(minDistance, 8), Math.max(80, height * 4))
+  }
+  return out.copy(eye).addScaledVector(forward, distance)
+}
 export function flightSpeed(height: number) {
   return 6 + 64 * (1 - Math.exp(-Math.max(0, height - 2) / 88))
 }

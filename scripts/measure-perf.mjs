@@ -340,6 +340,24 @@ try {
     await page.keyboard.up('w')
   })
   if (checkClearance('贴墙自由飞行', flight).building > 1) failures.push('自由飞行未抵达站房外墙')
+  const moveAndDrag = await measure('3D 移动后拖拽中心', async () => {
+    await view('1', site)()
+    // Fly closer toward the station with W, then left-drag to orbit around it.
+    await page.keyboard.down('w')
+    await wait(1200)
+    await page.keyboard.up('w')
+    await cycle()
+    const beforeDrag = (await read('eye')).split(',').map(Number)
+    await drag(160, 0, 24)
+    await wait(300)
+    const afterDrag = (await read('eye')).split(',').map(Number)
+    const beforeDist = Math.hypot(beforeDrag[0], beforeDrag[2])
+    const afterDist = Math.hypot(afterDrag[0], afterDrag[2])
+    // Orbiting after flying close must stay centered near the station rather than swinging on a 100 m ghost radius.
+    if (Math.abs(afterDist - beforeDist) > 35 || afterDist > beforeDist + 25)
+      failures.push(`移动后拖拽中心漂移 before=${beforeDist.toFixed(1)} after=${afterDist.toFixed(1)}`)
+  })
+  checkClearance('3D 移动后拖拽中心', moveAndDrag)
   // Verify that input takes ownership mid-flight, and that the original destination is not resumed.
   for (const [name, key] of [
     ['滚轮打断', 'wheel'],

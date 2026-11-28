@@ -11,8 +11,8 @@ export function cropLeafGeometry(shape: CropLeaf) {
   const position: number[] = [],
     uv: number[] = [],
     indices: number[] = []
-  const rows = 5,
-    cols = 4
+  const rows = 3,
+    cols = 2
   for (let row = 0; row <= rows; row++) {
     const t = row / rows
     for (let col = 0; col <= cols; col++) {

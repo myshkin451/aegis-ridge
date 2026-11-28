@@ -73,3 +73,8 @@ r2 的 12 张表面 WebP 共 1,984,114 B，数组实际占用 33,554,424 B（32 
 | `houseplant` | 0.550 × 0.409 × 0.693 | 2,754 | 63,852 | 共餐客厅壁架，带弯曲叶柄和有中脊的双面叶 |
 
 载入时按每个源网格的包围盒归一化，再套用项目安装尺寸、朝向和位号。源材质只用于交换文件，着色、反射、裁切与投影使用每个安装批次已有的项目材质。r1、r2 和缺件的 r3 使用程序化形体。
+
+## Wave 1 室外山体与植被资产（V2 / V3）
+
+- **V2 山体实拍 PBR 与烘焙地平阴影**：5 套 Poly Haven CC0 1K WebP（岩壁 `tiger_rock`、碎石 `gravel_stones`、草甸 `sparse_grass`、积雪 `snow_02`、裸土 `brown_mud_dry`，15 文件共 `3,658,188 B`，GPU `DataArrayTexture` 含 mip `55,924,040 B`）以及 3 份烘焙测区文件（`horizon-v2.bin`、`macro-normal.rg`、`horizon-angles.r8`）。完整来源、MD5 与复现步骤见 [V2 山体地表资产清单](terrain/MANIFEST_V2.md)。
+- **V3 扫描山石、针叶林八面体替代体、草卡与分期作物**：Poly Haven CC0 岩块 3 级 LOD 与近景针叶树冠（`boulder-lods.glb`）、针叶枝片与 5×5 八面体图集（`fir-bough.webp`、`fir-octa.webp`）、高山草甸与矮灌丛（`alpine-grass.webp`、`alpine-shrub.webp`）及 ambientCG CC0 作物叶图集（`crop-leaves.webp`），6 文件共 `454,168 B`。完整来源、尺寸与复现步骤见 [V3 植被资产清单](vegetation/MANIFEST_V3.md)。

@@ -43,7 +43,11 @@ export function visibleHit(
       return
     if (o.userData.equipmentTags && o.parent?.userData.fitout) {
       if (!candidates?.size || !o.userData.batchTags?.some((tag: string) => candidates.has(tag))) return
-    } else if (['leaf', 'fir', 'distantFir'].includes(o.userData.shape)) return
+    } else if (
+      o.material.userData?.staticVegetationOpacity ||
+      ['leaf', 'fir', 'distantFir', 'foliage'].includes(o.userData.shape)
+    )
+      return
     meshes.push(o)
   })
   return ray.intersectObjects(meshes, false).find((hit) => {

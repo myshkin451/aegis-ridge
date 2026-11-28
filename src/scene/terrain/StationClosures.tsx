@@ -73,19 +73,59 @@ function movingParts(atlas: TerrainAtlas) {
         entry.base[2] - 0.58,
       )
     })
-    for (let i = 0; i < 7; i++) {
-      const z = side > 0 ? upper.z1 + 0.14 : upper.z0 - 0.14
-      add('wood', i % 3 ? '#aa8966' : '#ad9171', observatory.w, 0.1, 0.46, (o, p) => {
-        o.position.set(observatory.x, FLOORS.L2.elevation + 0.4 + i * 0.47, z)
-        o.rotation.x = side * (0.13 + p.slats * 1.39)
-      })
-    }
   }
-  for (let i = 0; i < 8; i++)
-    add('wood', i % 3 ? '#ae916e' : '#a38566', 0.093, 3.15, 0.32, (o, p) => {
-      o.position.set(lobby.x1 - 2.3 + i * 0.29, 1.68, lobby.z1 + 0.17)
-      o.rotation.y = 1.46 * p.slats
+  // L2 Observatory south recessed panoramic bay: 6 armored larch slats park compactly at the head when open and close flush.
+  const obsSouthW = 11.3,
+    obsSouthX = -4.85
+  for (let i = 0; i < 6; i++) {
+    add('wood', i % 3 ? '#aa8966' : '#ad9171', obsSouthW, 0.075, 0.365, (o, p) => {
+      const openY = FLOORS.L2.elevation + 2.86 + i * 0.052
+      const closedY = FLOORS.L2.elevation + 1.13 + i * 0.365
+      o.position.set(obsSouthX, openY + (closedY - openY) * p.slats, upper.z1 - 0.08)
+      o.rotation.x = p.slats * (Math.PI / 2)
     })
+  }
+  // L2 Observatory west recessed bay (z = -5.6..3.4): 18 vertical armored larch slats rotate flush closed.
+  for (let i = 0; i < 18; i++) {
+    add('wood', i % 3 ? '#aa8966' : '#a18464', 0.49, 2.02, 0.085, (o, p) => {
+      o.position.set(upper.x0 + 0.08, FLOORS.L2.elevation + 2.08, -5.35 + i * 0.5)
+      o.rotation.y = p.slats * (Math.PI / 2)
+    })
+  }
+  // L1 Lobby south glazing (x = 4.95..13.05): 4 armored larch-clad thermal shutter panels descend from the header in cold/lockdown.
+  for (let i = 0; i < 4; i++) {
+    const xc = 4.95 + (i + 0.5) * (8.1 / 4)
+    add('wood', i % 2 ? '#ae916e' : '#a38566', 8.1 / 4 - 0.06, 2.6, 0.08, (o, p) => {
+      const drop = p.slats
+      o.position.set(xc, 3.13 - 1.3 * drop, lobby.z1 - 0.08)
+      o.scale.y = Math.max(0.02, 2.6 * drop)
+    })
+  }
+  // L1 Garage west clerestory armor drop-shutters (5 recessed slots at x = -16, y = 2.45..3.20).
+  const slotSpan = 13.2 / 5
+  for (let i = 0; i < 5; i++) {
+    const zc = -7.6 + (i + 0.5) * slotSpan
+    add('steel', '#5a6668', 0.075, 0.74, slotSpan - 0.72, (o, p) => {
+      const drop = Math.max(p.slats, p.roof)
+      o.position.set(-16 + 0.11, 3.2 - 0.375 * drop, zc)
+      o.scale.y = Math.max(0.02, 0.74 * drop)
+    })
+  }
+  // L2 Greenhouse south & east vertical thermal storm armor (descends from eave box over glazing in cold/lockdown).
+  for (let i = 0; i < 4; i++) {
+    const xc = 2 + (i + 0.5) * (8.8 / 4)
+    add('steel', i % 2 ? '#a2aaa6' : '#96a09d', 8.8 / 4 - 0.06, 2.4, 0.065, (o, p) => {
+      o.position.set(xc, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, upper.z1 - 0.04)
+      o.scale.y = Math.max(0.02, 2.4 * p.roof)
+    })
+  }
+  for (let i = 0; i < 6; i++) {
+    const zc = -8.4 + (i + 0.5) * (13.2 / 6)
+    add('steel', i % 2 ? '#a2aaa6' : '#96a09d', 0.065, 2.4, 13.2 / 6 - 0.06, (o, p) => {
+      o.position.set(upper.x1 - 0.04, FLOORS.L2.elevation + 3.47 - 1.2 * p.roof, zc)
+      o.scale.y = Math.max(0.02, 2.4 * p.roof)
+    })
+  }
 
   const span = garden.w / 2
   const rise = FLOORS.L2.pitch - FLOORS.L2.clearHeight
@@ -173,7 +213,7 @@ function buildDrive(atlas: TerrainAtlas) {
       posts: closureProgress(seconds, 0, 2.8),
       gate: closureProgress(seconds, 1.2, 5),
       entry: closureProgress(seconds, 5, 10),
-      slats: Math.max(cold ? 0.55 : 0, closureProgress(seconds, 10, 15)),
+      slats: Math.max(cold ? 0.92 : 0, closureProgress(seconds, 10, 15)),
       roof: Math.max(cold ? 1 : 0, closureProgress(seconds, 15, 20)),
     }
     for (const { mesh, rows } of batches) {

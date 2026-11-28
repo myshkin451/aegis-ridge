@@ -26,7 +26,8 @@ import { useShelterStore } from '../../store/useShelterStore'
 import { reduceMotion } from '../utils/Model'
 import type { SurveyRuntime } from './runtime'
 import { morphProjection } from './projection'
-import { constrainSite, obstacleTop, flightSpeed, siteGround } from './siteNavigation'
+import { constrainOrbitPose, constrainSite, flightSpeed, focusAlongRay, obstacleTop, siteGround } from './siteNavigation'
+import { visibleHit } from '../rooms/picking'
 import { pathToOpenCeiling, routeKey, routeToWalkPosition } from './roomRoutes'
 import { useCrewTour } from '../../store/useCrewTour'
 import { WALK } from './walkCollision'
@@ -126,6 +127,7 @@ function desired(atlas: TerrainAtlas, aspect: number) {
 }
 export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: SurveyRuntime }) {
   const gl = useThree((s) => s.gl),
+    scene = useThree((s) => s.scene),
     size = useThree((s) => s.size),
     set = useThree((s) => s.set),
     get = useThree((s) => s.get)
@@ -146,9 +148,77 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       delta: new Vector3(),
       previous: new Vector3(),
       safe: new Vector3(),
+      safeTarget: new Vector3(),
+      goalTarget: new Vector3(),
+      ray: new Raycaster(),
+      probe: new Vector2(),
+      focus: new Vector3(),
     }),
     [],
   )
+  const pivotDirty = useRef(false)
+  const pointerButtons = useRef(0)
+  const reanchorPivot = useRef<() => void>(() => {})
+  reanchorPivot.current = () => {
+    const controls = rt.controls,
+      cam = get().camera
+    if (!controls?.enabled || !(cam instanceof PerspectiveCamera) || advance.current) return
+    const state = useShelterStore.getState()
+    if (state.cameraState === 'walkthrough') return
+    cam.updateMatrixWorld()
+    cam.getWorldDirection(flight.forward).normalize()
+    const currentDist = Math.max(controls.minDistance, cam.position.distanceTo(rt.target))
+    const referenceY =
+      state.mode === 'exterior'
+        ? siteGround(atlas, cam.position.x, cam.position.z)
+        : state.cameraState === 'sectionBox'
+          ? (state.box.bottom + state.box.top) * 0.5
+          : state.mode === 'xray'
+            ? -9
+            : FLOORS[state.lastFloor].elevation + 1
+    // Cast along screen center first, with a tight 4-point central guard if center slips onto a distant peak.
+    flight.probe.set(0, 0)
+    flight.ray.setFromCamera(flight.probe, cam)
+    let hitDist = visibleHit(scene, flight.ray, false)?.distance ?? null
+    if (hitDist === null || hitDist > 220) {
+      let nearest = Infinity
+      for (const [nx, ny] of [
+        [0.08, 0],
+        [-0.08, 0],
+        [0, 0.08],
+        [0, -0.08],
+      ]) {
+        flight.probe.set(nx, ny)
+        flight.ray.setFromCamera(flight.probe, cam)
+        const h = visibleHit(scene, flight.ray, false)
+        if (h && h.distance < nearest) nearest = h.distance
+      }
+      if (nearest < 200 && (hitDist === null || nearest < hitDist * 0.6)) hitDist = nearest
+    }
+    focusAlongRay(
+      cam.position,
+      flight.forward,
+      hitDist,
+      currentDist,
+      referenceY,
+      Math.max(controls.minDistance, 2),
+      flight.focus,
+    )
+    controls.setFocalOffset(0, 0, 0, false)
+    controls.setLookAt(
+      cam.position.x,
+      cam.position.y,
+      cam.position.z,
+      flight.focus.x,
+      flight.focus.y,
+      flight.focus.z,
+      false,
+    )
+    controls.update(0)
+    cam.updateMatrixWorld()
+    rt.target.copy(flight.focus)
+    pivotDirty.current = false
+  }
   const resume = useRef<{ revision: number; eye: Vector3; look: Vector3 } | null>(null)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -164,8 +234,22 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       flight.keys.add(key)
       if (rt.controls?.enabled && get().camera instanceof PerspectiveCamera) e.preventDefault()
     }
-    const up = (e: KeyboardEvent) => flight.keys.delete(e.key.toLowerCase())
-    const clear = () => flight.keys.clear()
+    const up = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      if (!flight.keys.delete(key)) return
+      const movingKey =
+        flight.keys.has('w') ||
+        flight.keys.has('a') ||
+        flight.keys.has('s') ||
+        flight.keys.has('d') ||
+        flight.keys.has('q') ||
+        flight.keys.has('e')
+      if (!movingKey && pivotDirty.current && pointerButtons.current === 0) reanchorPivot.current()
+    }
+    const clear = () => {
+      flight.keys.clear()
+      pointerButtons.current = 0
+    }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
     window.addEventListener('blur', clear)
@@ -241,13 +325,31 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     controls.maxDistance = 10500
     controls.maxZoom = 26
     controls.minZoom = 0.1
-    controls.maxPolarAngle = Math.PI * 0.505
+    controls.maxPolarAngle = view === 'site' && state.mode === 'exterior' ? Math.PI * 0.508 : Math.PI * 0.85
     if (!goal.perspective) {
       controls.mouseButtons.left = CameraControls.ACTION.TRUCK
       controls.mouseButtons.wheel = CameraControls.ACTION.ZOOM
       controls.touches.one = CameraControls.ACTION.TOUCH_TRUCK
       controls.touches.two = CameraControls.ACTION.TOUCH_ZOOM_TRUCK
     }
+    pivotDirty.current = false
+    const onCanvasPointerDown = (e: PointerEvent) => {
+      pointerButtons.current = e.buttons || (e.button === 2 ? 2 : 1)
+      if (!controls.enabled || !goal.perspective || view === 'walkthrough' || advance.current) return
+      if (pivotDirty.current) reanchorPivot.current()
+      // Right-drag or middle-drag translates the viewport; re-anchor the orbit pivot on the next orbit.
+      if (e.button === 2 || e.button === 1) pivotDirty.current = true
+    }
+    const onCanvasPointerUp = (e: PointerEvent) => {
+      pointerButtons.current = e.buttons
+    }
+    const onCanvasWheel = () => {
+      if (!controls.enabled || !goal.perspective || view === 'walkthrough' || advance.current) return
+      pivotDirty.current = true
+    }
+    gl.domElement.addEventListener('pointerdown', onCanvasPointerDown, true)
+    window.addEventListener('pointerup', onCanvasPointerUp, true)
+    gl.domElement.addEventListener('wheel', onCanvasWheel, { capture: true, passive: true })
     const canvas = gl.domElement
     canvas.dataset.view = view
     canvas.dataset.projection = goal.perspective ? 'perspective' : 'orthographic'
@@ -455,6 +557,9 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
       window.addEventListener(event, skip, true)
     return () => {
+      gl.domElement.removeEventListener('pointerdown', onCanvasPointerDown, true)
+      window.removeEventListener('pointerup', onCanvasPointerUp, true)
+      gl.domElement.removeEventListener('wheel', onCanvasWheel, true)
       for (const event of ['pointerdown', 'pointermove', 'wheel', 'keydown'])
         window.removeEventListener(event, skip, true)
       rt.garageTransfer = rt.dropping = false
@@ -470,7 +575,7 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
     else if (rt.controls?.enabled) {
       const cam = get().camera,
         state = useShelterStore.getState()
-      const { keys, previous, forward, delta, safe } = flight
+      const { keys, previous, forward, delta, safe, safeTarget, goalTarget } = flight
       previous.copy(cam.position)
       rt.controls.update(Math.min(dt, 0.1))
       rt.controls.getTarget(rt.target, false)
@@ -478,7 +583,11 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
       if (cam instanceof PerspectiveCamera && keys.size) {
         cam.getWorldDirection(forward)
         forward.y = 0
-        forward.normalize()
+        if (forward.lengthSq() < 1e-6) {
+          forward.set(0, 1, 0).applyQuaternion(cam.quaternion)
+          forward.y = 0
+        }
+        if (forward.lengthSq() > 1e-8) forward.normalize()
         const f = Number(keys.has('w')) - Number(keys.has('s')),
           side = Number(keys.has('d')) - Number(keys.has('a'))
         delta.set(
@@ -490,26 +599,49 @@ export function CameraStateMachine({ atlas, rt }: { atlas: TerrainAtlas; rt: Sur
           state.mode === 'exterior'
             ? siteGround(atlas, cam.position.x, cam.position.z)
             : FLOORS[state.lastFloor].elevation
-        delta
-          .normalize()
-          .multiplyScalar(
-            flightSpeed(cam.position.y - ground) * (keys.has('shift') ? 2 : 1) * Math.min(dt, 0.08),
-          )
+        if (delta.lengthSq() > 0)
+          delta
+            .normalize()
+            .multiplyScalar(
+              flightSpeed(Math.abs(cam.position.y - ground)) * (keys.has('shift') ? 2 : 1) * Math.min(dt, 0.08),
+            )
       }
       const moved = delta.lengthSq() > 0
-      cam.position.add(delta)
-      rt.target.add(delta)
-      if (state.mode === 'exterior' && state.cameraState === 'site' && !previous.equals(cam.position)) {
-        constrainSite(atlas, previous, cam.position, safe)
-        // Keep the optical axis when the eye slides along the wall.
-        delta.subVectors(safe, cam.position)
-        rt.target.add(delta)
-        cam.position.copy(safe)
-      } else delta.set(0, 0, 0)
-      if (moved || delta.lengthSq() > 1e-14) {
-        rt.controls.setLookAt(...cam.position.toArray(), ...rt.target.toArray(), false)
+      const exteriorSite = state.mode === 'exterior' && state.cameraState === 'site'
+      if (moved) {
+        pivotDirty.current = true
+        const desiredEye = safeTarget.copy(cam.position).add(delta)
+        let dx = delta.x,
+          dy = delta.y,
+          dz = delta.z
+        if (exteriorSite) {
+          constrainSite(atlas, previous, desiredEye, safe)
+          dx = safe.x - cam.position.x
+          dy = safe.y - cam.position.y
+          dz = safe.z - cam.position.z
+        }
+        // moveTo shifts camera + target together without cancelling active mouse rotation smoothing.
+        rt.controls.getTarget(goalTarget, false)
+        rt.controls.moveTo(goalTarget.x + dx, goalTarget.y + dy, goalTarget.z + dz, false)
         rt.controls.update(0)
+        rt.controls.getTarget(rt.target, false)
         cam.updateMatrixWorld()
+      } else if (exteriorSite && !previous.equals(cam.position)) {
+        const clamped = constrainOrbitPose(atlas, previous, cam.position, rt.target, false, safe, safeTarget)
+        if (clamped) {
+          rt.controls.setLookAt(
+            safe.x,
+            safe.y,
+            safe.z,
+            safeTarget.x,
+            safeTarget.y,
+            safeTarget.z,
+            false,
+          )
+          rt.controls.update(0)
+          rt.target.copy(safeTarget)
+          cam.updateMatrixWorld()
+        }
       }
     }
     if (rt.moving) {
