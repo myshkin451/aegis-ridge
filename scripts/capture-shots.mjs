@@ -2,6 +2,10 @@ if (process.argv[2] === 'v2') {
   await import('./capture-terrain.mjs')
   process.exit(0)
 }
+if (process.argv[2] === 'v3') {
+  await import('./capture-vegetation.mjs')
+  process.exit(0)
+}
 
 import { chromium } from 'playwright'
 import { preview } from 'vite'
@@ -14,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const milestone = process.argv[2] ?? 'm5-v1lite'
-const m5 = milestone === 'm5-v1lite'
+const m5 = milestone === 'm5-v1lite' || milestone === 'wave1'
 if (!m5 && !/^m\d+(?:\.\d+[a-z]?)?$/.test(milestone)) throw Error('无效里程碑名称')
 if (!existsSync(join(root, 'dist/index.html'))) throw Error('请先运行 npm run build')
 const directory = resolve(root, 'docs/shots', milestone)
@@ -103,7 +107,10 @@ try {
   page.on('requestfailed', (r) => errors.push(new URL(r.url()).pathname + ' ' + r.failure()?.errorText))
   const base = 'http://127.0.0.1:' + server.httpServer.address().port
   async function openStage(stage, extra = '') {
-    await page.goto(base + '/?quality=' + (m5 ? 3 : 2) + '&pilot=' + stage + extra, { waitUntil: 'networkidle' })
+    const legacy = !m5 ? '&veg=v2' : ''
+    await page.goto(base + '/?quality=' + (m5 ? 3 : 2) + legacy + '&pilot=' + stage + extra, {
+      waitUntil: 'networkidle',
+    })
     await page.waitForSelector('canvas[data-ready="settled"][data-rendered="true"]')
     const data = await page.locator('canvas').evaluate((c) => ({ ...c.dataset }))
     if (
@@ -119,7 +126,7 @@ try {
       performance
         .getEntriesByType('resource')
         .map((entry) => new URL(entry.name).pathname)
-        .filter((path) => /\.(glb|webp)$/.test(path)),
+        .filter((path) => /\/assets\/(pilot|finishes|art)\/.*\.(glb|webp)$/.test(path)),
     )
     const count = { r1: 0, r2: 12, r3: 17 }[stage]
     if (

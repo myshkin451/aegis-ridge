@@ -1,3 +1,5 @@
+import { vegetationV3 } from '../terrain/foliageAssets'
+import { plantBed } from './cropBeds'
 import type { EquipmentUnit, Point3 } from '../../types/shelter'
 import { randomSource } from '../../geometry/random'
 import type { ModelBuilder } from '../utils/modelBuilder'
@@ -216,35 +218,53 @@ function growRack(m: ModelBuilder, e: EquipmentUnit, leafy: boolean) {
       m.box(steel, [side * 0.53, y + (leafy ? 0.455 : 1.01), 0], [0.128, 0.043, d - 0.3], 'steel')
       m.box(plumWhite, [side * 0.53, y + (leafy ? 0.426 : 0.98), 0], [0.097, 0.018, d - 0.34], 'lamp')
     }
-    // A leaf rosette has a tight heart and broad outer leaves. Tuber rows carry taller, branching crowns.
-    const spacing = leafy ? 0.55 : 0.76
-    for (let z = front + 0.32; z < back - 0.3; z += spacing)
-      for (const x of [-0.41, 0.42]) {
-        const cx = x + (rng() - 0.5) * 0.08,
-          cz = z + (rng() - 0.5) * 0.09,
-          cy = y + lip / 2 + 0.03
-        const tint = leafy ? (level % 3 === 2 ? '#985b66' : '#7ea155') : '#658748'
-        if (!leafy) m.box('#697e4b', [cx, cy + 0.145, cz], [0.038, 0.29, 0.04], 'steel')
-        for (let k = 0; k < (leafy ? 7 : 6); k++) {
-          const a = (k * 6.283) / (leafy ? 7 : 6) + rng() * 0.42
-          const r = leafy ? 0.088 : 0.105
+    if (vegetationV3) {
+      const surface = y + lip / 2 + 0.0175
+      plantBed(
+        m,
+        {
+          width: w - 0.26,
+          length: d - 0.3,
+          columns: 3,
+          surface,
+          rowPitch: leafy ? 0.45 : 0.62,
+          headroom: y + (leafy ? 0.417 : 0.971) - surface,
+        },
+        leafy ? 'greens' : 'tuber',
+        level,
+        e.position[0] * 1000 + level,
+      )
+    } else {
+      // A leaf rosette has a tight heart and broad outer leaves. Tuber rows carry taller, branching crowns.
+      const spacing = leafy ? 0.55 : 0.76
+      for (let z = front + 0.32; z < back - 0.3; z += spacing)
+        for (const x of [-0.41, 0.42]) {
+          const cx = x + (rng() - 0.5) * 0.08,
+            cz = z + (rng() - 0.5) * 0.09,
+            cy = y + lip / 2 + 0.03
+          const tint = leafy ? (level % 3 === 2 ? '#985b66' : '#7ea155') : '#658748'
+          if (!leafy) m.box('#697e4b', [cx, cy + 0.145, cz], [0.038, 0.29, 0.04], 'steel')
+          for (let k = 0; k < (leafy ? 7 : 6); k++) {
+            const a = (k * 6.283) / (leafy ? 7 : 6) + rng() * 0.42
+            const r = leafy ? 0.088 : 0.105
+            m.part(
+              'leaf',
+              'foliage',
+              k % 3 === 1 ? '#9dae64' : tint,
+              [cx + Math.sin(a) * r, cy + canopy * (0.4 + rng() * 0.25), cz + Math.cos(a) * r],
+              [leafy ? 0.246 : 0.3, leafy ? 0.2 : 0.32, leafy ? 0.35 : 0.44],
+              [leafy ? -0.19 : 0.13, a, 0],
+            )
+          }
           m.part(
-            'leaf',
+            'bud',
             'foliage',
-            k % 3 === 1 ? '#9dae64' : tint,
-            [cx + Math.sin(a) * r, cy + canopy * (0.4 + rng() * 0.25), cz + Math.cos(a) * r],
-            [leafy ? 0.246 : 0.3, leafy ? 0.2 : 0.32, leafy ? 0.35 : 0.44],
-            [leafy ? -0.19 : 0.13, a, 0],
+            leafy ? '#a8b975' : '#708c50',
+            [cx, cy + canopy * 0.94, cz],
+            [leafy ? 0.126 : 0.175, leafy ? 0.13 : 0.14, leafy ? 0.12 : 0.17],
           )
         }
-        m.part(
-          'bud',
-          'foliage',
-          leafy ? '#a8b975' : '#708c50',
-          [cx, cy + canopy * 0.94, cz],
-          [leafy ? 0.126 : 0.175, leafy ? 0.13 : 0.14, leafy ? 0.12 : 0.17],
-        )
-      }
+    }
     label(m, -0.44, y, back + 0.085)
   }
   m.box('#d2cbb5', [0, 2.25, front - 0.005], [0.63, 0.17, 0.048], 'epoxy')
@@ -311,6 +331,17 @@ function fishTank(m: ModelBuilder, e: EquipmentUnit) {
     }
   }
   drum(m, 0, 1.054, 0, 3.83, 0.026, '#88b7b6', undefined, 'glass')
+  if (vegetationV3) {
+    // A removable seedling float leaves the tank inlet and feeding surface accessible.
+    m.box('#a59e7b', [0, 1.082, 1.18], [1.48, 0.048, 0.5], 'epoxy')
+    plantBed(
+      m,
+      { width: 1.42, length: 0.44, columns: 4, rowPitch: 0.44, surface: 1.106, originZ: 1.18, headroom: 0.3 },
+      'greens',
+      e.tagCode.endsWith('A') ? 0 : 1,
+      341,
+    )
+  }
   ring(m, 0, 1.12, 0, 1.975, 0.11, steel)
   for (const a of [0, 1.57, 3.14, 4.71])
     m.box(dark, [1.93 * Math.cos(a), 0.58, 1.93 * Math.sin(a)], [0.095, 0.9, 0.095], 'steel')

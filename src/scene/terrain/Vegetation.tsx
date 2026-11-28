@@ -1,98 +1,53 @@
 import { Detailed } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { useLayoutEffect, useMemo } from 'react'
 import { useQuality } from '../atmosphere/RenderPipeline'
-import { useMemo } from 'react'
-import { siteFacilities } from '../../data/siteFacilities'
-import { randomSource } from '../../geometry/random'
-import { groundAt } from '../../geometry/siteElevations'
 import type { TerrainAtlas } from '../../geometry/siteElevations'
-import { Model } from '../utils/Model'
+import { Model, reduceMotion } from '../utils/Model'
 import { ModelBuilder } from '../utils/modelBuilder'
+import { getFoliageAssets, vegetationV3 } from './foliageAssets'
+import { surveyPlantings } from './vegetationStand'
+import { buildAlpineVegetation } from './alpineVegetation'
 
-function stand(atlas: TerrainAtlas) {
-  const random = randomSource(87142)
+function legacyStand(atlas: TerrainAtlas) {
   const plots = new Map<string, { cx: number; cz: number; detail: ModelBuilder; distant: ModelBuilder }>()
-  const facilities = siteFacilities
-    .filter((f) => !['road', 'eastBore', 'cable'].includes(f.kind))
-    .flatMap((f) => f.points)
-  function planted(x: number, z: number) {
-    if (Math.abs(x) < 23 && Math.abs(z) < 18) return false
-    if (facilities.some(([a, b]) => Math.hypot(x - a, z - b) < 13)) return false
-    return !atlas.road.slice(1).some(([u, , v], i) => {
-      const [a, , b] = atlas.road[i],
-        dx = u - a,
-        dz = v - b
-      const t = Math.max(0, Math.min(1, ((x - a) * dx + (z - b) * dz) / (dx * dx + dz * dz)))
-      return Math.hypot(x - a - t * dx, z - b - t * dz) < 6
-    })
-  }
-  for (let i = 0; i < 6200; i++) {
-    const span = i < 900 ? 260 : 1500
-    const x = (random() - 0.5) * span,
-      z = (random() - 0.5) * span
-    const s = groundAt(atlas, x, z),
-      y = s.height,
-      north = (1 - Math.cos(s.aspect)) / 2
-    const grove = Math.sin(x / 37 + Math.sin(z / 28)) * Math.cos(z / 47) + s.flow * 0.8 + s.curvature * 0.15
-    if (!planted(x, z)) continue
-    const cx = (Math.floor(x / 320) + 0.5) * 320,
-      cz = (Math.floor(z / 320) + 0.5) * 320,
-      key = cx + ',' + cz
+  for (const p of surveyPlantings(atlas)) {
+    const cx = (Math.floor(p.x / 320) + 0.5) * 320,
+      cz = (Math.floor(p.z / 320) + 0.5) * 320
+    const key = cx + ',' + cz
     let plot = plots.get(key)
     if (!plot) {
       plot = { cx, cz, detail: new ModelBuilder(), distant: new ModelBuilder() }
       plots.set(key, plot)
     }
     const m = plot.detail,
-      u = x - cx,
-      v = z - cz
-    if (s.slope > 32 || grove < -0.46) {
-      if (random() < 0.36) {
-        const r = 0.3 + random() * 1.6
-        m.part(
-          'rock',
-          'lichen',
-          '#99978a',
-          [u, y + 0.16 * r, v],
-          [r * 1.4, r * 0.8, r],
-          [0.12, random() * 6, 0.18],
+      u = p.x - cx,
+      v = p.z - cz,
+      y = p.y
+    if (p.kind === 'rock') {
+      const r = p.radius
+      m.part('rock', 'lichen', '#99978a', [u, y + 0.16 * r, v], [r * 1.4, r * 0.8, r], [0.12, p.yaw, 0.18])
+    } else if (p.kind === 'fir') {
+      m.box('#514c3f', [u, y + p.height * 0.31, v], [0.14, p.height * 0.62, 0.14], 'wood')
+      for (const model of [m, plot.distant])
+        model.part(
+          model === m ? 'fir' : 'distantFir',
+          'needles',
+          p.tint,
+          [u, y + p.height * 0.52, v],
+          [p.width, p.height, p.depth],
+          [p.lean, p.yaw, 0.035],
         )
-      }
-    } else if (
-      grove > 0.03 &&
-      y < 238 + 70 * north &&
-      s.slope < 31 &&
-      (Math.hypot(x, z) > 85 || (s.curvature > 0.12 && s.flow > 0.2 && random() < 0.32))
-    ) {
-      const h = (2.3 + random() ** 0.68 * 8.4) * (0.85 + 0.15 * north),
-        w = h * (0.15 + random() * 0.18)
-      m.box('#514c3f', [u, y + h * 0.31, v], [0.14, h * 0.62, 0.14], 'wood')
-      const shades = ['#475d47', '#4e644e', '#394f43', '#586b54', '#637557', '#364e46', '#7a8061']
-      const tint = shades[Math.floor(random() * shades.length)],
-        angle = random() * Math.PI * 2
-      const lean = Math.sin(x * 1.73 + z * 0.89) * 0.095,
-        depth = w * (1.5 + random() * 0.85)
-      m.part('fir', 'needles', tint, [u, y + h * 0.52, v], [w * 2.3, h, depth], [lean, angle, 0.035])
-      plot.distant.part(
-        'distantFir',
-        'needles',
-        tint,
-        [u, y + h * 0.52, v],
-        [w * 2.3, h, depth],
-        [lean, angle, 0.035],
-      )
-    } else if (s.slope < 28 && s.flow + 0.4 * north > 0.33) {
-      m.part('bud', 'foliage', '#697557', [u, y + 0.27, v], [1.3, 0.84, 0.93], [0, random() * 6, 0.2])
-    }
+    } else m.part('bud', 'foliage', '#697557', [u, y + 0.27, v], [1.3, 0.84, 0.93], [0, p.yaw, 0.2])
   }
-  return [...plots.values()].map((plot) => ({
-    ...plot,
-    nearModel: () => plot.detail,
-    farModel: () => plot.distant,
-  }))
+  return [...plots.values()].map((p) => ({ ...p, nearModel: () => p.detail, farModel: () => p.distant }))
 }
-export function Vegetation({ atlas, visible }: { atlas: TerrainAtlas; visible: boolean }) {
-  const quality = useQuality()
-  const plots = useMemo(() => stand(atlas), [atlas])
+
+type Props = { atlas: TerrainAtlas; visible: boolean }
+
+function LegacyStand({ atlas, visible }: Props) {
+  const quality = useQuality(),
+    plots = useMemo(() => legacyStand(atlas), [atlas])
   return (
     <group visible={visible}>
       {plots.map((p) => (
@@ -108,4 +63,22 @@ export function Vegetation({ atlas, visible }: { atlas: TerrainAtlas; visible: b
       ))}
     </group>
   )
+}
+
+function AlpineStand({ atlas, visible }: Props) {
+  const quality = useQuality()
+  const stand = useMemo(
+    () => buildAlpineVegetation(atlas, getFoliageAssets(), quality.trees),
+    [atlas, quality],
+  )
+  const still = useMemo(reduceMotion, [])
+  useLayoutEffect(() => () => stand.dispose(), [stand])
+  useFrame(({ camera, clock }) => {
+    if (visible) stand.update(camera.position, still ? 0 : clock.elapsedTime)
+  }, -0.3)
+  return <primitive object={stand.group} visible={visible} dispose={null} />
+}
+
+export function Vegetation(props: Props) {
+  return vegetationV3 ? <AlpineStand {...props} /> : <LegacyStand {...props} />
 }

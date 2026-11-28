@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { useThree } from '@react-three/fiber'
+import { preloadFoliage } from '../terrain/foliageAssets'
 import { useShelterStore } from '../../store/useShelterStore'
 import {
   installPilotAssets,
@@ -14,6 +15,25 @@ import {
 export function PilotPreload({ children }: { children: ReactNode }) {
   const gl = useThree((s) => s.gl)
   const [ready, setReady] = useState(false)
+  const [foliageReady, setFoliageReady] = useState(false)
+  const [failure, setFailure] = useState<Error | null>(null)
+  useLayoutEffect(() => {
+    let mounted = true
+    let release: (() => void) | undefined
+    void preloadFoliage(gl, () => mounted)
+      .then((dispose) => {
+        if (!mounted) return dispose()
+        release = dispose
+        setFoliageReady(true)
+      })
+      .catch((error) => {
+        if (mounted) setFailure(error instanceof Error ? error : new Error(String(error)))
+      })
+    return () => {
+      mounted = false
+      release?.()
+    }
+  }, [gl])
   useLayoutEffect(() => {
     let mounted = true
     let resources: Awaited<ReturnType<typeof loadPilotAssets>> | undefined
@@ -43,5 +63,6 @@ export function PilotPreload({ children }: { children: ReactNode }) {
       if (resources) releasePilotAssets(resources)
     }
   }, [gl])
-  return ready ? children : null
+  if (failure) throw failure
+  return ready && foliageReady ? children : null
 }

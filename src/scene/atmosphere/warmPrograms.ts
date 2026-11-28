@@ -43,7 +43,7 @@ export function precompileSurvey(
   const materials = new Map<Material, boolean>()
   // Programs depend on attribute layouts and instancing, not vertex counts. Draw one
   // primitive per single-material batch into the warm passes, including shadow maps.
-  const geometries = new Map<BufferGeometry, number>()
+  const geometries = new Map<BufferGeometry, { count: number; minDraw: number }>()
   const grouped = new Set<BufferGeometry>()
   const instances = new Map<InstancedMesh, [number, Sphere | null]>()
   const instancedBuffers = new Map<InstancedBufferGeometry, number>()
@@ -66,9 +66,12 @@ export function precompileSurvey(
       if (Array.isArray(o.material)) grouped.add(o.geometry)
       else {
         materials.set(o.material, o.material.transparent)
-        geometries.set(o.geometry, o.geometry.drawRange.count)
+        const minDraw = o instanceof Mesh ? 3 : 2
+        const prev = geometries.get(o.geometry)
+        if (!prev) geometries.set(o.geometry, { count: o.geometry.drawRange.count, minDraw })
+        else prev.minDraw = Math.max(prev.minDraw, minDraw)
       }
-      if (o instanceof InstancedMesh) {
+      if (o instanceof InstancedMesh && !instances.has(o)) {
         instances.set(o, [o.count, o.boundingSphere])
         o.count = Math.min(1, o.count)
       }
@@ -80,7 +83,7 @@ export function precompileSurvey(
   })
   // A shared multi-material geometry can require a different shader for each group.
   for (const geometry of grouped) geometries.delete(geometry)
-  for (const [geometry, count] of geometries) geometry.drawRange.count = Math.min(3, count)
+  for (const [geometry, { count, minDraw }] of geometries) geometry.drawRange.count = Math.min(minDraw, count)
   pipe.setSize(8, 8, false)
   gl.setRenderTarget(pipe.inputBuffer)
   gl.compile(scene, camera)
@@ -101,7 +104,11 @@ export function precompileSurvey(
   exposure.warm(gl, pipe.outputBuffer.texture)
   performance.mark('ars-open-opaque')
   for (const [m, transparent] of materials)
-    if (!transparent && (m instanceof MeshStandardMaterial || m.type === 'LineBasicMaterial')) {
+    if (
+      !transparent &&
+      !m.userData.staticVegetationOpacity &&
+      (m instanceof MeshStandardMaterial || m.type === 'LineBasicMaterial')
+    ) {
       m.transparent = true
       m.needsUpdate = true
     }
@@ -124,7 +131,7 @@ export function precompileSurvey(
     o.frustumCulled = cull
     o.castShadow = casts
   }
-  for (const [geometry, count] of geometries) geometry.drawRange.count = count
+  for (const [geometry, { count }] of geometries) geometry.drawRange.count = count
   for (const [geometry, count] of instancedBuffers) geometry.instanceCount = count
   for (const [mesh, [count, sphere]] of instances) {
     mesh.count = count
