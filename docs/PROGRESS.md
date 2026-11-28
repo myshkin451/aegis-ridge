@@ -21,14 +21,15 @@
 | **M5 + V1-轻 / V2 / V3** | **Wave 1 并行整合**：10 人专家团与晨间巡检 + 24h 节律与开场 + 声景/照片模式 + 真实房间反射 + V2 山体 + V3 植被 + 相机中心与站房外立面修复 | `REVIEW`（冲刺自动推进，待用户总复核） | `aa44599` / `457a04f` / `c73f1dd` + 本节提交 | 310 项测试全绿、21 张 `wave1` 截图、峰值绘制 393、就绪后新增链接 0、控制台零错误警告、DPR 1.5 全程不降档 |
 | **M6** | 受控房间实验、测距、视角链接、蓝图存取与整站复核 | `REVIEW`（待用户总复核） | 本节提交 | 368 项测试、12 张实拍、79 段 Metal 压测通过 |
 | **V3-1** | 私人堡垒界面、深层抗闪烁（Specular AA / 全分辨率 N8AO / 墙角去重面）、真双电梯（货梯扩容至 2.6×3.0 m）与漫游 | `REVIEW`（待肉眼复核） | `a6dcde4` + 本节提交 | 382 项测试全绿，13 个停靠口双向通行；重写 v3.0 `AGENTS.md`、归档 `v2.0-research-station` tag 并落盘 B2 客厅/厨房参考图 |
-| **V3-2** | 柴油与储能、原装 PBR GLB、B2 客厅与开放厨房，移除旧科研验证器 | `REVIEW`（待肉眼签收） | 本节提交 | [客厅对照](shots/v3-2/b2-living-dining-comparison.webp) · [厨房对照](shots/v3-2/b2-open-kitchen-comparison.webp) · [本机实测](shots/v3-2/performance.md) |
+| **V3-2** | 柴油与储能、原装 PBR GLB、B2 客厅与开放厨房，移除旧科研验证器 | `DONE` | `2361514` | 用户于 2026-11-28 签收通过；[客厅对照](shots/v3-2/b2-living-dining-comparison.webp) · [厨房对照](shots/v3-2/b2-open-kitchen-comparison.webp) · [本机实测](shots/v3-2/performance.md) |
+| **V3-3A / 3B / 4** | **三路并行冲刺**：`V3-3A`（B2 卧室/影音游戏/全楼导视）· `V3-3B`（L1 车库更衣/L2 瞭望/B1 主仓武器库）· `V3-4`（B3 农储冷库/B4 柴油黑盒机房/外景远山云海） | `NEXT` | — | 已在 `main` 预埋三路零冲突资产包、渲染与布光插槽 |
 
 ---
 
 ## 当前激活目标
 
-- **V3-2 等待用户签收。** 先对照下面两张眼高实拍，决定这套 Web 表现是否适合铺开。方案见 [07-v3-private-fortress-redesign.md](07-v3-private-fortress-redesign.md) 与新版 `AGENTS.md`。旧版 v2.0 科研站完整快照已通过 `v2.0-research-station`（`6376eff`）归档。
-- **V3-1b 补充热修（本节提交）**：针对实测拖动闪烁，补齐 `pbrLibrary.ts` / `terrainMaterial.ts` 法线高光抗走样（Specular AA）与微浮雕高频衰减、切换全分辨率 `N8AO Medium` + `SMAA HIGH` + `2048` 级联阴影、消除 L1/L2 与 B1–B4 全周外墙及女儿墙/挑檐四角共面 Z-fighting；同时将 3t 货梯轿厢由 `1.8 × 1.8 m` 扩大为实用尺度的 **`2.6 × 3.0 × 2.65 m`**（门宽 `2.26 m` / 开口 `1.96 m`）；生成并落盘 B2 客厅与开放厨房两张视觉参考图（[ref-a-living-dining.jpg](references/b2-living/ref-a-living-dining.jpg) · [ref-b-open-kitchen.jpg](references/b2-living/ref-b-open-kitchen.jpg)）。
+- 用户于 2026-11-28 签收 **V3-2（`2361514`）**，确认 Web 原装 PBR GLB + 暖调明暗对比管线达标。
+- 接下来开启 **三线程隔离 Worktree 并行冲刺（`feat/v3-3a-b2-living`、`feat/v3-3b-surface-b1`、`feat/v3-4-plant-horizon`）**，各路严格隔离文件边界，完成后合并回 `main` 总验收。方案见 [07-v3-private-fortress-redesign.md](07-v3-private-fortress-redesign.md) 与新版 `AGENTS.md`。
 
 ## V3-2 · 2026-11-28
 

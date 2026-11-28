@@ -1,4 +1,7 @@
 import { CommonsFurnishings } from './CommonsFurnishings'
+import { B2WingFurnishings } from './B2WingFurnishings'
+import { UpperB1Furnishings } from './UpperB1Furnishings'
+import { PlantFurnishings } from './PlantFurnishings'
 import { commonsSurfaces } from './commonsJoinery'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
@@ -100,7 +103,15 @@ export function RoomInteriors({ id }: { id: FloorId }) {
       <group ref={equipment}>
         <Model build={build} interior opaqueOrder={id === 'B2' && walkingFloor ? -5 : 0} />
       </group>
-      {id === 'B2' && <><Model build={commonsSurfaces} interior opaqueOrder={walkingFloor ? -4 : 0} /><CommonsFurnishings /></>}
+      {id === 'B2' && (
+        <>
+          <Model build={commonsSurfaces} interior opaqueOrder={walkingFloor ? -4 : 0} />
+          <CommonsFurnishings />
+          <B2WingFurnishings />
+        </>
+      )}
+      {(id === 'L2' || id === 'L1' || id === 'B1') && <UpperB1Furnishings id={id} />}
+      {(id === 'B3' || id === 'B4') && <PlantFurnishings id={id} />}
       {id === 'B2' && (
         <group name="B2 内墙饰面与样板陈设" visible={walkingFloor}>
           <Model build={residentialFinishes} interior opaqueOrder={-4} />

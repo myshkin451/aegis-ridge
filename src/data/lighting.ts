@@ -4,6 +4,9 @@ import { FLOORS } from './floors'
 import { pilotFixtures } from './roomLayouts/residential'
 import { footprint } from '../geometry/coords'
 import { bedrooms, laundry, publicBath } from '../geometry/residentialPlan'
+import { applyB2WingLighting } from './lightingOverrides/b2Wing'
+import { applyUpperB1Lighting } from './lightingOverrides/upperB1'
+import { applyPlantB34Lighting } from './lightingOverrides/plantB34'
 import type { FloorId, Point3, UndergroundId } from '../types/shelter'
 
 export type LightingTime = '10:30' | '19:30'
@@ -129,6 +132,9 @@ for (const time of ['10:30', '19:30'] as const) {
     }
   }
 }
+applyB2WingLighting(lighting)
+applyUpperB1Lighting(lighting)
+applyPlantB34Lighting(lighting)
 
 export function lightingRoomAt(floor: FloorId, x: number, z: number): string {
   if (floor === 'B2') {

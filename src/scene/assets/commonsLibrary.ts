@@ -99,3 +99,49 @@ export async function loadCommonsLibrary(gl: WebGLRenderer) {
   }
 }
 export type CommonsLibrary = Awaited<ReturnType<typeof loadCommonsLibrary>>
+
+export async function loadNativePackLibrary(
+  gl: WebGLRenderer,
+  packs: ReadonlyArray<readonly [pack: string, ids: readonly string[]]>,
+) {
+  const assets = new Map<string, SourceModel>()
+  const entries = packs.flatMap(([pack, ids]) => ids.map((id) => ({ key: pack + '/' + id, pack, id })))
+  if (entries.length === 0) return { assets, dispose: () => {} }
+  const loaded: Group[] = []
+  const manager = new LoadingManager()
+  manager.setURLModifier((url) =>
+    url === 'draco_wasm_wrapper.js' ? dracoWrapper : url === 'draco_decoder.wasm' ? dracoWasm : url,
+  )
+  const draco = new DRACOLoader(manager).setWorkerLimit(2)
+  const loader = new GLTFLoader(manager).setDRACOLoader(draco)
+  try {
+    const results = await Promise.allSettled(
+      entries.map(async ({ key, pack, id }) => {
+        const { scene } = await loader.loadAsync(import.meta.env.BASE_URL + 'assets/' + pack + '/' + id + '.glb')
+        loaded.push(scene)
+        scene.updateMatrixWorld(true)
+        const bounds = new Box3().setFromObject(scene, true)
+        const size = bounds.getSize(new Vector3())
+        if (Math.min(size.x, size.y, size.z) <= 0) throw new Error(key + ': invalid model extent')
+        const base = bounds.getCenter(new Vector3())
+        base.y = bounds.min.y
+        const materials = new Set<MeshStandardMaterial>()
+        scene.traverse((object) => {
+          if (!(object instanceof Mesh)) return
+          for (const material of Array.isArray(object.material) ? object.material : [object.material])
+            if (material instanceof MeshStandardMaterial) materials.add(material)
+        })
+        for (const material of materials) prepareMaterial(material, gl.capabilities.getMaxAnisotropy())
+        assets.set(key, { scene, size, base })
+      }),
+    )
+    for (const result of results) if (result.status === 'rejected') throw result.reason
+    return { assets, dispose: () => releaseScenes(loaded) }
+  } catch (error) {
+    releaseScenes(loaded)
+    throw error
+  } finally {
+    draco.dispose()
+  }
+}
+export type NativePackLibrary = Awaited<ReturnType<typeof loadNativePackLibrary>>

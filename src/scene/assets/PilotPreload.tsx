@@ -1,7 +1,16 @@
 import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { useThree } from '@react-three/fiber'
-import { loadCommonsLibrary, type CommonsLibrary } from './commonsLibrary'
+import {
+  loadCommonsLibrary,
+  loadNativePackLibrary,
+  type CommonsLibrary,
+  type NativePackLibrary,
+} from './commonsLibrary'
 import { CommonsLibraryContext } from './CommonsAssets'
+import { NativePacksContext } from './NativePbrAssets'
+import { b2WingPack } from '../../data/assets/b2WingPack'
+import { upperB1Pack } from '../../data/assets/upperB1Pack'
+import { plantPack } from '../../data/assets/plantPack'
 import { preloadFoliage } from '../terrain/foliageAssets'
 import { useShelterStore } from '../../store/useShelterStore'
 import {
@@ -19,20 +28,38 @@ export function PilotPreload({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [foliageReady, setFoliageReady] = useState(false)
   const [commons, setCommons] = useState<CommonsLibrary | null>(null)
+  const [nativePacks, setNativePacks] = useState<NativePackLibrary | null>(null)
   const [failure, setFailure] = useState<Error | null>(null)
   useLayoutEffect(() => {
     let mounted = true
     let resources: CommonsLibrary | undefined
-    void loadCommonsLibrary(gl).then((library) => {
-      if (!mounted) return library.dispose()
-      resources = library
-      setCommons(library)
-    }).catch((error) => {
-      if (mounted) setFailure(error instanceof Error ? error : new Error(String(error)))
-    })
+    let extra: NativePackLibrary | undefined
+    void Promise.all([
+      loadCommonsLibrary(gl),
+      loadNativePackLibrary(gl, [
+        ['b2-wing', b2WingPack],
+        ['upper-b1', upperB1Pack],
+        ['plant-b34', plantPack],
+      ]),
+    ])
+      .then(([library, packs]) => {
+        if (!mounted) {
+          library.dispose()
+          packs.dispose()
+          return
+        }
+        resources = library
+        extra = packs
+        setCommons(library)
+        setNativePacks(packs)
+      })
+      .catch((error) => {
+        if (mounted) setFailure(error instanceof Error ? error : new Error(String(error)))
+      })
     return () => {
       mounted = false
       resources?.dispose()
+      extra?.dispose()
     }
   }, [gl])
   useLayoutEffect(() => {
@@ -82,6 +109,9 @@ export function PilotPreload({ children }: { children: ReactNode }) {
     }
   }, [gl])
   if (failure) throw failure
-  return ready && foliageReady && commons ?
-    <CommonsLibraryContext.Provider value={commons}>{children}</CommonsLibraryContext.Provider> : null
+  return ready && foliageReady && commons && nativePacks ? (
+    <CommonsLibraryContext.Provider value={commons}>
+      <NativePacksContext.Provider value={nativePacks}>{children}</NativePacksContext.Provider>
+    </CommonsLibraryContext.Provider>
+  ) : null
 }
