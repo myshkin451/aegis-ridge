@@ -366,7 +366,7 @@ export function PhysicalSky() {
     <>
       <group ref={outer}>
         <primitive object={sky} />
-        <mesh geometry={ridges}>
+        <mesh geometry={ridges} visible={new URLSearchParams(location.search).get('terrain') === 'v1'}>
           <meshBasicMaterial vertexColors side={DoubleSide} />
         </mesh>
         <primitive object={clouds.group} />

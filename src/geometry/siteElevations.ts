@@ -11,9 +11,23 @@ export interface TileInfo {
   file: string
   sha256: string
 }
+export interface ReliefFile {
+  n: number
+  file: string
+  sha256: string
+}
+export interface ReliefGrid {
+  n: number
+  bytes: Uint8Array<ArrayBuffer>
+}
+export interface ReliefMaps<T> {
+  horizons: T
+  macroNormal: T
+}
 export interface AtlasInfo {
   version: number
   seed: number
+  relief?: ReliefMaps<ReliefFile>
   tiles: TileInfo[]
   insets: TileInfo[]
   road: Point3[]
@@ -22,6 +36,7 @@ export interface TerrainTile extends TileInfo {
   bytes: Uint8Array
 }
 export interface TerrainAtlas {
+  relief?: ReliefMaps<ReliefGrid>
   tiles: TerrainTile[]
   insets: TerrainTile[]
   road: Point3[]

@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Float32BufferAttribute } from 'three'
+import { BufferAttribute, BufferGeometry, Color, Float32BufferAttribute, Uint8BufferAttribute } from 'three'
 import { cutMouth, nearMouth } from './portalCut'
 import type { GroundSample, TerrainTile, TileInfo } from '../../geometry/siteElevations'
 import { sampleTile, vertex } from '../../geometry/siteElevations'
@@ -48,24 +48,114 @@ function axis(tile: TerrainTile, extras: number[]) {
     ...new Set([...Array.from({ length: tile.n }, (_, i) => i * tile.step - tile.span / 2), ...extras]),
   ].sort((a, b) => a - b)
 }
-export function tileSurface(tile: TerrainTile, children: TileInfo[]) {
+// Downhill aspect is periodic. Its north-facing component is continuous across ±π.
+function surveyBytes(sample: GroundSample) {
+  return [
+    Math.round((sample.slope / 90) * 255),
+    Math.round((sample.curvature + 1) * 127.5),
+    Math.round(sample.flow * 255),
+    Math.round((1 - Math.cos(sample.aspect)) * 127.5),
+  ]
+}
+
+type GridWindow = { x: number; z: number; endX: number; endZ: number }
+
+export function tileSurfaceParts(tile: TerrainTile, children: TileInfo[], photographed: boolean) {
+  if (!photographed || tile.n < 400) return [tileSurface(tile, children, photographed)]
+  // These survey sheets surround the camera. Limit vertex work to the current view cone.
+  const parts: BufferGeometry[] = []
+  const boundary = (i: number) => Math.round((i * (tile.n - 1)) / 4)
+  for (let z = 0; z < 4; z++)
+    for (let x = 0; x < 4; x++) {
+      const part = tileSurface(tile, children, true, {
+        x: boundary(x),
+        z: boundary(z),
+        endX: boundary(x + 1),
+        endZ: boundary(z + 1),
+      })
+      if (part.index?.count) parts.push(part)
+      else part.dispose()
+    }
+  return parts
+}
+
+// Decode the original byte angles once. Vertices shared by two patches get identical normals.
+const gradients = Array.from({ length: 256 }, (_, i) => {
+  const slope = (i * Math.PI) / 510
+  const aspect = (i * 2 * Math.PI) / 255 - Math.PI
+  return {
+    sinSlope: Math.sin(slope),
+    cosSlope: Math.cos(slope),
+    sinAspect: Math.sin(aspect),
+    cosAspect: Math.cos(aspect),
+    north: Math.round((1 - Math.cos(aspect)) * 127.5),
+  }
+})
+
+function surveyNormal(sample: GroundSample) {
+  const tilt = (sample.slope * Math.PI) / 180
+  return [
+    Math.round(127 * Math.sin(tilt) * Math.sin(sample.aspect)),
+    Math.round(127 * Math.cos(tilt)),
+    Math.round(127 * Math.sin(tilt) * Math.cos(sample.aspect)),
+  ]
+}
+
+export function tileSurface(
+  tile: TerrainTile,
+  children: TileInfo[],
+  photographed = false,
+  region?: GridWindow,
+) {
   const core = tile.id === 'core'
-  const xs = axis(tile, core ? [station.x0, station.x1] : []).map((x) => x + tile.cx),
-    zs = axis(tile, core ? [station.z0, station.z1] : []).map((z) => z + tile.cz)
+  const xs = axis(tile, core ? [station.x0, station.x1] : [])
+    .slice(region?.x, region && region.endX + 1)
+    .map((x) => x + tile.cx)
+  const zs = axis(tile, core ? [station.z0, station.z1] : [])
+    .slice(region?.z, region && region.endZ + 1)
+    .map((z) => z + tile.cz)
   const pos = new Float32Array(xs.length * zs.length * 3),
-    col = new Float32Array(pos.length)
+    col = photographed ? undefined : new Float32Array(pos.length),
+    drivers = photographed ? new Uint8Array(xs.length * zs.length * 4) : undefined
   const indices: number[] = [],
     extraPos: number[] = [],
     extraCol: number[] = [],
+    extraDrivers: number[] = [],
+    normals = photographed ? new Int8Array(pos.length) : null,
+    extraNormals: number[] = [],
     color = new Color()
   for (let j = 0; j < zs.length; j++)
     for (let i = 0; i < xs.length; i++) {
       const x = xs[i],
         z = zs[j],
         k = j * xs.length + i
-      const s = core ? sampleTile(tile, x, z) : vertex(tile, k)
-      pos.set([x, s.height, z], k * 3)
-      terrainColor(s, x, z, color).toArray(col, k * 3)
+      const sourceIndex = (j + (region?.z ?? 0)) * tile.n + i + (region?.x ?? 0)
+      const pointOffset = k * 3,
+        driverOffset = k * 4
+      pos[pointOffset] = x
+      pos[pointOffset + 2] = z
+      if (drivers && normals && !core) {
+        const bytes = tile.bytes,
+          offset = sourceIndex * 6
+        const slope = gradients[bytes[offset + 2]],
+          aspect = gradients[bytes[offset + 5]]
+        pos[pointOffset + 1] = (bytes[offset] + bytes[offset + 1] * 256) / 32 - 512
+        drivers[driverOffset] = bytes[offset + 2]
+        drivers[driverOffset + 1] = bytes[offset + 3]
+        drivers[driverOffset + 2] = bytes[offset + 4]
+        drivers[driverOffset + 3] = aspect.north
+        normals[pointOffset] = Math.round(127 * slope.sinSlope * aspect.sinAspect)
+        normals[pointOffset + 1] = Math.round(127 * slope.cosSlope)
+        normals[pointOffset + 2] = Math.round(127 * slope.sinSlope * aspect.cosAspect)
+      } else {
+        const sample = core ? sampleTile(tile, x, z) : vertex(tile, sourceIndex)
+        pos[pointOffset + 1] = sample.height
+        if (col) terrainColor(sample, x, z, color).toArray(col, pointOffset)
+        if (drivers && normals) {
+          drivers.set(surveyBytes(sample), driverOffset)
+          normals.set(surveyNormal(sample), pointOffset)
+        }
+      }
       if (i === 0 || j === 0) continue
       const cx = (x + xs[i - 1]) / 2,
         cz = (z + zs[j - 1]) / 2
@@ -95,18 +185,42 @@ export function tileSurface(tile: TerrainTile, children: TileInfo[]) {
           const start = (pos.length + extraPos.length) / 3
           for (const pt of polygon) {
             extraPos.push(...pt)
-            terrainColor(sampleTile(tile, pt[0], pt[2]), pt[0], pt[2], color)
-            extraCol.push(color.r, color.g, color.b)
+            const sample = sampleTile(tile, pt[0], pt[2])
+            if (drivers) {
+              extraDrivers.push(...surveyBytes(sample))
+              extraNormals.push(...surveyNormal(sample))
+            }
+            if (col) {
+              terrainColor(sample, pt[0], pt[2], color)
+              extraCol.push(color.r, color.g, color.b)
+            }
           }
           for (let q = 2; q < polygon.length; q++) indices.push(start, start + q - 1, start + q)
         }
       }
     }
   const g = new BufferGeometry()
-  g.setAttribute('position', new Float32BufferAttribute(extraPos.length ? [...pos, ...extraPos] : pos, 3))
-  g.setAttribute('color', new Float32BufferAttribute(extraCol.length ? [...col, ...extraCol] : col, 3))
+  const positions = extraPos.length ? new Float32Array(pos.length + extraPos.length) : pos
+  if (extraPos.length) {
+    positions.set(pos)
+    positions.set(extraPos, pos.length)
+  }
+  g.setAttribute('position', new BufferAttribute(positions, 3))
+  if (col) g.setAttribute('color', new Float32BufferAttribute(extraCol.length ? [...col, ...extraCol] : col, 3))
+  if (drivers)
+    g.setAttribute(
+      'landSurvey',
+      new Uint8BufferAttribute(extraDrivers.length ? [...drivers, ...extraDrivers] : drivers, 4, true),
+    )
   g.setIndex(indices)
-  g.computeVertexNormals()
+  if (normals) {
+    const packed = extraNormals.length ? new Int8Array(normals.length + extraNormals.length) : normals
+    if (extraNormals.length) {
+      packed.set(normals)
+      packed.set(extraNormals, normals.length)
+    }
+    g.setAttribute('normal', new BufferAttribute(packed, 3, true))
+  } else g.computeVertexNormals()
   g.computeBoundingSphere()
   return g
 }
@@ -114,8 +228,7 @@ export function tileSurface(tile: TerrainTile, children: TileInfo[]) {
 export function sectionFace(core: TerrainTile, z: number) {
   const fraction = ((z + core.span / 2) / core.step) % 1
   const xs = axis(core, [undergroundPlan.x0, undergroundPlan.x1, station.x0, station.x1])
-  if (fraction > 1e-8)
-    for (let i = 0; i < core.n - 1; i++) xs.push(-core.span / 2 + (i + fraction) * core.step)
+  if (fraction > 1e-8) for (let i = 0; i < core.n - 1; i++) xs.push(-core.span / 2 + (i + fraction) * core.step)
   const voids = boreVoids(z)
   for (const opening of voids)
     for (const x of [opening.left, opening.right]) if (Math.abs(x) < core.span / 2) xs.push(x)
