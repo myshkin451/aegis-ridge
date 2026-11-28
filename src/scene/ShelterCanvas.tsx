@@ -1,5 +1,5 @@
 import { PilotPreload } from './assets/PilotPreload'
-import { Canvas, useLoader } from '@react-three/fiber'
+import { Canvas } from '@react-three/fiber'
 import { Component, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AgXToneMapping, PCFSoftShadowMap } from 'three'
@@ -10,7 +10,7 @@ import { UndergroundShell } from './UndergroundShell'
 import { MultiScaleMountain } from './terrain/MultiScaleMountain'
 import { StationClosures } from './terrain/StationClosures'
 import { SiteFacilities, TunnelModels } from './terrain/SiteFacilities'
-import { AtlasLoader } from './terrain/loadAtlas'
+import { useTerrainSurvey } from './terrain/useTerrainSurvey'
 import { BuildingSection } from './BuildingSection'
 import { useShelterStore } from '../store/useShelterStore'
 import { LockdownTourCamera } from './atmosphere/LockdownTour'
@@ -27,16 +27,16 @@ import { DrawingMarks } from './DrawingMarks'
 import { MepNetworkScene } from './mep/MepNetworkScene'
 
 function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
-  const atlas = useLoader(AtlasLoader, import.meta.env.BASE_URL + 'terrain/atlas.json')
+  const { atlas, surface } = useTerrainSurvey()
   const rt = useMemo(surveyRuntime, [])
   const xray = useShelterStore((s) => s.mode === 'xray')
   const routeOverview = useShelterStore(s => s.routeOverview)
   const structure = useShelterStore((s) => s.layers.structure)
   return (
     <PilotPreload>
-      <QualityControl onDprChange={onDprChange}>
+      {atlas && <QualityControl onDprChange={onDprChange}>
         <PhysicalSky />
-        <MultiScaleMountain atlas={atlas} />
+        <MultiScaleMountain atlas={atlas} surface={surface} />
         <group visible={routeOverview || !xray || structure}>
           <BuildingSection>
             <UndergroundShell rt={rt} />
@@ -61,7 +61,7 @@ function SurveyScene({ onDprChange }: { onDprChange: (dpr: number) => void }) {
         <SceneReadouts rt={rt} />
         <SunShadows rt={rt} />
         <RenderPipeline />
-      </QualityControl>
+      </QualityControl>}
     </PilotPreload>
   )
 }

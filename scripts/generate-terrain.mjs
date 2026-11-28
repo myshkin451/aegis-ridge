@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { bakeHorizonAngles, macroNormals } from './terrain-relief.mjs'
 
 const survey = JSON.parse(await readFile(new URL('../src/data/siteSurvey.json', import.meta.url), 'utf8'))
 const output = new URL('../public/terrain/', import.meta.url)
@@ -264,6 +265,31 @@ function interp(t, x, z) {
     : h[k] * (1 - v) + h[k + t.n] * (v - u) + h[k + t.n + 1] * u
 }
 
+function encodeField(height, n, step) {
+  const { flux } = drainage(height, n, step)
+  const bytes = Buffer.alloc(n * n * 6)
+  for (let z = 0; z < n; z++)
+    for (let x = 0; x < n; x++) {
+      const i = z * n + x,
+        offset = i * 6,
+        h = height[i]
+      const left = height[z * n + Math.max(0, x - 1)],
+        right = height[z * n + Math.min(n - 1, x + 1)]
+      const up = height[Math.max(0, z - 1) * n + x],
+        down = height[Math.min(n - 1, z + 1) * n + x]
+      const dx = (right - left) / (2 * step),
+        dz = (down - up) / (2 * step)
+      bytes.writeUInt16LE(Math.round((h + 512) * 32), offset)
+      bytes[offset + 2] = Math.round((Math.atan(Math.hypot(dx, dz)) * 510) / Math.PI)
+      bytes[offset + 3] = Math.round(
+        127.5 + 127.5 * Math.tanh((3 * (left + right + up + down - 4 * h)) / step),
+      )
+      bytes[offset + 4] = Math.round(255 * clamp(Math.log1p(flux[i] - 1) / Math.log(1024)))
+      bytes[offset + 5] = Math.round((255 * (Math.atan2(-dx, -dz) + Math.PI)) / (2 * Math.PI))
+    }
+  return bytes
+}
+
 await mkdir(output, { recursive: true })
 async function publish(name, bytes) {
   const file = new URL(name, output)
@@ -296,27 +322,7 @@ for (const { id, span, step, cx = 0, cz = 0, parent: parentId } of layers) {
     }
     height[i] = Math.round(h * 32) / 32
   }
-  const { flux } = drainage(height, n, step)
-  const bytes = Buffer.alloc(n * n * 6)
-  for (let z = 0; z < n; z++)
-    for (let x = 0; x < n; x++) {
-      const i = z * n + x,
-        offset = i * 6,
-        h = height[i]
-      const left = height[z * n + Math.max(0, x - 1)],
-        right = height[z * n + Math.min(n - 1, x + 1)]
-      const up = height[Math.max(0, z - 1) * n + x],
-        down = height[Math.min(n - 1, z + 1) * n + x]
-      const dx = (right - left) / (2 * step),
-        dz = (down - up) / (2 * step)
-      bytes.writeUInt16LE(Math.round((h + 512) * 32), offset)
-      bytes[offset + 2] = Math.round((Math.atan(Math.hypot(dx, dz)) * 510) / Math.PI)
-      bytes[offset + 3] = Math.round(
-        127.5 + 127.5 * Math.tanh((3 * (left + right + up + down - 4 * h)) / step),
-      )
-      bytes[offset + 4] = Math.round(255 * clamp(Math.log1p(flux[i] - 1) / Math.log(1024)))
-      bytes[offset + 5] = Math.round((255 * (Math.atan2(-dx, -dz) + Math.PI)) / (2 * Math.PI))
-    }
+  const bytes = encodeField(height, n, step)
   const file = id + '.bin'
   await publish(file, bytes)
   const group = cx || cz ? insets : tiles
@@ -333,5 +339,143 @@ for (const { id, span, step, cx = 0, cz = 0, parent: parentId } of layers) {
   })
   grids.set(id, { span, step, n, height, cx, cz })
 }
-await publish('atlas.json', Buffer.from(JSON.stringify({ version: 1, seed, tiles, insets, road }) + '\n'))
-console.log('ARS-01 terrain: ' + tiles.map((t) => t.id + ' ' + t.n + '×' + t.n).join(', ') + '; 5 channels')
+// V1 is also the surveyed boundary condition of the unchanged 2.4 km field.
+await publish('atlas-v1.json', Buffer.from(JSON.stringify({ version: 1, seed, tiles, insets, road }) + '\n'))
+
+// Oblique, finite watersheds replace the concentric ridge train outside the M4 mountain.
+const ranges = [
+  // centre (east, south), strike in radians, half-length, half-width, relief
+  [-3670, -2670, 0.22, 2600, 660, 1080],
+  [-2120, 470, 1.16, 2450, 540, 670],
+  [-3650, 1340, 0.9, 2700, 650, 1000],
+  [-810, 3260, -0.3, 3200, 580, 760],
+  [1310, -3100, -0.48, 2950, 680, 940],
+  [2230, -380, 1.11, 1440, 420, 520],
+  [3600, 1410, 0.94, 2070, 505, 785],
+  [4480, -1740, 1.18, 3180, 740, 1210],
+  [2170, 4320, 0.08, 2660, 620, 1050],
+  [-4770, 3870, -0.74, 2800, 680, 1110],
+].map(([cx, cz, strike, length, width, relief]) => ({
+  cx,
+  cz,
+  u: Math.cos(strike),
+  v: Math.sin(strike),
+  length,
+  width,
+  relief,
+}))
+
+function outerRelief(x, z) {
+  const valley = -264 + 63 * noise(x / 1180 + 6, z / 1180)
+  let top = valley
+  const warp = 210 * noise(x / 820 + 19, z / 820) + 55 * noise(x / 260, z / 260 - 6)
+  for (const range of ranges) {
+    const dx = x - range.cx,
+      dz = z - range.cz
+    const along = dx * range.u + dz * range.v
+    const across = (dz * range.u - dx * range.v + warp) / range.width
+    if (Math.abs(across) > 3.2 || Math.abs(along) > range.length * 1.5) continue
+    const taper = 1 - smooth(0.45, 1.5, Math.abs(along) / range.length)
+    const saddle = 0.82 + 0.28 * noise(along / 710 + range.cz * 0.001, 12)
+    const spur = 1 + 0.27 * noise(along / 240, across * 1.8)
+    const profile = Math.exp(-Math.pow(Math.abs(across) / spur, 1.36))
+    top = Math.max(top, valley + range.relief * taper * saddle * profile)
+  }
+  const uplift = smooth(10, 570, top - valley)
+  const crease = Math.abs(noise((x + warp) / 116, z / 164 + 18))
+  const channel = (1 - smooth(0, 0.24, crease)) * (15 + 29 * uplift)
+  const outcrops = 23 * noise(x / 163, z / 141) + 10 * noise(x / 56, z / 47)
+  return top + outcrops * (0.4 + 0.6 * uplift) - channel
+}
+
+const digest = (data) => createHash('sha256').update(data).digest('hex')
+const revision = digest(
+  Buffer.concat(
+    await Promise.all([
+      readFile(new URL(import.meta.url)),
+      readFile(new URL('./terrain-relief.mjs', import.meta.url)),
+      readFile(new URL('../src/data/siteSurvey.json', import.meta.url)),
+    ]),
+  ),
+)
+// pretest and prebuild share this reproducible bake; validate bytes before reusing it.
+async function currentBake() {
+  try {
+    const info = JSON.parse(await readFile(new URL('atlas.json', output), 'utf8'))
+    if (info.version !== 2 || info.revision !== revision) return false
+    const files = [info.tiles[0], info.relief.horizons, info.relief.macroNormal]
+    return (
+      await Promise.all(files.map(async (f) => digest(await readFile(new URL(f.file, output))) === f.sha256))
+    ).every(Boolean)
+  } catch (error) {
+    if (error.code === 'ENOENT' || error instanceof SyntaxError) return false
+    throw error
+  }
+}
+if (!(await currentBake())) {
+  const legacy = grids.get('horizon')
+  const span = legacy.span,
+    fineStep = 10,
+    fineN = 1 + span / fineStep
+  const fine = new Float32Array(fineN * fineN)
+  for (let j = 0; j < fineN; j++)
+    for (let i = 0; i < fineN; i++)
+      fine[j * fineN + i] = outerRelief(i * fineStep - span / 2, j * fineStep - span / 2)
+  erode(fine, fineN, fineStep)
+  // Join at exactly the same heights as the original parent, even between 40 m vertices.
+  for (let j = 0; j < fineN; j++)
+    for (let i = 0; i < fineN; i++) {
+      const x = i * fineStep - span / 2,
+        z = j * fineStep - span / 2
+      const blend = smooth(1200, 1500, Math.max(Math.abs(x), Math.abs(z)))
+      const k = j * fineN + i
+      if (blend < 1) fine[k] = mix(interp(legacy, x, z), fine[k], blend)
+    }
+  const step = 20,
+    n = 1 + span / step,
+    height = new Float32Array(n * n)
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) height[j * n + i] = Math.round(fine[2 * j * fineN + 2 * i] * 32) / 32
+  const outer = { cx: 0, cz: 0, span, n, step, height }
+  const bytes = encodeField(height, n, step)
+  async function asset(file, bytes) {
+    await publish(file, bytes)
+    return { file, sha256: digest(bytes) }
+  }
+  const outerInfo = { ...tiles[0], n, step, ...(await asset('horizon-v2.bin', bytes)) }
+  const inner = grids.get('mountain')
+  const patches = ['east-mouth', 'west-mouth', 'core', 'site'].map((key) => grids.get(key))
+  function surface(x, z) {
+    for (const tile of patches)
+      if (Math.max(Math.abs(x - tile.cx), Math.abs(z - tile.cz)) <= tile.span / 2) return interp(tile, x, z)
+    return interp(inner, x, z)
+  }
+  // The normal texture and horizon observers see the nested site, including its graded roads.
+  for (let j = 0; j < inner.n; j++)
+    for (let i = 0; i < inner.n; i++) {
+      const x = i * inner.step - inner.span / 2,
+        z = j * inner.step - inner.span / 2
+      inner.height[j * inner.n + i] = surface(x, z)
+      if (i % 2 === 0 && j % 2 === 0)
+        fine[((z + span / 2) / fineStep) * fineN + (x + span / 2) / fineStep] = inner.height[j * inner.n + i]
+    }
+  const macroNormal = { n: fineN, ...(await asset('macro-normal.rg', macroNormals(fine, fineN, fineStep))) }
+  const horizonN = 201
+  const horizons = {
+    n: horizonN,
+    ...(await asset('horizon-angles.r8', bakeHorizonAngles(inner, outer, horizonN, interp, surface))),
+  }
+  const info = {
+    version: 2,
+    revision,
+    seed,
+    tiles: [outerInfo, ...tiles.slice(1)],
+    insets,
+    road,
+    relief: { macroNormal, horizons },
+  }
+  await publish('atlas.json', Buffer.from(JSON.stringify(info) + '\n'))
+}
+console.log(
+  'ARS-01 terrain: 20 m outer mesh, 10 m surface normals, 16 horizon bearings × 2 scales; M4 local surveys retained.',
+)

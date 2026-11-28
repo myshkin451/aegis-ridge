@@ -1,3 +1,8 @@
+if (process.argv[2] === 'v2') {
+  await import('./capture-terrain.mjs')
+  process.exit(0)
+}
+
 import { chromium } from 'playwright'
 import { preview } from 'vite'
 import { createHash } from 'node:crypto'
@@ -68,6 +73,15 @@ try {
     reducedMotion: 'reduce',
   })
   await page.addInitScript(() => sessionStorage.setItem('ars-keys', '1'))
+  if (['m1.5b', 'm2', 'm2.5a', 'm2.5b', 'm2.5c', 'm3', 'm4'].includes(milestone)) {
+    await page.addInitScript(() => {
+      const url = new URL(location.href)
+      if (url.protocol === 'http:' && !url.searchParams.has('terrain')) {
+        url.searchParams.set('terrain', 'v1')
+        history.replaceState(history.state, '', url)
+      }
+    })
+  }
   page.setDefaultTimeout(90000)
   const errors = []
   page.on('pageerror', (e) => {

@@ -1,19 +1,6 @@
 import { printLayerOffset, packScan, scanSize, type AtlasSources, type PackedAtlas } from './finishScans'
 
-/** Decoding and channel packing also run here when the walkthrough receives an asset late. */
-async function readPixels(blob: Blob, print = false) {
-  const image = await createImageBitmap(blob, { colorSpaceConversion: 'none', imageOrientation: 'flipY' })
-  try {
-    if (Math.max(image.width, image.height) !== scanSize || (!print && Math.min(image.width, image.height) !== scanSize)) {
-      throw Error('Unexpected scan or print dimensions')
-    }
-    const ctx = new OffscreenCanvas(scanSize, scanSize).getContext('2d', { willReadFrequently: true })!
-    ctx.drawImage(image, 0, 0, scanSize, scanSize)
-    return ctx.getImageData(0, 0, scanSize, scanSize).data
-  } finally {
-    image.close()
-  }
-}
+import { readPixels } from './readScanPixels'
 
 self.onmessage = async ({ data }: MessageEvent<AtlasSources>) => {
   const stride = scanSize * scanSize * 4
